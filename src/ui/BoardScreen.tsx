@@ -30,6 +30,7 @@ import {
   setLastSeen,
   type Session,
 } from "../config";
+import { getFreshToken } from "../auth/token";
 import { SceneBridge, sanitizeElement, type Digest, type TimerState } from "../crdt/scene";
 import { SnapshotStore, type SnapshotInfo } from "../history/snapshots";
 import { AssetStore, assetObjectUrl, parseAssetRef } from "../storage/assets";
@@ -142,7 +143,7 @@ export function BoardScreen({ session, onClose }: Props) {
     () =>
       new AssetStore(
         new GitHubAdapter({
-          token: session.token,
+          token: getFreshToken,
           owner: session.owner,
           repo: session.repo,
           branch: session.branch,
@@ -151,7 +152,7 @@ export function BoardScreen({ session, onClose }: Props) {
         session.passphrase,
         session.path,
       ),
-    [session.token, session.owner, session.repo, session.branch, session.path, session.passphrase],
+    [session.owner, session.repo, session.branch, session.path, session.passphrase],
   );
   const uploadVideoAsset = useCallback(
     (bytes: Uint8Array, mime: string) => assetStore.put(bytes, mime),
@@ -365,7 +366,7 @@ export function BoardScreen({ session, onClose }: Props) {
 
     const persistence = new IndexeddbPersistence(`slate:${key}`, doc);
     const adapter = new GitHubAdapter({
-      token: session.token,
+      token: getFreshToken,
       owner: session.owner,
       repo: session.repo,
       branch: session.branch,
@@ -490,7 +491,6 @@ export function BoardScreen({ session, onClose }: Props) {
     };
   }, [
     key,
-    session.token,
     session.owner,
     session.repo,
     session.branch,
@@ -1185,7 +1185,7 @@ export function BoardScreen({ session, onClose }: Props) {
 
     try {
       const issue = await createGitHubIssue(
-        session.token,
+        getFreshToken,
         session.owner,
         session.repo,
         issueTitle,

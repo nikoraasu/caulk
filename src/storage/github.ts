@@ -7,6 +7,7 @@
  * ConflictError the sync engine resolves by merging and retrying.
  */
 
+import { withAuth, type TokenSource } from "../auth/token";
 import { base64ToBytes, bytesToBase64 } from "../lib/bytes";
 import type { RateLimit, ReadResult, StorageAdapter, WriteResult } from "./types";
 
@@ -32,7 +33,8 @@ export class ConflictError extends GitHubError {
 }
 
 export type GitHubConfig = {
-  token: string;
+  /** A fixed token, or a provider that refreshes it and retries once on 401. */
+  token: TokenSource;
   owner: string;
   repo: string;
   branch: string;
@@ -66,10 +68,16 @@ export class GitHubAdapter implements StorageAdapter {
   private headers(extra?: Record<string, string>): Record<string, string> {
     return {
       Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${this.cfg.token}`,
       "X-GitHub-Api-Version": API_VERSION,
       ...extra,
     };
+  }
+
+  /** fetch with the Authorization header added per attempt, so a refreshed token is used on retry. */
+  private send(url: string, init: RequestInit = {}): Promise<Response> {
+    return withAuth(this.cfg.token, (t) =>
+      fetch(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${t}` } }),
+    );
   }
 
   private noteRateLimit(res: Response): void {
@@ -98,7 +106,7 @@ export class GitHubAdapter implements StorageAdapter {
 
   /** List a directory. Returns [] when it does not exist yet. */
   async listDir(dirPath: string): Promise<Array<{ name: string; size: number; sha: string }>> {
-    const res = await fetch(
+    const res = await this.send(
       `${this.fileUrlFor(dirPath)}?ref=${encodeURIComponent(this.cfg.branch)}`,
       { headers: this.headers(), cache: "no-store" },
     );
@@ -118,7 +126,7 @@ export class GitHubAdapter implements StorageAdapter {
   }
 
   async remove(path: string, sha: string, message: string): Promise<void> {
-    const res = await fetch(this.fileUrlFor(path), {
+    const res = await this.send(this.fileUrlFor(path), {
       method: "DELETE",
       headers: this.headers({ "Content-Type": "application/json" }),
       body: JSON.stringify({ message, sha, branch: this.cfg.branch }),
@@ -149,7 +157,7 @@ export class GitHubAdapter implements StorageAdapter {
   }
 
   async read(etag?: string): Promise<ReadResult> {
-    const res = await fetch(`${this.fileUrl()}?ref=${encodeURIComponent(this.cfg.branch)}`, {
+    const res = await this.send(`${this.fileUrl()}?ref=${encodeURIComponent(this.cfg.branch)}`, {
       headers: this.headers(etag ? { "If-None-Match": etag } : undefined),
       cache: "no-store",
     });
@@ -170,6 +178,7 @@ export class GitHubAdapter implements StorageAdapter {
     if (body.type && body.type !== "file") {
       throw new GitHubError(422, `"${this.cfg.path}" exists but is a ${body.type}, not a file.`);
     }
+    let blobError: unknown;
     if (body.encoding === "none" || (!body.content && (body.size ?? 0) > 0)) {
       if (body.sha) {
         // GitHub Contents API does not inline content for files > 1 MB.
@@ -180,7 +189,7 @@ export class GitHubAdapter implements StorageAdapter {
 
         // Attempt 1: Fetch raw binary directly using application/vnd.github.raw
         try {
-          const blobRes = await fetch(blobUrl, {
+          const blobRes = await this.send(blobUrl, {
             headers: this.headers({ Accept: "application/vnd.github.raw" }),
             cache: "no-store",
           });
@@ -194,13 +203,13 @@ export class GitHubAdapter implements StorageAdapter {
               etag: res.headers.get("etag") ?? undefined,
             };
           }
-        } catch {
-          /* try JSON fallback below */
+        } catch (err) {
+          blobError = err; // try JSON fallback below
         }
 
         // Attempt 2: Fetch via JSON (content base64 encoded)
         try {
-          const jsonBlobRes = await fetch(blobUrl, {
+          const jsonBlobRes = await this.send(blobUrl, {
             headers: this.headers({ Accept: "application/vnd.github+json" }),
             cache: "no-store",
           });
@@ -216,10 +225,13 @@ export class GitHubAdapter implements StorageAdapter {
               };
             }
           }
-        } catch {
-          /* fallback to error */
+        } catch (err) {
+          blobError = err;
         }
       }
+
+      // A login problem is not a size problem: surface it as is.
+      if (blobError instanceof Error && !(blobError instanceof TypeError)) throw blobError;
 
       throw new GitHubError(
         413,
@@ -237,7 +249,7 @@ export class GitHubAdapter implements StorageAdapter {
   }
 
   async write(bytes: Uint8Array, prevSha: string | undefined, message: string): Promise<WriteResult> {
-    const res = await fetch(this.fileUrl(), {
+    const res = await this.send(this.fileUrl(), {
       method: "PUT",
       headers: this.headers({ "Content-Type": "application/json" }),
       body: JSON.stringify({
@@ -348,7 +360,68 @@ export type GitHubRepoItem = {
   canPush: boolean;
 };
 
-export async function fetchUserRepos(token: string): Promise<GitHubRepoItem[]> {
+type RepoJson = {
+  full_name?: string;
+  name?: string;
+  owner?: { login?: string };
+  private?: boolean;
+  default_branch?: string;
+  permissions?: { push?: boolean };
+};
+
+function toRepoItem(r: RepoJson): GitHubRepoItem {
+  return {
+    fullName: r.full_name || "",
+    owner: r.owner?.login || "",
+    name: r.name || "",
+    private: Boolean(r.private),
+    defaultBranch: r.default_branch || "main",
+    canPush: Boolean(r.permissions?.push),
+  };
+}
+
+/**
+ * Repos a GitHub App user token can reach: every installation the user can see,
+ * then every repo granted to each one. Deduped by full name.
+ */
+async function fetchAppRepos(token: string): Promise<GitHubRepoItem[]> {
+  const headers = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+    "X-GitHub-Api-Version": API_VERSION,
+  };
+  const seen = new Map<string, GitHubRepoItem>();
+
+  for (let page = 1; ; page++) {
+    const res = await fetch(`${API}/user/installations?per_page=100&page=${page}`, { headers });
+    if (!res.ok) break;
+    const body = (await res.json()) as { installations?: Array<{ id?: number }> };
+    const installations = Array.isArray(body.installations) ? body.installations : [];
+
+    for (const installation of installations) {
+      if (installation.id === undefined) continue;
+      for (let repoPage = 1; ; repoPage++) {
+        const repoRes = await fetch(
+          `${API}/user/installations/${installation.id}/repositories?per_page=100&page=${repoPage}`,
+          { headers },
+        );
+        if (!repoRes.ok) break;
+        const repoBody = (await repoRes.json()) as { repositories?: RepoJson[] };
+        const repos = Array.isArray(repoBody.repositories) ? repoBody.repositories : [];
+        for (const repo of repos) {
+          const item = toRepoItem(repo);
+          if (!seen.has(item.fullName)) seen.set(item.fullName, item);
+        }
+        if (repos.length < 100) break;
+      }
+    }
+    if (installations.length < 100) break;
+  }
+  return [...seen.values()];
+}
+
+export async function fetchUserRepos(token: string, kind: "pat" | "app" = "pat"): Promise<GitHubRepoItem[]> {
+  if (kind === "app") return fetchAppRepos(token);
   const res = await fetch(
     `${API}/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator`,
     {
@@ -360,23 +433,9 @@ export async function fetchUserRepos(token: string): Promise<GitHubRepoItem[]> {
     },
   );
   if (!res.ok) return [];
-  const body = (await res.json()) as Array<{
-    full_name?: string;
-    name?: string;
-    owner?: { login?: string };
-    private?: boolean;
-    default_branch?: string;
-    permissions?: { push?: boolean };
-  }>;
+  const body = (await res.json()) as RepoJson[];
   if (!Array.isArray(body)) return [];
-  return body.map((r) => ({
-    fullName: r.full_name || "",
-    owner: r.owner?.login || "",
-    name: r.name || "",
-    private: Boolean(r.private),
-    defaultBranch: r.default_branch || "main",
-    canPush: Boolean(r.permissions?.push),
-  }));
+  return body.map(toRepoItem);
 }
 
 export async function listRepoBoards(

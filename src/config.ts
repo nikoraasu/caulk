@@ -1,5 +1,12 @@
 /** Where a board lives, who you are, plus how we authenticate to it. */
 
+import {
+  clearStoredToken,
+  loadStoredToken,
+  saveStoredToken,
+  type TokenKind,
+} from "./auth/token";
+
 export type BoardTarget = {
   owner: string;
   repo: string;
@@ -11,20 +18,20 @@ export type Identity = { id: string; name: string };
 
 export type Session = BoardTarget & {
   token: string;
+  tokenKind: TokenKind;
+  refreshToken?: string;
+  expiresAt?: number;
   passphrase: string;
   identity: Identity;
   initialAllowedNicknames?: string[];
 };
 
 const TARGET_KEY = "caulk.target.v1";
-const TOKEN_KEY = "caulk.token.v1";
-const SESSION_TOKEN_KEY = "caulk.token.session.v1";
 const PASSPHRASE_KEY = "caulk.passphrase.v1";
 const IDENTITY_KEY = "caulk.identity.v1";
 const LAST_SEEN_KEY = "caulk.lastseen.v1";
 
 const LEGACY_TARGET_KEY = "slateboard.target.v1";
-const LEGACY_TOKEN_KEY = "slateboard.token.v1";
 const LEGACY_PASSPHRASE_KEY = "slateboard.passphrase.v1";
 const LEGACY_IDENTITY_KEY = "slateboard.identity.v1";
 
@@ -97,11 +104,8 @@ export function defaultPassphrase(target: BoardTarget): string {
 }
 
 export function loadSession(target: BoardTarget): Session | null {
-  const token =
-    localStorage.getItem(TOKEN_KEY) ??
-    sessionStorage.getItem(SESSION_TOKEN_KEY) ??
-    localStorage.getItem(LEGACY_TOKEN_KEY);
-  if (!token) return null;
+  const stored = loadStoredToken();
+  if (!stored) return null;
   const passphrase =
     sessionStorage.getItem(PASSPHRASE_KEY) ??
     sessionStorage.getItem(LEGACY_PASSPHRASE_KEY) ??
@@ -115,7 +119,10 @@ export function loadSession(target: BoardTarget): Session | null {
   }
   return {
     ...target,
-    token,
+    token: stored.token,
+    tokenKind: stored.kind,
+    refreshToken: stored.refreshToken,
+    expiresAt: stored.expiresAt,
     passphrase,
     identity: identity ?? { id: crypto.randomUUID(), name: "Anonymous" },
   };
@@ -132,13 +139,15 @@ export function saveSession(session: Session, opts: { rememberToken: boolean }):
     branch: session.branch,
     path: session.path,
   });
-  if (opts.rememberToken) {
-    localStorage.setItem(TOKEN_KEY, session.token);
-    sessionStorage.removeItem(SESSION_TOKEN_KEY);
-  } else {
-    localStorage.removeItem(TOKEN_KEY);
-    sessionStorage.setItem(SESSION_TOKEN_KEY, session.token);
-  }
+  saveStoredToken(
+    {
+      token: session.token,
+      kind: session.tokenKind,
+      refreshToken: session.refreshToken,
+      expiresAt: session.expiresAt,
+    },
+    opts.rememberToken,
+  );
   sessionStorage.setItem(PASSPHRASE_KEY, session.passphrase || defaultPassphrase(session));
   localStorage.setItem(IDENTITY_KEY, JSON.stringify(session.identity));
 }
@@ -149,8 +158,7 @@ export function clearSession(): void {
 }
 
 export function clearAuth(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(SESSION_TOKEN_KEY);
+  clearStoredToken();
   sessionStorage.removeItem(PASSPHRASE_KEY);
   localStorage.removeItem(TARGET_KEY);
   localStorage.removeItem(IDENTITY_KEY);

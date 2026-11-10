@@ -3,6 +3,8 @@
  * Allows turning canvas sticky notes into real GitHub issues and fetching issue cards.
  */
 
+import { withAuth, type TokenSource } from "../auth/token";
+
 const API = "https://api.github.com";
 const API_VERSION = "2022-11-28";
 
@@ -22,25 +24,29 @@ export type IssueDetail = {
 };
 
 export async function createGitHubIssue(
-  token: string,
+  token: TokenSource,
   owner: string,
   repo: string,
   title: string,
   body: string,
 ): Promise<CreatedIssue> {
-  const res = await fetch(`${API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues`, {
-    method: "POST",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": API_VERSION,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      title: title.slice(0, 256),
-      body: body || "Created from Caulk whiteboard sticky note.",
-    }),
+  const url = `${API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues`;
+  const payload = JSON.stringify({
+    title: title.slice(0, 256),
+    body: body || "Created from Caulk whiteboard sticky note.",
   });
+  const res = await withAuth(token, (t) =>
+    fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${t}`,
+        "X-GitHub-Api-Version": API_VERSION,
+        "Content-Type": "application/json",
+      },
+      body: payload,
+    }),
+  );
 
   if (!res.ok) {
     const errBody = (await res.json().catch(() => ({}))) as { message?: string };
@@ -56,20 +62,20 @@ export async function createGitHubIssue(
 }
 
 export async function fetchGitHubIssue(
-  token: string,
+  token: TokenSource,
   owner: string,
   repo: string,
   issueNumber: number,
 ): Promise<IssueDetail> {
-  const res = await fetch(
-    `${API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${issueNumber}`,
-    {
+  const url = `${API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${issueNumber}`;
+  const res = await withAuth(token, (t) =>
+    fetch(url, {
       headers: {
         Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${t}`,
         "X-GitHub-Api-Version": API_VERSION,
       },
-    },
+    }),
   );
 
   if (!res.ok) {

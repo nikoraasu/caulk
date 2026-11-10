@@ -1,6 +1,6 @@
 <?php
 /**
- * Caulk - GitHub OAuth Exchange Gateway
+ * Caulk - GitHub App OAuth Exchange Gateway
  * Runs natively on Apache/LiteSpeed with standard PHP (cURL or stream context).
  */
 
@@ -47,71 +47,163 @@ try {
         return is_string($env) ? trim($env) : '';
     }
 
+    // POST form-encoded fields and return the raw response body, or false. Transport errors go to $error.
+    function caulk_post_form(string $url, array $fields, &$error = '') {
+        $postData = http_build_query($fields);
+        $response = false;
+
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Accept: application/json',
+                'User-Agent: Caulk-Board-OAuth',
+            ]);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            $response = curl_exec($ch);
+            if ($response === false) {
+                $error = curl_error($ch);
+            }
+            curl_close($ch);
+        } else {
+            $opts = [
+                'http' => [
+                    'method' => 'POST',
+                    'header' => "Accept: application/json\r\n" .
+                                "Content-Type: application/x-www-form-urlencoded\r\n" .
+                                "User-Agent: Caulk-Board-OAuth\r\n",
+                    'content' => $postData,
+                    'timeout' => 15,
+                ],
+            ];
+            $context = stream_context_create($opts);
+            $response = @file_get_contents($url, false, $context);
+        }
+
+        return $response;
+    }
+
+    // Token fields for the app: expiries converted from GitHub's relative seconds to absolute unix ms.
+    // Optional fields are omitted when GitHub did not return them.
+    function caulk_token_fields(array $data): array {
+        $now = time() * 1000;
+        $fields = ['access_token' => (string)$data['access_token']];
+        if (!empty($data['refresh_token'])) {
+            $fields['refresh_token'] = (string)$data['refresh_token'];
+        }
+        if (!empty($data['expires_in'])) {
+            $fields['expires_at'] = $now + (int)$data['expires_in'] * 1000;
+        }
+        if (!empty($data['refresh_token_expires_in'])) {
+            $fields['refresh_expires_at'] = $now + (int)$data['refresh_token_expires_in'] * 1000;
+        }
+        return $fields;
+    }
+
     $clientId = caulk_get_constant('GITHUB_CLIENT_ID');
     $clientSecret = caulk_get_constant('GITHUB_CLIENT_SECRET');
+    $appSlug = caulk_get_constant('GITHUB_APP_SLUG');
+    if ($appSlug === 'your-app-slug') {
+        $appSlug = '';
+    }
     $geminiKey = caulk_get_constant('GEMINI_API_KEY');
 
     $action = isset($_GET['action']) ? (string)$_GET['action'] : '';
 
-    // Public app configuration (OAuth status & optional shared Gemini key)
+    // Public app configuration (GitHub App status & slug; never returns secrets)
     if ($action === 'config') {
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode([
             'oauth_configured' => !empty($clientId) && $clientId !== 'YOUR_GITHUB_CLIENT_ID_HERE',
+            'app_slug' => $appSlug,
             'has_gemini_key' => !empty($geminiKey) && $geminiKey !== 'YOUR_GEMINI_API_KEY_HERE',
-            'gemini_api_key' => (!empty($geminiKey) && $geminiKey !== 'YOUR_GEMINI_API_KEY_HERE') ? $geminiKey : '',
             'config_loaded' => $configLoaded,
             'config_error' => $configError,
         ]);
         exit;
     }
 
-    // Diagnostics endpoint (?action=debug)
+    // Diagnostics endpoint (?action=debug): booleans only, no config values
     if ($action === 'debug') {
         header('Content-Type: text/html; charset=utf-8');
+        $clientIdSet = !empty($clientId) && $clientId !== 'YOUR_GITHUB_CLIENT_ID_HERE';
+        $clientSecretSet = !empty($clientSecret) && $clientSecret !== 'YOUR_GITHUB_CLIENT_SECRET_HERE';
+        $geminiKeySet = !empty($geminiKey) && $geminiKey !== 'YOUR_GEMINI_API_KEY_HERE';
+
         echo '<!DOCTYPE html><html><body style="font-family:monospace;background:#283125;color:#E6D6AC;padding:30px;line-height:1.6;max-width:800px;margin:20px auto;">';
-        echo '<h2 style="color:#E2B038;">λ Caulk - OAuth Diagnostics</h2>';
+        echo '<h2 style="color:#E2B038;">λ Caulk - GitHub App Diagnostics</h2>';
         echo '<ul>';
         echo '<li><b>PHP Version:</b> ' . phpversion() . '</li>';
-        echo '<li><b>Config file found:</b> ' . ($configLoaded ? 'YES (' . htmlspecialchars($loadedPath) . ')' : 'NO (Looked in api/config.php and config.php)') . '</li>';
+        echo '<li><b>Config loaded:</b> ' . ($configLoaded ? 'YES' : 'NO (Looked in api/config.php and config.php)') . '</li>';
         if ($configError) {
             echo '<li style="color:#ff6b6b;"><b>Config Load Error:</b> ' . htmlspecialchars($configError) . '</li>';
         }
-        echo '<li><b>Client ID set:</b> ' . ($clientId && $clientId !== 'YOUR_GITHUB_CLIENT_ID_HERE' ? 'YES (Length: ' . strlen($clientId) . ', starts with: ' . substr($clientId, 0, 4) . '..., ends with: ...' . substr($clientId, -4) . ')' : 'NO / NOT SET') . '</li>';
-        echo '<li><b>Client Secret set:</b> ' . ($clientSecret && $clientSecret !== 'YOUR_GITHUB_CLIENT_SECRET_HERE' ? 'YES (Length: ' . strlen($clientSecret) . ')' : 'NO / NOT SET') . '</li>';
-        echo '<li><b>Shared Gemini Key:</b> ' . ($geminiKey && $geminiKey !== 'YOUR_GEMINI_API_KEY_HERE' ? 'YES (gemini-3.8-flash)' : 'NO (User-provided)') . '</li>';
-        
+        echo '<li><b>Client ID set:</b> ' . ($clientIdSet ? 'YES' : 'NO / NOT SET') . '</li>';
+        echo '<li><b>Client Secret set:</b> ' . ($clientSecretSet ? 'YES' : 'NO / NOT SET') . '</li>';
+        echo '<li><b>App slug set:</b> ' . ($appSlug !== '' ? 'YES' : 'NO / NOT SET') . '</li>';
+        echo '<li><b>Shared Gemini key set:</b> ' . ($geminiKeySet ? 'YES' : 'NO (User-provided)') . '</li>';
+
         $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https' : 'http';
         $currentUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . strtok($_SERVER['REQUEST_URI'], '?');
-        echo '<li><b>Detected Callback URL:</b> <code>' . htmlspecialchars($currentUrl) . '</code></li>';
+        echo '<li><b>Request URL:</b> <code>' . htmlspecialchars($currentUrl) . '</code></li>';
         echo '</ul>';
-        
-        if ($clientId && $clientId !== 'YOUR_GITHUB_CLIENT_ID_HERE') {
-            $testUrl = 'https://github.com/login/oauth/authorize?client_id=' . urlencode($clientId) . '&scope=repo,read:user';
-            echo '<p><b>Test Link:</b> <a href="' . htmlspecialchars($testUrl) . '" style="color:#E2B038;font-weight:bold;">Click here to test GitHub Authorize directly &rarr;</a></p>';
-        }
         echo '</body></html>';
         exit;
     }
 
-    // If GitHub OAuth credentials are not configured, display setup page (avoid status 500 to prevent LiteSpeed body clearing)
+    // If GitHub App credentials are not configured, display setup page (avoid status 500 to prevent LiteSpeed body clearing)
     if (empty($clientId) || empty($clientSecret) || $clientId === 'YOUR_GITHUB_CLIENT_ID_HERE') {
         header('Content-Type: text/html; charset=utf-8');
         echo '<!DOCTYPE html><html><body style="font-family:sans-serif;background:#283125;color:#E6D6AC;padding:40px;line-height:1.6;max-width:700px;margin:40px auto;border:2px solid #5A6A50;">';
-        echo '<h2 style="color:#E2B038;margin-top:0;">λ Caulk - GitHub OAuth Configuration Needed</h2>';
+        echo '<h2 style="color:#E2B038;margin-top:0;">λ Caulk - GitHub App Configuration Needed</h2>';
         if ($configError) {
             echo '<div style="background:#552222;border:1px solid #ff4444;padding:12px;margin-bottom:16px;color:#ffaaaa;"><b>Configuration Error:</b> ' . htmlspecialchars($configError) . '</div>';
         }
-        echo '<p><code>api/config.php</code> has not been configured with your GitHub credentials.</p>';
+        echo '<p><code>api/config.php</code> has not been configured with your GitHub App credentials.</p>';
         echo '<ol>';
-        echo '<li>Go to GitHub: <b>Settings &rarr; Developer settings &rarr; OAuth Apps &rarr; New OAuth App</b>.</li>';
-        $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? 'https' : 'http';
-        $callbackUrl = $protocol . '://' . $_SERVER['HTTP_HOST'] . strtok($_SERVER['REQUEST_URI'], '?');
-        echo '<li>Set Authorization callback URL to: <code>' . htmlspecialchars($callbackUrl) . '</code></li>';
-        echo '<li>Copy <code>api/config.sample.php</code> to <code>api/config.php</code> and fill in your Client ID &amp; Secret.</li>';
+        echo '<li>Follow the step-by-step instructions in <code>api/config.sample.php</code> to create a GitHub App.</li>';
+        echo '<li>Copy <code>api/config.sample.php</code> to <code>api/config.php</code> and fill in the Client ID, Client Secret and app slug.</li>';
         echo '</ol>';
         echo '<p><a href="?action=debug" style="color:#E2B038;font-weight:bold;">&rarr; View Diagnostic Details (?action=debug)</a></p>';
         echo '</body></html>';
+        exit;
+    }
+
+    // Refresh a user token: POST JSON {"refresh_token": "..."}
+    if ($action === 'refresh') {
+        header('Content-Type: application/json; charset=utf-8');
+        $input = json_decode((string)file_get_contents('php://input'), true);
+        $refreshToken = (is_array($input) && isset($input['refresh_token'])) ? trim((string)$input['refresh_token']) : '';
+        if ($refreshToken === '') {
+            http_response_code(401);
+            echo json_encode(['error' => 'Missing refresh_token.']);
+            exit;
+        }
+
+        $curlError = '';
+        $response = caulk_post_form('https://github.com/login/oauth/access_token', [
+            'grant_type' => 'refresh_token',
+            'client_id' => $clientId,
+            'client_secret' => $clientSecret,
+            'refresh_token' => $refreshToken,
+        ], $curlError);
+        $data = $response ? json_decode($response, true) : null;
+
+        if (!is_array($data) || empty($data['access_token'])) {
+            $errorMsg = 'GitHub token refresh failed.';
+            if (!$response) {
+                $errorMsg = 'Failed to connect to GitHub OAuth service.' . (!empty($curlError) ? ' (' . $curlError . ')' : '');
+            } elseif (is_array($data) && !empty($data['error_description'])) {
+                $errorMsg = (string)$data['error_description'];
+            }
+            http_response_code(401);
+            echo json_encode(['error' => $errorMsg]);
+            exit;
+        }
+
+        echo json_encode(caulk_token_fields($data));
         exit;
     }
 
@@ -144,9 +236,9 @@ try {
             'samesite' => 'Lax',
         ]);
 
+        // GitHub App permissions are set on the app itself, so no scope parameter is sent
         $params = http_build_query([
             'client_id' => $clientId,
-            'scope' => 'repo,read:user',
             'state' => $state,
         ]);
 
@@ -176,44 +268,12 @@ try {
 
         // Exchange code for access token via GitHub API
         $tokenUrl = 'https://github.com/login/oauth/access_token';
-        $postData = http_build_query([
+        $curlError = '';
+        $response = caulk_post_form($tokenUrl, [
             'client_id' => $clientId,
             'client_secret' => $clientSecret,
             'code' => $code,
-        ]);
-
-        $response = null;
-        $curlError = '';
-
-        if (function_exists('curl_init')) {
-            $ch = curl_init($tokenUrl);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Accept: application/json',
-                'User-Agent: Caulk-Board-OAuth',
-            ]);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-            $response = curl_exec($ch);
-            if ($response === false) {
-                $curlError = curl_error($ch);
-            }
-            curl_close($ch);
-        } else {
-            $opts = [
-                'http' => [
-                    'method' => 'POST',
-                    'header' => "Accept: application/json\r\n" .
-                                "Content-Type: application/x-www-form-urlencoded\r\n" .
-                                "User-Agent: Caulk-Board-OAuth\r\n",
-                    'content' => $postData,
-                    'timeout' => 15,
-                ],
-            ];
-            $context = stream_context_create($opts);
-            $response = @file_get_contents($tokenUrl, false, $context);
-        }
+        ], $curlError);
 
         if (!$response) {
             $msg = 'Failed to connect to GitHub OAuth service.';
@@ -226,8 +286,9 @@ try {
 
         $data = json_decode($response, true);
         if (!empty($data['access_token'])) {
-            $token = $data['access_token'];
-            header('Location: ../#access_token=' . urlencode($token));
+            // access_token and token_kind first, then refresh fields when GitHub returned them
+            $fragment = ['access_token' => $data['access_token'], 'token_kind' => 'app'] + caulk_token_fields($data);
+            header('Location: ../#' . http_build_query($fragment));
             exit;
         }
 

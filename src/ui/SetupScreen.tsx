@@ -17,6 +17,13 @@ import {
   slugifyBoardName,
   type Session,
 } from "../config";
+import {
+  getFreshCredential,
+  loadStoredToken,
+  saveStoredToken,
+  type StoredToken,
+  type TokenKind,
+} from "../auth/token";
 
 type CheckState =
   | { state: "idle" }
@@ -45,13 +52,20 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
     const hash = window.location.hash.replace(/^#/, "");
     const hashParams = new URLSearchParams(hash);
     const searchParams = new URLSearchParams(window.location.search);
+    const tokenKind: TokenKind = hashParams.get("token_kind") === "app" ? "app" : "pat";
+    const expiresRaw = hashParams.get("expires_at");
+    const expiresAt = expiresRaw && Number.isFinite(Number(expiresRaw)) ? Number(expiresRaw) : undefined;
     return {
       token: hashParams.get("access_token") || searchParams.get("access_token"),
+      tokenKind,
+      refreshToken: hashParams.get("refresh_token") || undefined,
+      expiresAt,
       code: searchParams.get("code"),
       state: searchParams.get("state"),
       error: hashParams.get("auth_error") || searchParams.get("auth_error"),
       repo: hashParams.get("repo") || searchParams.get("repo"),
       board: hashParams.get("board") || searchParams.get("board"),
+      installationId: searchParams.get("installation_id"),
     };
   }, []);
 
@@ -68,15 +82,20 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
     }
   }, [urlParams.code, urlParams.state]);
 
-  const [token, setToken] = useState(() => {
-    if (urlParams.token) return urlParams.token;
-    return (
-      localStorage.getItem("caulk.token.v1") ??
-      sessionStorage.getItem("caulk.token.session.v1") ??
-      localStorage.getItem("slateboard.token.v1") ??
-      ""
-    );
+  const [cred, setCred] = useState<StoredToken | null>(() => {
+    if (urlParams.token) {
+      return {
+        token: urlParams.token,
+        kind: urlParams.tokenKind,
+        refreshToken: urlParams.refreshToken,
+        expiresAt: urlParams.expiresAt,
+      };
+    }
+    return loadStoredToken();
   });
+  const token = cred?.token ?? "";
+  const kind: TokenKind = cred?.kind ?? "pat";
+  const isAppLogin = kind === "app";
 
   const [ghUser, setGhUser] = useState<GitHubUser | null>(null);
   const [userRepos, setUserRepos] = useState<GitHubRepoItem[]>([]);
@@ -84,6 +103,11 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
   const [loadingUser, setLoadingUser] = useState(false);
   const [loadingBoards, setLoadingBoards] = useState(false);
   const [showManualToken, setShowManualToken] = useState(false);
+  const [repoNonce, setRepoNonce] = useState(0);
+  const [appSlug, setAppSlug] = useState("");
+  const installUrl = appSlug
+    ? `https://github.com/apps/${encodeURIComponent(appSlug)}/installations/new`
+    : "";
 
   const [repoInput, setRepoInput] = useState(
     urlParams.repo || (existing ? `${existing.owner}/${existing.repo}` : ""),
@@ -97,15 +121,57 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
   const [check, setCheck] = useState<CheckState>({ state: "idle" });
   const [error, setError] = useState<string | null>(urlParams.error || null);
 
-  // Clean URL if token or auth_error was present in hash
+  // Store a token from the OAuth redirect, reload repos after a GitHub App install,
+  // and clean the URL of the params that were just read
   useEffect(() => {
-    if (urlParams.token || urlParams.error) {
-      if (urlParams.token) {
-        localStorage.setItem("caulk.token.v1", urlParams.token);
+    if (urlParams.token) {
+      try {
+        saveStoredToken(
+          {
+            token: urlParams.token,
+            kind: urlParams.tokenKind,
+            refreshToken: urlParams.refreshToken,
+            expiresAt: urlParams.expiresAt,
+          },
+          true,
+        );
+      } catch {
+        /* storage full or blocked: this page still works with the token in state */
       }
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    if (urlParams.installationId) {
+      setRepoNonce((n) => n + 1);
+    }
+    if (urlParams.token || urlParams.error || urlParams.installationId) {
+      const query = new URLSearchParams(window.location.search);
+      for (const key of ["access_token", "installation_id", "setup_action"]) query.delete(key);
+      const search = query.toString();
+      const hash = urlParams.token || urlParams.error ? "" : window.location.hash;
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + (search ? `?${search}` : "") + hash,
+      );
     }
   }, [urlParams]);
+
+  // The GitHub App's slug, for the install and "manage access" links
+  useEffect(() => {
+    let isSubscribed = true;
+    fetch("./api/auth.php?action=config", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { app_slug?: unknown } | null) => {
+        if (isSubscribed && data && typeof data.app_slug === "string") {
+          setAppSlug(data.app_slug);
+        }
+      })
+      .catch(() => {
+        /* without the slug the install links stay hidden */
+      });
+    return () => {
+      isSubscribed = false;
+    };
+  }, []);
 
   // Load GitHub user profile and repositories when token is present
   useEffect(() => {
@@ -123,7 +189,7 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
       .then((user) => {
         if (!isSubscribed) return;
         setGhUser(user);
-        return fetchUserRepos(activeToken);
+        return fetchUserRepos(activeToken, kind);
       })
       .then((repos) => {
         if (!isSubscribed || !repos) return;
@@ -157,7 +223,7 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
     return () => {
       isSubscribed = false;
     };
-  }, [token]);
+  }, [token, kind, repoNonce]);
 
   // Fetch existing boards whenever a repo is selected
   useEffect(() => {
@@ -237,14 +303,14 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
 
   function handleLogout() {
     clearAuth();
-    setToken("");
+    setCred(null);
     setGhUser(null);
     setUserRepos([]);
     setExistingBoards([]);
     setCheck({ state: "idle" });
   }
 
-  function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!parsed) {
       setError("Please select or enter a repository (owner/repo).");
@@ -252,6 +318,22 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
     }
     if (!boardName.trim()) {
       setError("Please enter or select a board name.");
+      return;
+    }
+
+    // An app token may have been refreshed in storage since this page loaded
+    let credential = cred;
+    if (cred?.kind === "app") {
+      try {
+        const fresh = await getFreshCredential();
+        if (fresh.kind === "app") credential = fresh;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        return;
+      }
+    }
+    if (!credential) {
+      setError("Log in with GitHub first.");
       return;
     }
 
@@ -266,7 +348,10 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
 
     const session: Session = {
       ...sessionTarget,
-      token: token.trim(),
+      token: credential.token.trim(),
+      tokenKind: credential.kind,
+      refreshToken: credential.refreshToken,
+      expiresAt: credential.expiresAt,
       passphrase: defaultPassphrase(sessionTarget),
       identity: ensureIdentity(userName),
     };
@@ -388,7 +473,9 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
                     <input
                       type="password"
                       value={token}
-                      onChange={(e) => setToken(e.target.value)}
+                      onChange={(e) =>
+                        setCred(e.target.value ? { token: e.target.value, kind: "pat" } : null)
+                      }
                       placeholder="ghp_... or github_pat_..."
                     />
                   </label>
@@ -487,6 +574,28 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
                   )}
                 </div>
 
+                {isAppLogin && userRepos.length === 0 && !loadingUser && installUrl && (
+                  <a
+                    href={installUrl}
+                    className="btn primary"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "10px 16px",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      background: "var(--vgui-selected-bg)",
+                      color: "#FFFFFF",
+                      textDecoration: "none",
+                      border: "1px solid var(--vgui-border)",
+                      boxShadow: "inset 1px 1px 0 var(--vgui-light)",
+                    }}
+                  >
+                    Choose repositories for Caulk
+                  </a>
+                )}
+
                 {userRepos.length > 0 && !isCustomRepo ? (
                   <select
                     value={repoInput}
@@ -533,6 +642,31 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
                   </div>
                 )}
                 <small>Select a repository you own or where you have collaborator access.</small>
+                {isAppLogin && (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 8,
+                    }}
+                  >
+                    <small>
+                      Joining someone else&apos;s board? Its owner must have installed Caulk on that
+                      repo.
+                    </small>
+                    {installUrl && (
+                      <a
+                        href={installUrl}
+                        className="btn ghost"
+                        style={{ padding: "2px 6px", fontSize: 11, textDecoration: "none" }}
+                      >
+                        ⚙ Manage repository access
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Board Selection */}

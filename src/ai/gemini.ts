@@ -33,25 +33,9 @@ export function getStoredGeminiKey(): string {
   return "";
 }
 
+// Shared server key is no longer exposed to browsers; proxying Gemini through the server is a possible future feature.
 export async function fetchServerGeminiConfig(): Promise<string> {
-  try {
-    const res = await fetch("api/auth.php?action=config");
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.gemini_api_key) {
-        setServerSharedGeminiKey(data.gemini_api_key);
-        return data.gemini_api_key;
-      }
-    }
-  } catch {
-    // Ignore error if API is unreachable
-  }
   return "";
-}
-
-// Auto-fetch shared key on module boot if in browser
-if (typeof window !== "undefined") {
-  void fetchServerGeminiConfig();
 }
 
 export function saveStoredGeminiKey(key: string): void {
