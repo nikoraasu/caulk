@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   CaptureUpdateAction,
   Excalidraw,
+  MainMenu,
   Sidebar,
   convertToExcalidrawElements,
   reconcileElements,
@@ -1448,6 +1449,25 @@ export function BoardScreen({ session, onClose }: Props) {
     </div>
   );
 
+  const syncDot =
+    status.kind === "error"
+      ? "err"
+      : status.kind === "pending" || status.kind === "loading"
+        ? "warn"
+        : status.kind === "saving"
+          ? "busy"
+          : "ok";
+  const syncLabel =
+    status.kind === "error"
+      ? "Sync error"
+      : status.kind === "pending"
+        ? "Unsaved"
+        : status.kind === "saving"
+          ? "Saving…"
+          : status.kind === "loading"
+            ? "Unlocking…"
+            : "Saved";
+
   return (
     <div
       className="board-layout"
@@ -1463,94 +1483,28 @@ export function BoardScreen({ session, onClose }: Props) {
           <span className="topbar-title" title={storageLabel}>
             {label}
           </span>
-          <button
-            className={`topbar-btn ${stickyPanelOpen ? "active" : ""}`}
-            onClick={() => setStickyPanelOpen(!stickyPanelOpen)}
-            title="Toggle sticky notes palette"
+          <span
+            className="topbar-sync"
+            title={status.kind === "error" ? status.message : storageLabel}
           >
-            <span>📝</span>
-            <span>Stickies</span>
-          </button>
-          <button
-            className="topbar-btn"
-            onClick={openMermaid}
-            title="Generate diagrams from Mermaid syntax"
-          >
-            <span>📊</span>
-            <span>Mermaid</span>
-          </button>
-          <button
-            className="topbar-btn"
-            onClick={() => apiRef.current?.toggleSidebar({ name: "ai" })}
-            title="Gemini AI: Draw diagrams, analyze board, brainstorm stickies, auto-cluster"
-          >
-            <span>🤖</span>
-            <span>AI</span>
-          </button>
-          <button
-            className={`topbar-btn ${videoModalOpen ? "active" : ""}`}
-            onClick={() => setVideoModalOpen(true)}
-            title="Embed YouTube, Vimeo, Loom, or local video file onto the board"
-          >
-            <span>🎬</span>
-            <span>Video</span>
-          </button>
-          <button
-            className="topbar-btn"
-            onClick={addFrame}
-            title="Create a Miro-style Frame around selected elements or at center"
-          >
-            <span>🖼️</span>
-            <span>Frame</span>
-          </button>
-          <button
-            className={`topbar-btn ${isPresenting ? "active" : ""}`}
-            onClick={startPresentation}
-            title="Present frames as slide deck"
-          >
-            <span>▶️</span>
-            <span>Present</span>
-          </button>
-          <button
-            className={`topbar-btn ${reactionPickerOpen ? "active" : ""}`}
-            onClick={() => setReactionPickerOpen(!reactionPickerOpen)}
-            title="Stamp a reaction or vote"
-          >
-            <span>👍</span>
-            <span>React</span>
-          </button>
-          <button
-            className="topbar-btn"
-            onClick={copyShareLink}
-            title="Copy invite link to this exact board and repository"
-          >
-            <span>🔗</span>
-            <span>Share</span>
-          </button>
-          <button
-            className="topbar-btn"
-            onClick={() => void convertSelectedToIssue()}
-            disabled={creatingIssue}
-            title="Convert selected note into a GitHub Issue in your repo"
-          >
-            <span>🐙</span>
-            <span>{creatingIssue ? "Creating…" : "To Issue"}</span>
-          </button>
-          <button
-            className={`topbar-btn ${timer?.running ? "active" : ""}`}
-            onClick={() => setTimerPickerOpen(!timerPickerOpen)}
-            title={timer?.running ? `Timer running: ${timerSecondsLeft}s left` : "Meeting countdown timer"}
-            style={timer?.running ? { color: "#FFFFFF", background: "var(--vgui-selected-bg)" } : undefined}
-          >
-            <span>⏱️</span>
-            <span>
-              {timer?.running && timerSecondsLeft !== null
-                ? `${Math.floor(timerSecondsLeft / 60)
-                    .toString()
-                    .padStart(2, "0")}:${(timerSecondsLeft % 60).toString().padStart(2, "0")}`
-                : "Timer"}
-            </span>
-          </button>
+            <span className={`dot ${syncDot}`} />
+            <span>{syncLabel}</span>
+          </span>
+          {timer?.running && timerSecondsLeft !== null && (
+            <button
+              type="button"
+              className="topbar-btn active"
+              onClick={() => setTimerPickerOpen(!timerPickerOpen)}
+              title={`Meeting timer running: ${timerSecondsLeft}s left. Click for timer controls.`}
+            >
+              <span>⏱️</span>
+              <span>
+                {`${Math.floor(timerSecondsLeft / 60)
+                  .toString()
+                  .padStart(2, "0")}:${(timerSecondsLeft % 60).toString().padStart(2, "0")}`}
+              </span>
+            </button>
+          )}
         </div>
 
         <div className="topbar-center">
@@ -1641,7 +1595,7 @@ export function BoardScreen({ session, onClose }: Props) {
 
       {/* Timer Picker Popover */}
       {timerPickerOpen && (
-        <div className="topbar-popover" style={{ left: 380 }}>
+        <div className="topbar-popover">
           <div className="topbar-popover-title">Meeting Timer</div>
           <div className="topbar-popover-row">
             <button
@@ -1692,7 +1646,7 @@ export function BoardScreen({ session, onClose }: Props) {
 
       {/* Emoji Reaction Stamp Popover */}
       {reactionPickerOpen && (
-        <div className="topbar-popover" style={{ left: 260 }}>
+        <div className="topbar-popover">
           <div className="topbar-popover-title">Stamp Reaction</div>
           <div className="topbar-popover-row">
             {["👍", "🔥", "💡", "🚀", "❤️"].map((emoji) => (
@@ -1825,17 +1779,64 @@ export function BoardScreen({ session, onClose }: Props) {
           validateEmbeddable={true}
           renderEmbeddable={renderEmbeddable}
           renderTopRightUI={(_isMobile, appState) => (
-            <button
-              type="button"
-              className={`sidebar-trigger${appState.openSidebar?.name === "ai" ? " active" : ""}`}
-              title="AI Assistant: draw diagrams, analyze board, brainstorm stickies, auto-cluster"
-              onClick={() => apiRef.current?.toggleSidebar({ name: "ai" })}
-            >
-              <span>🤖</span>
-              <span>AI</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className={`sidebar-trigger${videoModalOpen ? " active" : ""}`}
+                title="Embed YouTube, Vimeo, Loom, or local video file onto the board"
+                onClick={() => setVideoModalOpen(true)}
+              >
+                <span>🎬</span>
+                <span>Video</span>
+              </button>
+              <button
+                type="button"
+                className={`sidebar-trigger${appState.openSidebar?.name === "ai" ? " active" : ""}`}
+                title="AI Assistant: draw diagrams, analyze board, brainstorm stickies, auto-cluster"
+                onClick={() => apiRef.current?.toggleSidebar({ name: "ai" })}
+              >
+                <span>🤖</span>
+                <span>AI</span>
+              </button>
+            </>
           )}
         >
+          <MainMenu>
+            <MainMenu.Group title="Caulk">
+              <MainMenu.Item onSelect={() => setVideoModalOpen(true)}>Insert video</MainMenu.Item>
+              <MainMenu.Item onSelect={() => setTimerPickerOpen(!timerPickerOpen)}>
+                {timer?.running ? "Meeting timer (running)" : "Meeting timer"}
+              </MainMenu.Item>
+              <MainMenu.Item onSelect={() => setHistory(!historyOpen)}>Board history</MainMenu.Item>
+              <MainMenu.Item onSelect={() => void engineRef.current?.saveNow()}>Save now</MainMenu.Item>
+              <MainMenu.Item onSelect={() => void engineRef.current?.pullNow()}>Pull from GitHub</MainMenu.Item>
+              <MainMenu.Item onSelect={addFrame}>Frame selection</MainMenu.Item>
+              <MainMenu.Item onSelect={() => apiRef.current?.toggleSidebar({ name: "ai" })}>
+                AI assistant
+              </MainMenu.Item>
+              <MainMenu.Item onSelect={openMermaid}>Mermaid diagram</MainMenu.Item>
+              <MainMenu.Item onSelect={startPresentation}>Present frames</MainMenu.Item>
+              <MainMenu.Item onSelect={() => setReactionPickerOpen(!reactionPickerOpen)}>
+                Stamp reaction
+              </MainMenu.Item>
+              <MainMenu.Item onSelect={() => setStickyPanelOpen(!stickyPanelOpen)}>Sticky palette</MainMenu.Item>
+              <MainMenu.Item onSelect={copyShareLink}>Copy invite link</MainMenu.Item>
+              <MainMenu.Item
+                onSelect={() => {
+                  if (!creatingIssue) void convertSelectedToIssue();
+                }}
+              >
+                Convert note to issue
+              </MainMenu.Item>
+              <MainMenu.Item onSelect={onClose}>Switch board / log out</MainMenu.Item>
+            </MainMenu.Group>
+            <MainMenu.DefaultItems.ClearCanvas />
+            <MainMenu.DefaultItems.SaveAsImage />
+            <MainMenu.DefaultItems.Export />
+            <MainMenu.DefaultItems.ChangeCanvasBackground />
+            <MainMenu.Separator />
+            <MainMenu.DefaultItems.Help />
+          </MainMenu>
           <Sidebar
             name="ai"
             className="ai-sidebar"

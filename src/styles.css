@@ -512,11 +512,22 @@ code {
   border-color: var(--vgui-border);
 }
 
+.topbar-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #FFFFFF;
+  white-space: nowrap;
+}
+
 /* ---------- topbar extra tools & widgets ---------- */
 
 .topbar-popover {
   position: absolute;
   top: 42px;
+  left: 50%;
+  transform: translateX(-50%);
   background: var(--vgui-bg);
   border: 1px solid var(--vgui-bg);
   border-right-color: var(--vgui-border);
@@ -1001,6 +1012,10 @@ code {
   box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark) !important;
   background-color: var(--vgui-bg) !important;
   color: #FFFFFF !important;
+}
+
+.excalidraw .sidebar-trigger.active {
+  background-color: var(--vgui-selected-bg) !important;
 }
 
 .excalidraw .ToolIcon_type_button:hover,
