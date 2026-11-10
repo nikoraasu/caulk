@@ -1237,3 +1237,9 @@ code {
 .excalidraw .ai-sidebar-body button {
   font-family: inherit;
 }
+
+/* Custom-colour swatch: the wheel picks the colour, this adds the sticky. */
+.swatch-custom {
+  outline: 1px dashed var(--vgui-accent);
+  outline-offset: 1px;
+}

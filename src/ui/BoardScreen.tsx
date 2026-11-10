@@ -1490,15 +1490,19 @@ export function BoardScreen({ session, onClose }: Props) {
           <input
             type="color"
             value={customColor}
-            onChange={(e) => {
-              const chosen = e.target.value;
-              setCustomColor(chosen);
-              addSticky(chosen);
-            }}
+            // Fires continuously while dragging in the picker: only choose the colour here.
+            onChange={(e) => setCustomColor(e.target.value)}
             title="Color wheel: pick custom hex color"
           />
         </div>
       </div>
+      <button
+        className="swatch swatch-custom"
+        style={{ background: customColor }}
+        title={`Add custom ${customColor} sticky note`}
+        aria-label={`Add custom ${customColor} sticky note`}
+        onClick={() => addSticky(customColor)}
+      />
     </div>
   );
 
