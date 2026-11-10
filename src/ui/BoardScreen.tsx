@@ -788,6 +788,33 @@ export function BoardScreen({ session, onClose }: Props) {
     return () => observer.disconnect();
   }, [apiReady]);
 
+  // The sticky button floats over the page beside the toolbar (never inside it), so it
+  // can't change the toolbar's size. Track the toolbar's box to stay aligned with it.
+  const [stickyPos, setStickyPos] = useState<{ left: number; top: number; height: number } | null>(null);
+  useEffect(() => {
+    if (!stickyToolbarHost) {
+      setStickyPos(null);
+      return;
+    }
+    const toolbar = stickyToolbarHost.querySelector<HTMLElement>(".App-toolbar") ?? stickyToolbarHost;
+    const measure = () => {
+      const r = toolbar.getBoundingClientRect();
+      setStickyPos((prev) =>
+        prev && prev.left === r.right + 8 && prev.top === r.top && prev.height === r.height
+          ? prev
+          : { left: r.right + 8, top: r.top, height: r.height },
+      );
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(toolbar);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [stickyToolbarHost]);
+
   // N drops a sticky (last-used colour) at the last canvas pointer position, in scene coords.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1733,12 +1760,16 @@ export function BoardScreen({ session, onClose }: Props) {
         </div>
       )}
 
-      {apiReady && !isNarrow && stickyToolbarHost
+      {apiReady && !isNarrow && stickyPos
         ? createPortal(
-            <div className="sticky-anchor" ref={stickyAnchorRef}>
+            <div
+              className="sticky-anchor"
+              ref={stickyAnchorRef}
+              style={{ left: stickyPos.left, top: stickyPos.top, height: stickyPos.height }}
+            >
               <button
                 type="button"
-                className={`Island sticky-trigger${stickyPanelOpen ? " active" : ""}`}
+                className={`sticky-trigger${stickyPanelOpen ? " active" : ""}`}
                 onClick={() => setStickyPanelOpen((open) => !open)}
                 title="Sticky note (N)"
                 aria-label="Sticky note (N)"
@@ -1748,7 +1779,7 @@ export function BoardScreen({ session, onClose }: Props) {
               </button>
               {stickyPanelOpen && (
                 <div
-                  className="Island sticky-popover"
+                  className="sticky-popover"
                   role="toolbar"
                   aria-label="Sticky colours"
                   onClick={(e) => {
@@ -1760,7 +1791,7 @@ export function BoardScreen({ session, onClose }: Props) {
                 </div>
               )}
             </div>,
-            stickyToolbarHost,
+            document.body,
           )
         : null}
 

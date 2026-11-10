@@ -625,10 +625,10 @@ code {
 /* Sticky button beside Excalidraw's toolbar; colours pop up horizontally below it.
    Everything is absolutely positioned so the toolbar keeps its own height. */
 .sticky-anchor {
-  position: relative;
-  align-self: flex-start;
-  flex: 0 0 auto;
-  margin-left: 0.5rem;
+  position: fixed;
+  z-index: 5;
+  display: flex;
+  align-items: center;
   pointer-events: auto;
 }
 
@@ -640,9 +640,9 @@ code {
   height: calc(var(--lg-button-size, 2.5rem) + 0.5rem);
   padding: 0;
   border: none;
-  background-color: var(--island-bg-color);
-  box-shadow: var(--shadow-island);
-  border-radius: var(--border-radius-lg);
+  background-color: var(--island-bg-color, #4c5844);
+  box-shadow: var(--shadow-island, 0 1px 5px rgba(0, 0, 0, 0.35));
+  border-radius: var(--border-radius-lg, 0.5rem);
   cursor: pointer;
 }
 
@@ -665,9 +665,9 @@ code {
   transform: translateX(-50%);
   z-index: 10;
   padding: 8px;
-  background-color: var(--island-bg-color);
-  box-shadow: var(--shadow-island);
-  border-radius: var(--border-radius-lg);
+  background-color: var(--island-bg-color, #4c5844);
+  box-shadow: var(--shadow-island, 0 1px 5px rgba(0, 0, 0, 0.35));
+  border-radius: var(--border-radius-lg, 0.5rem);
 }
 
 .sticky-popover .sticky-swatches {
