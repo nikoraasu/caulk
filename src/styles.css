@@ -636,38 +636,51 @@ code {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: calc(var(--lg-button-size, 2.5rem) + 0.5rem);
-  height: calc(var(--lg-button-size, 2.5rem) + 0.5rem);
+  width: 36px;
+  height: 36px;
   padding: 0;
-  border: none;
-  background-color: var(--island-bg-color, #4c5844);
-  box-shadow: var(--shadow-island, 0 1px 5px rgba(0, 0, 0, 0.35));
-  border-radius: var(--border-radius-lg, 0.5rem);
+  border-radius: 0;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark);
   cursor: pointer;
 }
 
-.sticky-trigger.active,
 .sticky-trigger:hover {
-  background-color: var(--button-hover-bg, rgba(255, 255, 255, 0.08));
+  background: var(--vgui-light);
+}
+
+/* Pressed: inverted bevel, like a VGUI toggle that is down. */
+.sticky-trigger.active {
+  background: var(--vgui-dark);
+  border-color: var(--vgui-border);
+  border-right-color: var(--vgui-light);
+  border-bottom-color: var(--vgui-light);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
 }
 
 .sticky-trigger-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 3px;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  width: 16px;
+  height: 16px;
+  border-radius: 0;
+  border: 1px solid var(--vgui-border);
 }
 
 .sticky-popover {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  padding: 8px;
-  background-color: var(--island-bg-color, #4c5844);
-  box-shadow: var(--shadow-island, 0 1px 5px rgba(0, 0, 0, 0.35));
-  border-radius: var(--border-radius-lg, 0.5rem);
+  padding: 6px;
+  border-radius: 0;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
 .sticky-popover .sticky-swatches {

@@ -799,18 +799,28 @@ export function BoardScreen({ session, onClose }: Props) {
     const toolbar = stickyToolbarHost.querySelector<HTMLElement>(".App-toolbar") ?? stickyToolbarHost;
     const measure = () => {
       const r = toolbar.getBoundingClientRect();
+      // Sit after everything Excalidraw puts beside the toolbar (e.g. the laser pointer button).
+      let right = r.right;
+      for (const child of Array.from(stickyToolbarHost.querySelectorAll<HTMLElement>(":scope > *, :scope > * > *"))) {
+        const cr = child.getBoundingClientRect();
+        if (cr.width > 0 && cr.top < r.bottom && cr.bottom > r.top) right = Math.max(right, cr.right);
+      }
+      const left = right + 8;
       setStickyPos((prev) =>
-        prev && prev.left === r.right + 8 && prev.top === r.top && prev.height === r.height
+        prev && prev.left === left && prev.top === r.top && prev.height === r.height
           ? prev
-          : { left: r.right + 8, top: r.top, height: r.height },
+          : { left, top: r.top, height: r.height },
       );
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(toolbar);
+    const mo = new MutationObserver(measure);
+    mo.observe(stickyToolbarHost, { childList: true, subtree: true });
     window.addEventListener("resize", measure);
     return () => {
       ro.disconnect();
+      mo.disconnect();
       window.removeEventListener("resize", measure);
     };
   }, [stickyToolbarHost]);
