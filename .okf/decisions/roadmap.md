@@ -14,6 +14,17 @@ stale_after: "2027-02-01T00:00:00Z"
 - Shared Gemini key: proxy AI through the server, or keep per-user keys.
 - Access control: AccessModal/whitelist is dormant; needs a source of truth if revived.
 
+# Smarter GitHub saving (agreed, next up)
+
+Current code: save debounce 2000ms, GitHub poll 2500ms (src/sync/engine.ts, BoardScreen.tsx ~451).
+API quota is not the constraint (5000/h per user; 304s are free); the costs are N clients committing the
+same edits (conflicts, retries) and commit spam.
+
+1. Idle debounce 10s with maxWait 60s during continuous editing.
+2. One elected saver per live room (lowest awareness clientID); others skip commits; re-elect on leave.
+3. GitHub poll ~30s while the live relay is connected; back to 2.5s when it drops.
+4. Keep save on tab hide; IndexedDB covers the gap.
+
 # Hosting for others (agreed, not started)
 
 1. Configurable API base URL; CORS on PHP endpoints.
