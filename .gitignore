@@ -1,0 +1,9 @@
+node_modules
+dist
+.tmp
+*.local
+*.zip
+public/api/config.php
+public/api/_relay/
+config.php
+gemini_work_summary.txt

@@ -1,0 +1,1166 @@
+:root {
+  /* Steam authentic VGUI palette */
+  --vgui-bg: #4B5844;
+  --vgui-base: #3E4637;
+  --vgui-fg: #FFFFFF;
+  --vgui-text: #FFFFFF;
+  --vgui-selected-bg: #978730;
+  --vgui-selected-fg: #FFFFFF;
+  --vgui-light: #7A8B71;
+  --vgui-dark: #343D2F;
+  --vgui-border: #000000;
+  --vgui-disabled: #3C4636;
+  --vgui-accent: #C59C3A;
+  --vgui-canvas: #283125;
+
+  /* App token mappings */
+  --ink: #FFFFFF;
+  --ink-soft: #D0D8CC;
+  --line: #343D2F;
+  --accent: #978730;
+  --ok: #64b54e;
+  --warn: #e09f2b;
+  --err: #d64949;
+
+  font-family: "Tahoma", "MS Sans Serif", "Segoe UI", -apple-system, sans-serif;
+  color: var(--ink);
+  background: #1B2118;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #1B2118;
+}
+
+/* ---------- setup page & window frame ---------- */
+
+.page {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  background:
+    radial-gradient(circle at 50% 50%, #2e382b 0%, #151a13 100%),
+    #1B2118;
+}
+
+.window-frame {
+  width: min(620px, 100%);
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 20px 48px rgba(0, 0, 0, 0.7);
+  padding: 2px;
+}
+
+.window-titlebar {
+  background: var(--vgui-bg);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--vgui-border);
+  box-shadow: inset 0 -1px 0 var(--vgui-dark);
+}
+
+.window-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.window-lambda {
+  color: #E2B038;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.window-btn {
+  width: 18px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--vgui-bg);
+  color: #FFFFFF;
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.window-btn:active {
+  box-shadow: inset 1px 1px 0 var(--vgui-dark);
+  border-color: var(--vgui-border);
+}
+
+.card {
+  background: var(--vgui-bg);
+  padding: 20px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card-head h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  color: #FFFFFF;
+}
+
+.card-head p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.field > span {
+  color: #FFFFFF;
+}
+
+.field small {
+  font-weight: 400;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+.field input,
+.field input:focus {
+  font: inherit;
+  font-weight: 400;
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  border-radius: 0px;
+  box-shadow: inset 1px 1px 0 var(--vgui-border), inset -1px -1px 0 var(--vgui-bg);
+  background: var(--vgui-base);
+  color: #FFFFFF;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: var(--vgui-selected-bg);
+  box-shadow: inset 1px 1px 0 var(--vgui-dark);
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.checkbox {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.checkbox input {
+  margin-top: 2px;
+  accent-color: var(--vgui-selected-bg);
+}
+
+.note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 6px 10px;
+  border-radius: 0px;
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+  background: var(--vgui-base);
+}
+
+.note.ok {
+  color: #72db63;
+}
+
+.note.error {
+  color: #ff6e6e;
+}
+
+.note.warn {
+  color: #f7ca54;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.card-foot {
+  border-top: 1px solid var(--vgui-border);
+  box-shadow: inset 0 1px 0 var(--vgui-light);
+  padding-top: 12px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  background: var(--vgui-base);
+  color: #FFFFFF;
+  padding: 2px 6px;
+  border: 1px solid var(--vgui-dark);
+  border-radius: 0px;
+}
+
+/* ---------- buttons ---------- */
+
+.btn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 0px;
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  background: var(--vgui-bg);
+  color: #FFFFFF;
+  cursor: pointer;
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn:hover:not(:disabled) {
+  background: #55644e;
+}
+
+.btn:active:not(:disabled) {
+  box-shadow: inset 1px 1px 0 var(--vgui-dark);
+  border-color: var(--vgui-border);
+  padding-top: 6px;
+  padding-bottom: 4px;
+}
+
+.btn:disabled {
+  color: var(--vgui-disabled);
+  text-shadow: 1px 1px 0 var(--vgui-light);
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--vgui-bg);
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #5c6c54;
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ink-soft);
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+  color: #FFFFFF;
+}
+
+/* ---------- board ---------- */
+
+/* ---------- board layout & topbar ---------- */
+
+.board-layout {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--vgui-canvas);
+}
+
+.vgui-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  background: var(--vgui-bg);
+  border-bottom: 1px solid var(--vgui-border);
+  box-shadow: inset 0 1px 0 var(--vgui-light), inset 0 -1px 0 var(--vgui-dark);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  z-index: 15;
+  user-select: none;
+}
+
+.topbar-left,
+.topbar-right,
+.topbar-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vgui-lambda {
+  color: var(--vgui-accent);
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.topbar-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #FFFFFF;
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+  padding: 3px 8px;
+  border-radius: 0px;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.board {
+  position: fixed;
+  top: 38px;
+  left: 0;
+  right: 0;
+  bottom: 38px;
+  background: var(--vgui-canvas);
+  overflow: hidden;
+}
+
+.access-request-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+  background: var(--vgui-selected-bg);
+  color: #FFFFFF;
+  border: 1px solid var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light);
+  font-size: 11px;
+}
+
+.alert-btn {
+  padding: 1px 6px !important;
+  font-size: 10px !important;
+}
+
+.alert-count-badge {
+  background: #ff4747;
+  color: #FFFFFF;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 0px;
+  margin-left: 4px;
+  border: 1px solid #000;
+}
+
+.live-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 7px;
+  border-radius: 0px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.live-status-pill.live {
+  background: var(--vgui-selected-bg);
+  color: #FFFFFF;
+  border: 1px solid var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light);
+}
+
+.live-status-pill.solo {
+  background: var(--vgui-base);
+  color: #C0C8BC;
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 0px;
+  background: currentColor;
+}
+
+.live-status-pill.live .live-dot {
+  background: #FFFFFF;
+  box-shadow: 0 0 4px #FFFFFF;
+}
+
+.collaborator-avatars {
+  display: flex;
+  align-items: center;
+  margin-left: 2px;
+}
+
+.collaborator-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 0px;
+  border: 1px solid var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: -2px;
+  cursor: default;
+  user-select: none;
+  transition: transform 0.12s ease;
+}
+
+.collaborator-avatar:hover {
+  transform: translateY(-2px);
+  z-index: 10;
+}
+
+.topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 0px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark);
+  color: #FFFFFF;
+  cursor: pointer;
+  user-select: none;
+}
+
+.topbar-btn:hover {
+  background: #55644e;
+}
+
+.topbar-btn.active {
+  background: var(--vgui-selected-bg);
+  box-shadow: inset 1px 1px 0 var(--vgui-dark);
+}
+
+.topbar-btn:active {
+  box-shadow: inset 1px 1px 0 var(--vgui-dark);
+  border-color: var(--vgui-border);
+}
+
+/* ---------- topbar extra tools & widgets ---------- */
+
+.topbar-popover {
+  position: absolute;
+  top: 42px;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 8px 24px rgba(0, 0, 0, 0.6);
+  padding: 10px 14px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 190px;
+}
+
+.topbar-popover-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--vgui-accent);
+}
+
+.topbar-popover-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- presentation mode bar ---------- */
+
+.presenter-bar {
+  position: fixed;
+  bottom: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 12px 32px rgba(0, 0, 0, 0.7);
+}
+
+.presenter-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #FFFFFF;
+  min-width: 140px;
+  text-align: center;
+}
+
+.following-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--vgui-selected-bg);
+  color: #FFFFFF;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light);
+  cursor: pointer;
+}
+
+.following-indicator:hover {
+  filter: brightness(1.15);
+}
+
+.toast-popup {
+  position: fixed;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-accent);
+  color: #FFFFFF;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- sticky palette ---------- */
+
+.sticky-panel {
+  position: fixed;
+  top: 44px;
+  left: 56px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 8px 24px rgba(0, 0, 0, 0.6);
+  border-radius: 0px;
+}
+
+.sticky-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sticky-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--vgui-accent);
+  white-space: nowrap;
+}
+
+.sticky-swatches {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sticky-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 2px 5px;
+  line-height: 1;
+}
+
+.sticky-close-btn:hover {
+  color: #FFFFFF;
+  background: var(--vgui-base);
+}
+
+.sticky-toggle-btn {
+  position: absolute;
+  left: 16px;
+  bottom: 50px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 4px 14px rgba(0, 0, 0, 0.4);
+  font-size: 12px;
+  font-weight: 600;
+  color: #FFFFFF;
+  cursor: pointer;
+  border-radius: 0px;
+}
+
+.sticky-toggle-btn:hover {
+  background: #55644e;
+}
+
+.swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 0px;
+  border: 1px solid #000000;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.4), inset -1px -1px 0 rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s ease;
+}
+
+.swatch:hover {
+  transform: scale(1.15);
+}
+
+.swatch-wheel-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.swatch-wheel {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid #000000;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.5), inset -1px -1px 0 rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.1s ease;
+}
+
+.swatch-wheel:hover {
+  transform: scale(1.18);
+  box-shadow: 0 0 6px var(--vgui-accent);
+}
+
+.swatch-wheel input[type="color"] {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 36px;
+  height: 36px;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+/* ---------- status bar ---------- */
+
+.statusbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  background: var(--vgui-bg);
+  border-top: 1px solid var(--vgui-light);
+  box-shadow: inset 0 -1px 0 var(--vgui-dark);
+  font-size: 12px;
+  z-index: 10;
+  color: #FFFFFF;
+}
+
+.status-left,
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.status-left {
+  flex: 1;
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+  background: var(--vgui-base);
+  padding: 3px 8px;
+  border-radius: 0px;
+}
+
+.status-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-right .small {
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+  background: var(--vgui-base);
+  padding: 3px 8px;
+  border-radius: 0px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 0px;
+  flex: none;
+  background: var(--ink-soft);
+}
+
+.dot.ok {
+  background: var(--ok);
+  box-shadow: 0 0 3px var(--ok);
+}
+
+.dot.warn {
+  background: var(--warn);
+}
+
+.dot.busy {
+  background: var(--vgui-accent);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.dot.err {
+  background: var(--err);
+}
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 6px;
+  border-radius: 0px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.live-badge.live {
+  background: var(--vgui-selected-bg);
+  color: #FFFFFF;
+  border: 1px solid var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light);
+}
+
+.live-badge.solo {
+  background: var(--vgui-bg);
+  color: #C0C8BC;
+  border: 1px solid var(--vgui-dark);
+}
+
+.live-mini-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 0px;
+  background: currentColor;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 0px;
+  background: var(--vgui-selected-bg);
+  color: #FFFFFF;
+  border: 1px solid var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light);
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+
+.small {
+  font-size: 11px;
+}
+
+.rate.warn {
+  color: #ffd276;
+  font-weight: 600;
+}
+
+.rate.danger {
+  color: #ff7878;
+  font-weight: 600;
+}
+
+/* ---------- history panel ---------- */
+
+.history {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 38px;
+  width: 320px;
+  background: var(--vgui-bg);
+  border-left: 1px solid var(--vgui-light);
+  box-shadow: inset 1px 0 0 var(--vgui-light), -4px 0 16px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 20;
+  color: #FFFFFF;
+}
+
+.history.open {
+  transform: translateX(0);
+}
+
+.history-head {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--vgui-border);
+  box-shadow: inset 0 -1px 0 var(--vgui-light);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.history-actions {
+  padding: 10px 14px;
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--vgui-border);
+  box-shadow: inset 0 -1px 0 var(--vgui-light);
+}
+
+/* ---------- digest banner ---------- */
+
+.digest {
+  position: absolute;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 8px 24px rgba(0, 0, 0, 0.5);
+  border-radius: 0px;
+  font-size: 12px;
+  color: #FFFFFF;
+}
+
+.digest-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--vgui-accent);
+}
+
+/* ---------- Excalidraw UI Overrides (Steam VGUI) ---------- */
+
+.excalidraw {
+  --color-surface-low: #4B5844 !important;
+  --color-surface-mid: #3E4637 !important;
+  --color-surface-high: #586750 !important;
+  --color-primary: #978730 !important;
+  --color-primary-darker: #7e7025 !important;
+  --color-primary-darkest: #65591b !important;
+  --color-primary-light: #ab9b3d !important;
+  --color-brand-active: #978730 !important;
+  --color-brand-hover: #a89635 !important;
+  --button-bg: #4B5844 !important;
+  --button-selected-bg: #978730 !important;
+  --button-hover-bg: #57654f !important;
+  --border-radius-lg: 0px !important;
+  --border-radius-md: 0px !important;
+  --ui-font: "Tahoma", "MS Sans Serif", "Segoe UI", sans-serif !important;
+}
+
+/* Toolbar islands and panels */
+.excalidraw .Island {
+  background-color: var(--vgui-bg) !important;
+  border: 1px solid var(--vgui-bg) !important;
+  border-right-color: var(--vgui-border) !important;
+  border-bottom-color: var(--vgui-border) !important;
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+  border-radius: 0px !important;
+}
+
+/* Tool icon buttons */
+.excalidraw .ToolIcon_type_button,
+.excalidraw .ToolIcon_type_radio,
+.excalidraw .ExcButton,
+.excalidraw .sidebar-trigger {
+  border-radius: 0px !important;
+  border: 1px solid var(--vgui-bg) !important;
+  border-right-color: var(--vgui-border) !important;
+  border-bottom-color: var(--vgui-border) !important;
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark) !important;
+  background-color: var(--vgui-bg) !important;
+  color: #FFFFFF !important;
+}
+
+.excalidraw .ToolIcon_type_button:hover,
+.excalidraw .ToolIcon_type_radio:hover,
+.excalidraw .ExcButton:hover {
+  background-color: #55644e !important;
+}
+
+/* Active / checked tool icon with Steam gold bar */
+.excalidraw .ToolIcon_type_radio.active,
+.excalidraw .ToolIcon_type_radio[aria-checked="true"],
+.excalidraw .ToolIcon_type_button.active,
+.excalidraw .ToolIcon_type_button[aria-checked="true"],
+.excalidraw .ExcButton--selected,
+.excalidraw [aria-selected="true"] {
+  background-color: var(--vgui-selected-bg) !important;
+  color: #FFFFFF !important;
+  box-shadow: inset 1px 1px 0 var(--vgui-dark) !important;
+  border-color: var(--vgui-border) !important;
+}
+
+/* Dropdown menus, popovers and dialogs */
+.excalidraw .dropdown-menu,
+.excalidraw .popover,
+.excalidraw .Modal,
+.excalidraw .color-picker {
+  background-color: var(--vgui-bg) !important;
+  border: 1px solid var(--vgui-bg) !important;
+  border-right-color: var(--vgui-border) !important;
+  border-bottom-color: var(--vgui-border) !important;
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 10px 30px rgba(0, 0, 0, 0.7) !important;
+  border-radius: 0px !important;
+  color: #FFFFFF !important;
+}
+
+/* ---------- access modal & dialogs ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.modal-window {
+  width: min(540px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-body {
+  overflow-y: auto;
+  gap: 12px;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.chip-btn {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  background: var(--vgui-base);
+  color: #FFFFFF;
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+  cursor: pointer;
+  border-radius: 0px;
+}
+
+.chip-btn:hover {
+  background: var(--vgui-selected-bg);
+  border-color: var(--vgui-border);
+}
+
+.nick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+  background: var(--vgui-base);
+  padding: 4px;
+}
+
+.nick-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark);
+}
+
+.nick-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.nick-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--vgui-selected-bg);
+  color: #FFFFFF;
+  padding: 1px 4px;
+  border: 1px solid var(--vgui-border);
+}
+
+@media (max-width: 720px) {
+  .row {
+    flex-direction: column;
+  }
+
+  .status-right .small {
+    display: none;
+  }
+}
+
+/* Peers are shown in our own top-bar avatar list; hide Excalidraw's duplicate one. */
+.excalidraw .UserList,
+.excalidraw .UserList_mobile {
+  display: none !important;
+}
+
+/* AI assistant inside Excalidraw's native docked sidebar (VGUI look) */
+.excalidraw .sidebar.ai-sidebar {
+  background-color: var(--vgui-bg);
+  color: #FFFFFF;
+  border-left: 1px solid var(--vgui-border);
+}
+.excalidraw .ai-sidebar .sidebar__header {
+  background: var(--vgui-base);
+  border-bottom: 1px solid var(--vgui-dark);
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+.excalidraw .ai-sidebar-body input {
+  background: var(--vgui-base);
+  color: #FFFFFF;
+  border: 1px solid var(--vgui-dark);
+}
+.excalidraw .ai-sidebar-body button {
+  font-family: inherit;
+}

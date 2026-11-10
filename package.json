@@ -1,0 +1,34 @@
+{
+  "name": "caulk",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test:sync": "esbuild test/sync.test.ts --bundle --platform=node --format=esm --outfile=.tmp/sync.test.mjs --external:node:* --log-level=warning && node .tmp/sync.test.mjs",
+    "test:live": "esbuild test/live.test.ts --bundle --platform=node --format=esm --packages=external --outfile=.tmp/live.test.mjs --log-level=warning && node .tmp/live.test.mjs",
+    "test": "npm run test:sync && npm run test:live",
+    "test:integration": "npm run test"
+  },
+  "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
+    "@google/genai": "^3.0.0",
+    "lib0": "^0.2.120",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "y-indexeddb": "^9.0.12",
+    "y-protocols": "^1.0.7",
+    "yjs": "^13.6.27"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}

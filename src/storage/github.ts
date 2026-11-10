@@ -1,0 +1,401 @@
+/**
+ * GitHub Contents API backed storage.
+ *
+ * Reads use conditional requests (`If-None-Match`): a 304 does not count
+ * against the 5,000 req/hour authenticated limit, so idle polling is free.
+ * Writes are single commits and can lose a race, which surfaces as a
+ * ConflictError the sync engine resolves by merging and retrying.
+ */
+
+import { base64ToBytes, bytesToBase64 } from "../lib/bytes";
+import type { RateLimit, ReadResult, StorageAdapter, WriteResult } from "./types";
+
+const API = "https://api.github.com";
+const API_VERSION = "2022-11-28";
+
+export class GitHubError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "GitHubError";
+  }
+}
+
+/** Someone else (or another tab) wrote the file between our read and our write. */
+export class ConflictError extends GitHubError {
+  constructor(status: number, message: string) {
+    super(status, message);
+    this.name = "ConflictError";
+  }
+}
+
+export type GitHubConfig = {
+  token: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  path: string;
+  /** Override for GitHub Enterprise or tests. Defaults to api.github.com. */
+  apiBase?: string;
+};
+
+function encodePath(path: string): string {
+  return path
+    .split("/")
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join("/");
+}
+
+export class GitHubAdapter implements StorageAdapter {
+  readonly label: string;
+  private readonly apiBase: string;
+  private limit: RateLimit = null;
+
+  constructor(private readonly cfg: GitHubConfig) {
+    this.label = `${cfg.owner}/${cfg.repo}:${cfg.path}`;
+    this.apiBase = (cfg.apiBase ?? API).replace(/\/$/, "");
+  }
+
+  rateLimit(): RateLimit {
+    return this.limit;
+  }
+
+  private headers(extra?: Record<string, string>): Record<string, string> {
+    return {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${this.cfg.token}`,
+      "X-GitHub-Api-Version": API_VERSION,
+      ...extra,
+    };
+  }
+
+  private noteRateLimit(res: Response): void {
+    const remaining = Number(res.headers.get("x-ratelimit-remaining"));
+    const limit = Number(res.headers.get("x-ratelimit-limit"));
+    const reset = Number(res.headers.get("x-ratelimit-reset"));
+    if (Number.isFinite(remaining) && Number.isFinite(limit) && Number.isFinite(reset)) {
+      this.limit = { remaining, limit, resetAt: reset * 1000 };
+    }
+  }
+
+  private fileUrl(): string {
+    return this.fileUrlFor(this.cfg.path);
+  }
+
+  private fileUrlFor(path: string): string {
+    return `${this.apiBase}/repos/${encodeURIComponent(this.cfg.owner)}/${encodeURIComponent(
+      this.cfg.repo,
+    )}/contents/${encodePath(path)}`;
+  }
+
+  /** Same credentials, different file. Used for snapshots and history. */
+  clone(path: string): GitHubAdapter {
+    return new GitHubAdapter({ ...this.cfg, path });
+  }
+
+  /** List a directory. Returns [] when it does not exist yet. */
+  async listDir(dirPath: string): Promise<Array<{ name: string; size: number; sha: string }>> {
+    const res = await fetch(
+      `${this.fileUrlFor(dirPath)}?ref=${encodeURIComponent(this.cfg.branch)}`,
+      { headers: this.headers(), cache: "no-store" },
+    );
+    this.noteRateLimit(res);
+    if (res.status === 404) return [];
+    if (!res.ok) await this.fail(res);
+
+    const body = (await res.json()) as unknown;
+    if (!Array.isArray(body)) return [];
+    return (body as Array<{ type?: string; name?: string; size?: number; sha?: string }>)
+      .filter((entry) => entry.type === "file" && entry.name && entry.sha)
+      .map((entry) => ({
+        name: entry.name as string,
+        size: entry.size ?? 0,
+        sha: entry.sha as string,
+      }));
+  }
+
+  async remove(path: string, sha: string, message: string): Promise<void> {
+    const res = await fetch(this.fileUrlFor(path), {
+      method: "DELETE",
+      headers: this.headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ message, sha, branch: this.cfg.branch }),
+    });
+    this.noteRateLimit(res);
+    if (!res.ok && res.status !== 404) await this.fail(res);
+  }
+
+  private async fail(res: Response): Promise<never> {
+    let detail = res.statusText;
+    try {
+      const body = (await res.json()) as { message?: string };
+      if (body?.message) detail = body.message;
+    } catch {
+      /* keep statusText */
+    }
+    if (res.status === 401) {
+      throw new GitHubError(401, "GitHub rejected the token (401). Check that it is valid and not expired.");
+    }
+    if (res.status === 403 || res.status === 429) {
+      throw new GitHubError(
+        res.status,
+        `GitHub refused the request (${res.status}): ${detail}. ` +
+          "Usually a rate limit or the token missing Contents read/write permission.",
+      );
+    }
+    throw new GitHubError(res.status, `GitHub error ${res.status}: ${detail}`);
+  }
+
+  async read(etag?: string): Promise<ReadResult> {
+    const res = await fetch(`${this.fileUrl()}?ref=${encodeURIComponent(this.cfg.branch)}`, {
+      headers: this.headers(etag ? { "If-None-Match": etag } : undefined),
+      cache: "no-store",
+    });
+    this.noteRateLimit(res);
+
+    if (res.status === 304) return { status: "unchanged" };
+    if (res.status === 404) return { status: "missing" };
+    if (!res.ok) await this.fail(res);
+
+    const body = (await res.json()) as {
+      type?: string;
+      encoding?: string;
+      content?: string;
+      sha?: string;
+      size?: number;
+    };
+
+    if (body.type && body.type !== "file") {
+      throw new GitHubError(422, `"${this.cfg.path}" exists but is a ${body.type}, not a file.`);
+    }
+    if (body.encoding === "none" || (!body.content && (body.size ?? 0) > 0)) {
+      if (body.sha) {
+        // GitHub Contents API does not inline content for files > 1 MB.
+        // Retrieve via the Git Blobs API which supports files up to 100 MB.
+        const blobUrl = `${this.apiBase}/repos/${encodeURIComponent(this.cfg.owner)}/${encodeURIComponent(
+          this.cfg.repo,
+        )}/git/blobs/${encodeURIComponent(body.sha)}`;
+
+        // Attempt 1: Fetch raw binary directly using application/vnd.github.raw
+        try {
+          const blobRes = await fetch(blobUrl, {
+            headers: this.headers({ Accept: "application/vnd.github.raw" }),
+            cache: "no-store",
+          });
+          this.noteRateLimit(blobRes);
+          if (blobRes.ok) {
+            const buffer = await blobRes.arrayBuffer();
+            return {
+              status: "ok",
+              bytes: new Uint8Array(buffer),
+              sha: body.sha,
+              etag: res.headers.get("etag") ?? undefined,
+            };
+          }
+        } catch {
+          /* try JSON fallback below */
+        }
+
+        // Attempt 2: Fetch via JSON (content base64 encoded)
+        try {
+          const jsonBlobRes = await fetch(blobUrl, {
+            headers: this.headers({ Accept: "application/vnd.github+json" }),
+            cache: "no-store",
+          });
+          this.noteRateLimit(jsonBlobRes);
+          if (jsonBlobRes.ok) {
+            const blobJson = (await jsonBlobRes.json()) as { content?: string };
+            if (blobJson.content) {
+              return {
+                status: "ok",
+                bytes: base64ToBytes(blobJson.content),
+                sha: body.sha,
+                etag: res.headers.get("etag") ?? undefined,
+              };
+            }
+          }
+        } catch {
+          /* fallback to error */
+        }
+      }
+
+      throw new GitHubError(
+        413,
+        `This board file is larger than 1 MB (${(((body.size ?? 0) / (1024 * 1024)) || 1).toFixed(1)} MB) ` +
+          "and could not be retrieved from the Git Blobs API.",
+      );
+    }
+
+    return {
+      status: "ok",
+      bytes: base64ToBytes(body.content ?? ""),
+      sha: body.sha,
+      etag: res.headers.get("etag") ?? undefined,
+    };
+  }
+
+  async write(bytes: Uint8Array, prevSha: string | undefined, message: string): Promise<WriteResult> {
+    const res = await fetch(this.fileUrl(), {
+      method: "PUT",
+      headers: this.headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        message,
+        content: bytesToBase64(bytes),
+        branch: this.cfg.branch,
+        ...(prevSha ? { sha: prevSha } : {}),
+      }),
+    });
+    this.noteRateLimit(res);
+
+    if (res.status === 409 || res.status === 422) {
+      let detail = res.statusText;
+      try {
+        const body = (await res.json()) as { message?: string };
+        if (body?.message) detail = body.message;
+      } catch {
+        /* ignore */
+      }
+      // A brand new repo has no branch to commit to. Say so plainly instead of
+      // looping through conflict retries.
+      if (/is empty|empty repository|branch .* not found|no commit found/i.test(detail)) {
+        throw new GitHubError(
+          res.status,
+          `GitHub says "${detail}". A brand new repo has no commits, so the ` +
+            `"${this.cfg.branch}" branch does not exist yet. Add a README to the repo ` +
+            `(or pick an existing branch) and try again.`,
+        );
+      }
+      throw new ConflictError(res.status, `Write rejected by GitHub (${res.status}): ${detail}`);
+    }
+    if (!res.ok) await this.fail(res);
+
+    const body = (await res.json()) as { content?: { sha?: string } };
+    return { sha: body.content?.sha };
+  }
+}
+
+/** Cheap sanity check used by the setup screen. */
+export async function inspectRepo(
+  token: string,
+  owner: string,
+  repo: string,
+): Promise<{ private: boolean; push: boolean; defaultBranch: string; fullName: string; empty: boolean }> {
+  const res = await fetch(`${API}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": API_VERSION,
+    },
+  });
+  if (res.status === 404) {
+    throw new GitHubError(404, `Repo ${owner}/${repo} not found, or this token cannot see it.`);
+  }
+  if (!res.ok) {
+    if (res.status === 401) throw new GitHubError(401, "GitHub rejected the token (401).");
+    throw new GitHubError(res.status, `GitHub error ${res.status} while checking the repo.`);
+  }
+  const body = (await res.json()) as {
+    private?: boolean;
+    default_branch?: string;
+    full_name?: string;
+    pushed_at?: string | null;
+    size?: number;
+    permissions?: { push?: boolean };
+  };
+  return {
+    private: Boolean(body.private),
+    push: Boolean(body.permissions?.push),
+    defaultBranch: body.default_branch ?? "main",
+    fullName: body.full_name ?? `${owner}/${repo}`,
+    empty: !body.pushed_at && (body.size ?? 0) === 0,
+  };
+}
+
+export type GitHubUser = {
+  login: string;
+  name: string;
+  avatarUrl: string;
+};
+
+export async function fetchCurrentUser(token: string): Promise<GitHubUser> {
+  const res = await fetch(`${API}/user`, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": API_VERSION,
+    },
+  });
+  if (!res.ok) {
+    if (res.status === 401) throw new GitHubError(401, "GitHub rejected the token (401).");
+    throw new GitHubError(res.status, `Failed to load GitHub user (${res.status}).`);
+  }
+  const body = (await res.json()) as { login: string; name?: string; avatar_url?: string };
+  return {
+    login: body.login,
+    name: body.name || body.login,
+    avatarUrl: body.avatar_url || "",
+  };
+}
+
+export type GitHubRepoItem = {
+  fullName: string;
+  owner: string;
+  name: string;
+  private: boolean;
+  defaultBranch: string;
+  canPush: boolean;
+};
+
+export async function fetchUserRepos(token: string): Promise<GitHubRepoItem[]> {
+  const res = await fetch(
+    `${API}/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator`,
+    {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": API_VERSION,
+      },
+    },
+  );
+  if (!res.ok) return [];
+  const body = (await res.json()) as Array<{
+    full_name?: string;
+    name?: string;
+    owner?: { login?: string };
+    private?: boolean;
+    default_branch?: string;
+    permissions?: { push?: boolean };
+  }>;
+  if (!Array.isArray(body)) return [];
+  return body.map((r) => ({
+    fullName: r.full_name || "",
+    owner: r.owner?.login || "",
+    name: r.name || "",
+    private: Boolean(r.private),
+    defaultBranch: r.default_branch || "main",
+    canPush: Boolean(r.permissions?.push),
+  }));
+}
+
+export async function listRepoBoards(
+  token: string,
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<string[]> {
+  const adapter = new GitHubAdapter({
+    token,
+    owner,
+    repo,
+    branch,
+    path: "",
+  });
+  const files = await adapter.listDir("boards");
+  return files
+    .filter((f) => /\.(caulk|slate)$/i.test(f.name))
+    .map((f) => f.name.replace(/\.(caulk|slate)$/i, ""));
+}
+
+
