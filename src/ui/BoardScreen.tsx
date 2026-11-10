@@ -208,7 +208,23 @@ export function BoardScreen({ session, onClose }: Props) {
   const [historyBusy, setHistoryBusy] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   // Desktop: the swatch strip beside Excalidraw's shape toolbar, shown unless toggled off.
-  const [stickyPanelOpen, setStickyPanelOpen] = useState(true);
+  const [stickyPanelOpen, setStickyPanelOpen] = useState(false);
+  const stickyAnchorRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!stickyPanelOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!stickyAnchorRef.current?.contains(e.target as Node)) setStickyPanelOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setStickyPanelOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [stickyPanelOpen]);
   // Narrow layouts: a single "Sticky" button that opens the swatches.
   const [stickyMobileOpen, setStickyMobileOpen] = useState(false);
   const [isNarrow, setIsNarrow] = useState(false);
@@ -1717,16 +1733,32 @@ export function BoardScreen({ session, onClose }: Props) {
         </div>
       )}
 
-      {apiReady && !isNarrow && stickyToolbarHost && stickyPanelOpen
+      {apiReady && !isNarrow && stickyToolbarHost
         ? createPortal(
-            <div
-              className="Island sticky-strip"
-              style={{ "--padding": 1 } as CSSProperties}
-              role="toolbar"
-              aria-label="Sticky note (N)"
-              title="Sticky note (N)"
-            >
-              {stickySwatches}
+            <div className="sticky-anchor" ref={stickyAnchorRef}>
+              <button
+                type="button"
+                className={`Island sticky-trigger${stickyPanelOpen ? " active" : ""}`}
+                onClick={() => setStickyPanelOpen((open) => !open)}
+                title="Sticky note (N)"
+                aria-label="Sticky note (N)"
+                aria-expanded={stickyPanelOpen}
+              >
+                <span className="sticky-trigger-icon" style={{ background: lastStickyColorRef.current }} />
+              </button>
+              {stickyPanelOpen && (
+                <div
+                  className="Island sticky-popover"
+                  role="toolbar"
+                  aria-label="Sticky colours"
+                  onClick={(e) => {
+                    // Picking a colour closes the popover; the colour wheel input keeps it open.
+                    if ((e.target as HTMLElement).closest("button")) setStickyPanelOpen(false);
+                  }}
+                >
+                  {stickySwatches}
+                </div>
+              )}
             </div>,
             stickyToolbarHost,
           )
