@@ -237,10 +237,15 @@ try {
         ]);
 
         // GitHub App permissions are set on the app itself, so no scope parameter is sent
-        $params = http_build_query([
+        $authParams = [
             'client_id' => $clientId,
             'state' => $state,
-        ]);
+        ];
+        // No GITHUB_APP_SLUG means a classic OAuth App is configured: it needs an explicit scope.
+        if ($appSlug === '') {
+            $authParams['scope'] = 'repo,read:user';
+        }
+        $params = http_build_query($authParams);
 
         header('Location: https://github.com/login/oauth/authorize?' . $params);
         exit;
@@ -287,7 +292,7 @@ try {
         $data = json_decode($response, true);
         if (!empty($data['access_token'])) {
             // access_token and token_kind first, then refresh fields when GitHub returned them
-            $fragment = ['access_token' => $data['access_token'], 'token_kind' => 'app'] + caulk_token_fields($data);
+            $fragment = ['access_token' => $data['access_token'], 'token_kind' => ($appSlug !== '' ? 'app' : 'pat')] + caulk_token_fields($data);
             header('Location: ../#' . http_build_query($fragment));
             exit;
         }

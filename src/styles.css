@@ -610,57 +610,62 @@ code {
 
 /* ---------- sticky palette ---------- */
 
-.sticky-panel {
-  position: fixed;
-  top: 44px;
-  left: 56px;
-  z-index: 20;
+/* Desktop strip: sits inside Excalidraw's .App-menu_top next to the shape toolbar, same island look. */
+.sticky-strip {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
-  background: var(--vgui-bg);
-  border: 1px solid var(--vgui-bg);
-  border-right-color: var(--vgui-border);
-  border-bottom-color: var(--vgui-border);
-  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 8px 24px rgba(0, 0, 0, 0.6);
-  border-radius: 0px;
+  box-sizing: border-box;
+  min-height: calc(var(--lg-button-size, 2.5rem) + 0.5rem);
+  padding: calc(var(--padding, 1) * var(--space-factor, 0.25rem)) 0.5rem;
+  background-color: var(--island-bg-color);
+  box-shadow: var(--shadow-island);
+  border-radius: var(--border-radius-lg);
+  pointer-events: auto;
 }
 
-.sticky-header {
+/* Narrow layout: one button that opens the swatches above it. */
+.sticky-mobile {
+  position: fixed;
+  right: 16px;
+  bottom: 84px;
+  z-index: 6;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 8px;
 }
 
-.sticky-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--vgui-accent);
-  white-space: nowrap;
+.sticky-mobile-btn {
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary-color, #1b1b1f);
+  background-color: var(--island-bg-color);
+  box-shadow: var(--shadow-island);
+  border: none;
+  border-radius: var(--border-radius-lg);
+  cursor: pointer;
+}
+
+.sticky-mobile-btn.active {
+  background-color: var(--button-active-bg, #f1f0ff);
+}
+
+.sticky-mobile-popover {
+  max-width: calc(100vw - 32px);
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.sticky-mobile-popover .sticky-swatches,
+.sticky-strip .sticky-swatches {
+  flex-wrap: wrap;
 }
 
 .sticky-swatches {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.sticky-close-btn {
-  background: transparent;
-  border: none;
-  font-size: 12px;
-  color: var(--ink-soft);
-  cursor: pointer;
-  padding: 2px 5px;
-  line-height: 1;
-}
-
-.sticky-close-btn:hover {
-  color: #FFFFFF;
-  background: var(--vgui-base);
 }
 
 .sticky-toggle-btn {

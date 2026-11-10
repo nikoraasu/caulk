@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import {
   CaptureUpdateAction,
   Excalidraw,
@@ -165,6 +166,15 @@ export function BoardScreen({ session, onClose }: Props) {
   const pointerDownRef = useRef(false);
   const deferredRef = useRef<ExcalidrawElement[] | null>(null);
   const cascadeRef = useRef(0);
+  const lastStickyColorRef = useRef(STICKY_COLORS[0].value);
+  // Last canvas pointer, kept with the scroll/zoom it was taken at so N can re-project it.
+  const lastPointerRef = useRef<{
+    x: number;
+    y: number;
+    scrollX: number;
+    scrollY: number;
+    zoom: number;
+  } | null>(null);
   const bootRef = useRef({ hydrationDone: false, remoteLoaded: false, digested: false });
   const snapshottingRef = useRef(false);
   const lastSnapshotAtRef = useRef(0);
@@ -196,7 +206,12 @@ export function BoardScreen({ session, onClose }: Props) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
-  const [stickyPanelOpen, setStickyPanelOpen] = useState(false);
+  // Desktop: the swatch strip beside Excalidraw's shape toolbar, shown unless toggled off.
+  const [stickyPanelOpen, setStickyPanelOpen] = useState(true);
+  // Narrow layouts: a single "Sticky" button that opens the swatches.
+  const [stickyMobileOpen, setStickyMobileOpen] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(false);
+  const [stickyToolbarHost, setStickyToolbarHost] = useState<HTMLElement | null>(null);
   const [customColor, setCustomColor] = useState("#FFD166");
   const [currentIdentity] = useState(session.identity);
   const isAllowed = true;
@@ -546,6 +561,16 @@ export function BoardScreen({ session, onClose }: Props) {
       pointer: { x: number; y: number; tool: "pointer" | "laser" };
       button: "down" | "up";
     }) => {
+      const appState = apiRef.current?.getAppState();
+      if (appState) {
+        lastPointerRef.current = {
+          x: payload.pointer.x,
+          y: payload.pointer.y,
+          scrollX: appState.scrollX,
+          scrollY: appState.scrollY,
+          zoom: appState.zoom.value,
+        };
+      }
       if (!isAllowed) return;
       liveSessionRef.current?.updatePointer(payload.pointer, payload.button);
     },
@@ -656,18 +681,21 @@ export function BoardScreen({ session, onClose }: Props) {
     [isAllowed, syncLiveView],
   );
 
-  const addSticky = useCallback((color: string) => {
+  const addSticky = useCallback((color: string, at?: { x: number; y: number }) => {
     if (!isAllowed) return;
     const api = apiRef.current;
     if (!api) return;
+    lastStickyColorRef.current = color;
     const appState = api.getAppState();
     const rect = containerRef.current?.getBoundingClientRect();
-    const center = rect
-      ? viewportCoordsToSceneCoords(
-          { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 },
-          appState,
-        )
-      : { x: 0, y: 0 };
+    const center =
+      at ??
+      (rect
+        ? viewportCoordsToSceneCoords(
+            { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 },
+            appState,
+          )
+        : { x: 0, y: 0 });
 
     // Cascade new notes so rapid clicks do not stack into one invisible pile.
     const step = cascadeRef.current % 6;
@@ -720,6 +748,60 @@ export function BoardScreen({ session, onClose }: Props) {
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
   }, [isAllowed]);
+
+  // Narrow (mobile) layout check, matching Excalidraw's bottom-toolbar breakpoint.
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 730px)");
+    const update = () => setIsNarrow(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // Find Excalidraw's desktop shape toolbar container; re-attach if Excalidraw re-renders it.
+  useEffect(() => {
+    if (!apiReady) return;
+    const root = containerRef.current;
+    if (!root) return;
+    const find = () =>
+      setStickyToolbarHost(root.querySelector<HTMLElement>(".App-menu_top .App-toolbar-container"));
+    find();
+    const observer = new MutationObserver(find);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [apiReady]);
+
+  // N drops a sticky (last-used colour) at the last canvas pointer position, in scene coords.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "n" || e.repeat) return;
+      if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])"))
+      ) {
+        return;
+      }
+      const api = apiRef.current;
+      if (!api) return;
+      const s = api.getAppState();
+      if (s.editingTextElement) return;
+      e.preventDefault();
+      let at: { x: number; y: number } | undefined;
+      const p = lastPointerRef.current;
+      if (p) {
+        // Re-project the stored pointer through the current scroll/zoom (sceneX = viewportX / zoom - scrollX).
+        const viewportX = (p.x + p.scrollX) * p.zoom;
+        const viewportY = (p.y + p.scrollY) * p.zoom;
+        at = { x: viewportX / s.zoom.value - s.scrollX, y: viewportY / s.zoom.value - s.scrollY };
+      }
+      addSticky(lastStickyColorRef.current, at);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [addSticky]);
 
   const openMermaid = useCallback(() => {
     const api = apiRef.current;
@@ -1332,6 +1414,40 @@ export function BoardScreen({ session, onClose }: Props) {
 
   const busy = status.kind === "loading" || status.kind === "saving";
 
+  const stickySwatches = (
+    <div className="sticky-swatches">
+      {STICKY_COLORS.map((c) => (
+        <button
+          key={c.value}
+          className="swatch"
+          style={{ background: c.value }}
+          title={`Add ${c.name.toLowerCase()} sticky note`}
+          aria-label={`Add ${c.name.toLowerCase()} sticky note`}
+          onClick={() => addSticky(c.value)}
+        />
+      ))}
+      <div className="swatch-wheel-wrapper" title="Pick any custom color via hex wheel">
+        <div
+          className="swatch-wheel"
+          style={{
+            background: "conic-gradient(from 90deg, red, yellow, lime, aqua, blue, magenta, red)",
+          }}
+        >
+          <input
+            type="color"
+            value={customColor}
+            onChange={(e) => {
+              const chosen = e.target.value;
+              setCustomColor(chosen);
+              addSticky(chosen);
+            }}
+            title="Color wheel: pick custom hex color"
+          />
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div
       className="board-layout"
@@ -1647,52 +1763,38 @@ export function BoardScreen({ session, onClose }: Props) {
         </div>
       )}
 
-      {stickyPanelOpen && (
-        <div className="sticky-panel">
-          <div className="sticky-header">
-            <span className="sticky-label">Sticky Notes</span>
-            <button
-              className="sticky-close-btn"
-              onClick={() => setStickyPanelOpen(false)}
-              title="Close sticky notes"
-              aria-label="Close sticky notes"
+      {apiReady && !isNarrow && stickyToolbarHost && stickyPanelOpen
+        ? createPortal(
+            <div
+              className="Island sticky-strip"
+              style={{ "--padding": 1 } as CSSProperties}
+              role="toolbar"
+              aria-label="Sticky note (N)"
+              title="Sticky note (N)"
             >
-              ✕
-            </button>
-          </div>
-          <div className="sticky-swatches">
-            {STICKY_COLORS.map((c) => (
-              <button
-                key={c.value}
-                className="swatch"
-                style={{ background: c.value }}
-                title={`Add ${c.name.toLowerCase()} sticky note`}
-                aria-label={`Add ${c.name.toLowerCase()} sticky note`}
-                onClick={() => addSticky(c.value)}
-              />
-            ))}
+              {stickySwatches}
+            </div>,
+            stickyToolbarHost,
+          )
+        : null}
 
-            <div className="swatch-wheel-wrapper" title="Pick any custom color via hex wheel">
-              <div
-                className="swatch-wheel"
-                style={{
-                  background:
-                    "conic-gradient(from 90deg, red, yellow, lime, aqua, blue, magenta, red)",
-                }}
-              >
-                <input
-                  type="color"
-                  value={customColor}
-                  onChange={(e) => {
-                    const chosen = e.target.value;
-                    setCustomColor(chosen);
-                    addSticky(chosen);
-                  }}
-                  title="Color wheel: pick custom hex color"
-                />
-              </div>
+      {apiReady && (isNarrow || !stickyToolbarHost) && (
+        <div className="sticky-mobile">
+          <button
+            type="button"
+            className={`sticky-mobile-btn${stickyMobileOpen ? " active" : ""}`}
+            onClick={() => setStickyMobileOpen((open) => !open)}
+            title="Sticky note (N)"
+            aria-label="Sticky note (N)"
+            aria-expanded={stickyMobileOpen}
+          >
+            📝 Sticky
+          </button>
+          {stickyMobileOpen && (
+            <div className="Island sticky-mobile-popover" style={{ "--padding": 1 } as CSSProperties}>
+              {stickySwatches}
             </div>
-          </div>
+          )}
         </div>
       )}
 
