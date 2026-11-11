@@ -27,8 +27,10 @@ import * as Y from "yjs";
 import {
   boardKey,
   boardLabel,
+  defaultPassphrase,
   getLastSeen,
   historyDirFor,
+  setBoardPassphrase,
   setLastSeen,
   type Session,
 } from "../config";
@@ -36,9 +38,11 @@ import { getFreshToken } from "../auth/token";
 import { SceneBridge, sanitizeElement, type Digest, type TimerState } from "../crdt/scene";
 import { SnapshotStore, type SnapshotInfo } from "../history/snapshots";
 import { AssetStore, assetObjectUrl, parseAssetRef } from "../storage/assets";
+import { ImageAssetSync } from "../sync/imageAssets";
 import { EncryptedStore } from "../storage/encrypted";
 import { GitHubAdapter } from "../storage/github";
 import { createGitHubIssue } from "../storage/issues";
+import { rekeyBoard } from "../storage/rekey";
 import { playMeetingChime } from "../lib/chime";
 import { SyncEngine, type SyncStatus } from "../sync/engine";
 import { getLiveRoomName, LiveSession, type LiveStatus } from "../sync/live";
@@ -46,20 +50,20 @@ import { DigestBanner } from "./DigestBanner";
 import { HistoryPanel } from "./HistoryPanel";
 import { StatusBar } from "./StatusBar";
 import { AIAssistantDrawer } from "./AIAssistantDrawer";
+import { ChangePasswordModal, UnlockBoardModal } from "./BoardPasswordModal";
 import { VideoModal } from "./VideoModal";
+import { BackgroundPicker } from "./BackgroundPicker";
+import { VGUI_STICKY_PICKS, vguiShade } from "./vguiColors";
 import type { RateLimit } from "../storage/types";
 
-const STICKY_COLORS = [
-  { name: "Yellow", value: "#FEF08A" },
-  { name: "Orange", value: "#FED7AA" },
-  { name: "Green", value: "#BBF7D0" },
-  { name: "Blue", value: "#BAE6FD" },
-  { name: "Purple", value: "#DDD6FE" },
-  { name: "Pink", value: "#FECDD3" },
-];
+// Muted sticky colours that fit the VGUI palette (see vguiColors.ts).
+const STICKY_NAMES = ["Gold", "Sage", "Slate", "Clay", "Lilac", "Bone"];
+const STICKY_COLORS = VGUI_STICKY_PICKS.map((value, i) => ({ name: STICKY_NAMES[i], value }));
 
 /** How often an active board leaves a restore point behind. */
 const SNAPSHOT_EVERY_MS = 10 * 60 * 1000;
+// Board background for boards that have never stored one. Synced per board once set.
+const DEFAULT_VIEW_BACKGROUND = "#283125";
 
 type RemoteElements = Parameters<typeof reconcileElements>[1];
 
@@ -161,7 +165,10 @@ export function BoardScreen({ session, onClose }: Props) {
     [assetStore],
   );
 
+  const imageSyncRef = useRef<ImageAssetSync | null>(null);
   const hydratedRef = useRef(false);
+  // Last canvas background known to both the scene and the doc; onChange writes only real changes.
+  const viewBackgroundRef = useRef(DEFAULT_VIEW_BACKGROUND);
   const hydratingRef = useRef(false);
   const localLoadedRef = useRef(false);
   const pointerDownRef = useRef(false);
@@ -200,6 +207,10 @@ export function BoardScreen({ session, onClose }: Props) {
   const [collaborators, setCollaborators] = useState<Map<SocketId, Collaborator>>(new Map());
   const [remoteEdits, setRemoteEdits] = useState(0);
   const [rateLimit, setRateLimit] = useState<RateLimit>(null);
+  // Only repo admins see the "Board password…" menu item.
+  const [isRepoAdmin, setIsRepoAdmin] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordProgress, setPasswordProgress] = useState<string | undefined>(undefined);
 
   const [digest, setDigest] = useState<Digest | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -255,6 +266,7 @@ export function BoardScreen({ session, onClose }: Props) {
     }
   });
   const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [backgroundPickerOpen, setBackgroundPickerOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [creatingIssue, setCreatingIssue] = useState(false);
 
@@ -373,6 +385,16 @@ export function BoardScreen({ session, onClose }: Props) {
       if (fileList.length > 0) {
         api.addFiles(fileList);
       }
+      const storedBackground = bridge.getViewBackground();
+      if (storedBackground) {
+        viewBackgroundRef.current = storedBackground;
+        api.updateScene({
+          appState: { viewBackgroundColor: storedBackground },
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+      }
+      // Starts after the first local files reach Excalidraw: resolves image refs, migrates inline ones.
+      imageSyncRef.current?.start();
     } finally {
       hydratingRef.current = false;
     }
@@ -391,6 +413,30 @@ export function BoardScreen({ session, onClose }: Props) {
 
   const pushToCanvasRef = useRef(pushToCanvas);
   pushToCanvasRef.current = pushToCanvas;
+
+  // Once on mount: whether we can administer the repo (and so change the board password).
+  useEffect(() => {
+    let cancelled = false;
+    new GitHubAdapter({
+      token: getFreshToken,
+      owner: session.owner,
+      repo: session.repo,
+      branch: session.branch,
+      path: session.path,
+    })
+      .repoPermissions()
+      .then(
+        (perms) => {
+          if (!cancelled) setIsRepoAdmin(perms.admin);
+        },
+        () => {
+          if (!cancelled) setIsRepoAdmin(false);
+        },
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [session.owner, session.repo, session.branch, session.path]);
 
   useEffect(() => {
     const doc = new Y.Doc();
@@ -436,13 +482,32 @@ export function BoardScreen({ session, onClose }: Props) {
         if (fileList.length > 0 && apiRef.current) {
           apiRef.current.addFiles(fileList);
         }
+        if (hydratedRef.current) {
+          imageSyncRef.current?.resolveRefs();
+          imageSyncRef.current?.migrateInline();
+        }
       },
     );
+    imageSyncRef.current = new ImageAssetSync({
+      bridge,
+      store: assetStore,
+      boardKey: key,
+      addFiles: (files) => apiRef.current?.addFiles(files),
+      onError: setToastMessage,
+    });
 
     const unobserveAllowed = bridge.observeAllowedNicknames(() => {});
     const unobserveRequests = bridge.observeAccessRequests(() => {});
     const unobserveTimer = bridge.observeTimer((t) => {
       setTimer(t);
+    });
+    const unobserveBackground = bridge.observeViewBackground((color) => {
+      if (!color || !apiRef.current) return;
+      viewBackgroundRef.current = color;
+      apiRef.current.updateScene({
+        appState: { viewBackgroundColor: color },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
     });
 
     const engine = new SyncEngine({
@@ -510,9 +575,12 @@ export function BoardScreen({ session, onClose }: Props) {
       unobserveAllowed();
       unobserveRequests();
       unobserveTimer();
+      unobserveBackground();
       activeLiveSession?.destroy();
       liveSessionRef.current = null;
       engine.stop();
+      imageSyncRef.current?.dispose();
+      imageSyncRef.current = null;
       bridge.dispose();
       void persistence.destroy();
       doc.destroy();
@@ -528,6 +596,7 @@ export function BoardScreen({ session, onClose }: Props) {
     session.branch,
     session.path,
     session.passphrase,
+    assetStore,
   ]);
 
   useEffect(() => {
@@ -627,6 +696,15 @@ export function BoardScreen({ session, onClose }: Props) {
     }
   }, []);
 
+  // Board background from the background picker. updateScene also fires Excalidraw's onChange,
+  // which saves a real change. This saves it directly too; the ref check means only one write happens.
+  const applyBoardBackground = useCallback((color: string) => {
+    apiRef.current?.updateScene({ appState: { viewBackgroundColor: color } });
+    if (color === viewBackgroundRef.current) return;
+    viewBackgroundRef.current = color;
+    bridgeRef.current?.setViewBackground(color);
+  }, []);
+
   const onChange = useCallback(
     (
       elements: readonly OrderedExcalidrawElement[],
@@ -634,6 +712,13 @@ export function BoardScreen({ session, onClose }: Props) {
       files?: BinaryFiles,
     ) => {
       if (!hydratedRef.current || !isAllowed) return;
+
+      // Background changes touch no element, so this runs before the scene fingerprint early return.
+      const background = appState.viewBackgroundColor;
+      if (background && background !== viewBackgroundRef.current) {
+        viewBackgroundRef.current = background;
+        bridgeRef.current?.setViewBackground(background);
+      }
 
       // Collaborator-only updates re-emit the same scene. Skip the per-element work when nothing
       // changed: element count, sum of versions and the files object are a cheap fingerprint.
@@ -1466,8 +1551,40 @@ export function BoardScreen({ session, onClose }: Props) {
     }
   }, [session]);
 
+  const makeAdapter = () =>
+    new GitHubAdapter({
+      token: getFreshToken,
+      owner: session.owner,
+      repo: session.repo,
+      branch: session.branch,
+      path: session.path,
+    });
+
+  // Throws WrongPassphraseError (shown by the modal) if the passphrase can't open the board.
+  const unlockBoard = async (pass: string, remember: boolean) => {
+    await new EncryptedStore(makeAdapter(), pass).open();
+    setBoardPassphrase(session, pass, { remember });
+    window.location.reload();
+  };
+
+  // newPass null removes the password (goes back to the default passphrase).
+  const changeBoardPassword = async (newPass: string | null, remember: boolean) => {
+    const target = newPass ?? defaultPassphrase(session);
+    await engineRef.current?.saveNow();
+    await rekeyBoard({
+      adapter: makeAdapter(),
+      boardPath: session.path,
+      oldPassphrase: session.passphrase,
+      newPassphrase: target,
+      onProgress: (done, total) => setPasswordProgress(`Re-encrypting ${done}/${total}…`),
+    });
+    setBoardPassphrase(session, target, { remember });
+    window.location.reload();
+  };
+
   const busy = status.kind === "loading" || status.kind === "saving";
 
+  const customShade = vguiShade(customColor);
   const stickySwatches = (
     <div className="sticky-swatches">
       {STICKY_COLORS.map((c) => (
@@ -1503,11 +1620,18 @@ export function BoardScreen({ session, onClose }: Props) {
         aria-label={`Add custom ${customColor} sticky note`}
         onClick={() => addSticky(customColor)}
       />
+      <button
+        className="swatch swatch-shade"
+        style={{ background: customShade }}
+        title="VGUI shade of your colour"
+        aria-label={`Add VGUI shade ${customShade} sticky note`}
+        onClick={() => addSticky(customShade)}
+      />
     </div>
   );
 
   const syncDot =
-    status.kind === "error"
+    status.kind === "error" || status.kind === "locked"
       ? "err"
       : status.kind === "pending" || status.kind === "loading"
         ? "warn"
@@ -1517,7 +1641,9 @@ export function BoardScreen({ session, onClose }: Props) {
   const syncLabel =
     status.kind === "error"
       ? "Sync error"
-      : status.kind === "pending"
+      : status.kind === "locked"
+        ? "Locked"
+        : status.kind === "pending"
         ? "Unsaved"
         : status.kind === "saving"
           ? "Saving…"
@@ -1842,10 +1968,11 @@ export function BoardScreen({ session, onClose }: Props) {
           viewModeEnabled={!isAllowed}
           onPointerUpdate={onPointerUpdate}
           onChange={onChange}
-          theme="dark"
+          theme="light"
           initialData={{
             appState: {
-              viewBackgroundColor: "#283125",
+              viewBackgroundColor: DEFAULT_VIEW_BACKGROUND,
+              currentItemStrokeColor: "#e9ecef",
               currentItemRoughness: 0,
               currentItemFontFamily: 2,
               currentItemStrokeWidth: 2,
@@ -1885,6 +2012,10 @@ export function BoardScreen({ session, onClose }: Props) {
                 {timer?.running ? "Meeting timer (running)" : "Meeting timer"}
               </MainMenu.Item>
               <MainMenu.Item onSelect={() => setHistory(!historyOpen)}>Board history</MainMenu.Item>
+              <MainMenu.Item onSelect={() => setBackgroundPickerOpen(true)}>Board background…</MainMenu.Item>
+              {isRepoAdmin && (
+                <MainMenu.Item onSelect={() => setPasswordModalOpen(true)}>Board password…</MainMenu.Item>
+              )}
               <MainMenu.Item onSelect={() => void engineRef.current?.saveNow()}>Save now</MainMenu.Item>
               <MainMenu.Item onSelect={() => void engineRef.current?.pullNow()}>Pull from GitHub</MainMenu.Item>
               <MainMenu.Item onSelect={addFrame}>Frame selection</MainMenu.Item>
@@ -1957,6 +2088,32 @@ export function BoardScreen({ session, onClose }: Props) {
         onSnapshotNow={() => void snapshotNow()}
         onRestore={(snapshot) => void restoreSnapshot(snapshot)}
       />
+
+      {/* Opaque until the board opened with our key, so cached content never shows on a locked board. */}
+      {status.kind === "loading" && (
+        <div className="board-cover">
+          <span className="board-cover-text">Opening board…</span>
+        </div>
+      )}
+      {status.kind === "locked" && <UnlockBoardModal onUnlock={unlockBoard} onBack={onClose} />}
+      {backgroundPickerOpen && (
+        <BackgroundPicker
+          initialColor={viewBackgroundRef.current}
+          onChange={applyBoardBackground}
+          onClose={() => setBackgroundPickerOpen(false)}
+        />
+      )}
+      {passwordModalOpen && (
+        <ChangePasswordModal
+          hasPassword={session.passphrase !== defaultPassphrase(session)}
+          progress={passwordProgress}
+          onSubmit={changeBoardPassword}
+          onClose={() => {
+            setPasswordModalOpen(false);
+            setPasswordProgress(undefined);
+          }}
+        />
+      )}
 
       <StatusBar
         status={status}

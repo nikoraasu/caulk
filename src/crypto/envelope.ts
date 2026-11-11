@@ -94,6 +94,14 @@ export function parseEnvelope(bytes: Uint8Array): Envelope {
   return env as Envelope;
 }
 
+/** The passphrase did not open the envelope (or the file is corrupted). */
+export class WrongPassphraseError extends Error {
+  constructor() {
+    super("Wrong passphrase for this board, or the file is corrupted.");
+    this.name = "WrongPassphraseError";
+  }
+}
+
 export async function decryptEnvelope(env: Envelope, key: CryptoKey): Promise<Uint8Array> {
   try {
     const plain = await crypto.subtle.decrypt(
@@ -103,6 +111,6 @@ export async function decryptEnvelope(env: Envelope, key: CryptoKey): Promise<Ui
     );
     return new Uint8Array(plain);
   } catch {
-    throw new Error("Wrong passphrase for this board, or the file is corrupted.");
+    throw new WrongPassphraseError();
   }
 }

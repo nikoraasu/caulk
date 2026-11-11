@@ -28,6 +28,8 @@ export type Session = BoardTarget & {
 
 const TARGET_KEY = "caulk.target.v1";
 const PASSPHRASE_KEY = "caulk.passphrase.v1";
+/** JSON map of boardKey → passphrase, one per storage (session or remembered). */
+const PASSPHRASES_KEY = "caulk.passphrases.v1";
 const IDENTITY_KEY = "caulk.identity.v1";
 const LAST_SEEN_KEY = "caulk.lastseen.v1";
 
@@ -103,10 +105,79 @@ export function defaultPassphrase(target: BoardTarget): string {
   return `caulk:${target.owner.toLowerCase().trim()}/${target.repo.toLowerCase().trim()}:${target.path.toLowerCase().trim()}`;
 }
 
+type PassphraseMap = Record<string, string>;
+
+function readPassphraseMap(storage: Storage): PassphraseMap {
+  try {
+    const raw = storage.getItem(PASSPHRASES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" ? (parsed as PassphraseMap) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writePassphraseMap(storage: Storage, map: PassphraseMap): void {
+  try {
+    if (Object.keys(map).length === 0) storage.removeItem(PASSPHRASES_KEY);
+    else storage.setItem(PASSPHRASES_KEY, JSON.stringify(map));
+  } catch {
+    /* quota or blocked storage: the board falls back to the default key */
+  }
+}
+
+/** The password stored for this board, or null if none was set on this device. */
+function findStoredPassphrase(target: BoardTarget): string | null {
+  const key = boardKey(target);
+  return readPassphraseMap(sessionStorage)[key] || readPassphraseMap(localStorage)[key] || null;
+}
+
+/** The passphrase that encrypts this board: the user's password if set, else the default. */
+export function getBoardPassphrase(target: BoardTarget): string {
+  return findStoredPassphrase(target) ?? defaultPassphrase(target);
+}
+
+/**
+ * Store a board's password. It always lives for this tab (sessionStorage);
+ * it also survives restarts only when `remember` is set. The default key is
+ * never stored, so a board without a password leaves no trace.
+ */
+export function setBoardPassphrase(
+  target: BoardTarget,
+  passphrase: string,
+  opts: { remember: boolean },
+): void {
+  const key = boardKey(target);
+  const sessionMap = readPassphraseMap(sessionStorage);
+  const localMap = readPassphraseMap(localStorage);
+  if (!passphrase || passphrase === defaultPassphrase(target)) {
+    delete sessionMap[key];
+    delete localMap[key];
+  } else {
+    sessionMap[key] = passphrase;
+    if (opts.remember) localMap[key] = passphrase;
+    else delete localMap[key];
+  }
+  writePassphraseMap(sessionStorage, sessionMap);
+  writePassphraseMap(localStorage, localMap);
+}
+
+export function clearBoardPassphrase(target: BoardTarget): void {
+  const key = boardKey(target);
+  const sessionMap = readPassphraseMap(sessionStorage);
+  const localMap = readPassphraseMap(localStorage);
+  delete sessionMap[key];
+  delete localMap[key];
+  writePassphraseMap(sessionStorage, sessionMap);
+  writePassphraseMap(localStorage, localMap);
+}
+
 export function loadSession(target: BoardTarget): Session | null {
   const stored = loadStoredToken();
   if (!stored) return null;
   const passphrase =
+    findStoredPassphrase(target) ??
     sessionStorage.getItem(PASSPHRASE_KEY) ??
     sessionStorage.getItem(LEGACY_PASSPHRASE_KEY) ??
     defaultPassphrase(target);
@@ -148,18 +219,28 @@ export function saveSession(session: Session, opts: { rememberToken: boolean }):
     },
     opts.rememberToken,
   );
-  sessionStorage.setItem(PASSPHRASE_KEY, session.passphrase || defaultPassphrase(session));
+  // Session-scoped only: the "remember on this device" choice belongs to
+  // setBoardPassphrase, so saving the session must not touch localStorage.
+  const sessionMap = readPassphraseMap(sessionStorage);
+  if (!session.passphrase || session.passphrase === defaultPassphrase(session)) {
+    delete sessionMap[boardKey(session)];
+  } else {
+    sessionMap[boardKey(session)] = session.passphrase;
+  }
+  writePassphraseMap(sessionStorage, sessionMap);
   localStorage.setItem(IDENTITY_KEY, JSON.stringify(session.identity));
 }
 
 export function clearSession(): void {
   localStorage.removeItem(TARGET_KEY);
   sessionStorage.removeItem(PASSPHRASE_KEY);
+  sessionStorage.removeItem(PASSPHRASES_KEY);
 }
 
 export function clearAuth(): void {
   clearStoredToken();
   sessionStorage.removeItem(PASSPHRASE_KEY);
+  sessionStorage.removeItem(PASSPHRASES_KEY);
   localStorage.removeItem(TARGET_KEY);
   localStorage.removeItem(IDENTITY_KEY);
 }

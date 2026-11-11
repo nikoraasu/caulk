@@ -10,6 +10,7 @@
 
 import * as Y from "yjs";
 import { ConflictError } from "../storage/github";
+import { WrongPassphraseError } from "../crypto/envelope";
 import type { EncryptedStore } from "../storage/encrypted";
 
 export type SyncStatus =
@@ -17,7 +18,9 @@ export type SyncStatus =
   | { kind: "pending" }
   | { kind: "saving" }
   | { kind: "saved"; at: number }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string }
+  /** The board is encrypted with a different passphrase than the one we have. */
+  | { kind: "locked" };
 
 export type SyncEngineOptions = {
   doc: Y.Doc;
@@ -55,6 +58,12 @@ export class SyncEngine {
   private queuedSave = false;
   private disposed = false;
   private lastPollAt = 0;
+  /** True only after start() has opened the board with the current passphrase. */
+  private started = false;
+  /** True once the board refused our passphrase. Nothing may be saved then. */
+  private locked = false;
+  /** A local edit arrived before start() finished; it gets saved once we're open. */
+  private dirtyBeforeStart = false;
 
   constructor(opts: SyncEngineOptions) {
     this.doc = opts.doc;
@@ -81,13 +90,18 @@ export class SyncEngine {
         Y.applyUpdate(this.doc, bytes, ORIGIN_REMOTE);
         this.onRemoteApplied?.();
       }
+      this.started = true;
       this.lastPollAt = Date.now();
       this.emit({ kind: "saved", at: this.lastPollAt });
       this.pollTimer = setInterval(() => void this.poll(), this.pollMs);
       document.addEventListener("visibilitychange", this.handleVisibility);
+      if (this.dirtyBeforeStart) {
+        this.dirtyBeforeStart = false;
+        this.handleDocUpdate(new Uint8Array(), ORIGIN_LOCAL);
+      }
       return true;
     } catch (err) {
-      this.fail(err);
+      this.handleError(err);
       return false;
     }
   }
@@ -115,7 +129,13 @@ export class SyncEngine {
   }
 
   private handleDocUpdate = (_update: Uint8Array, origin: unknown): void => {
-    if (origin !== ORIGIN_LOCAL || this.disposed) return;
+    // Edits before start() or while locked stay in memory. Saving them with
+    // the wrong key would overwrite the board, so no timers are armed.
+    if (origin !== ORIGIN_LOCAL || this.disposed || this.locked) return;
+    if (!this.started) {
+      this.dirtyBeforeStart = true;
+      return;
+    }
     this.emit({ kind: "pending" });
     if (!this.firstDirtyAt) this.firstDirtyAt = Date.now();
 
@@ -142,7 +162,7 @@ export class SyncEngine {
   };
 
   private async poll(): Promise<void> {
-    if (this.disposed || this.saving || this.polling) return;
+    if (this.disposed || this.locked || this.saving || this.polling) return;
     if (document.visibilityState === "hidden") return;
     this.polling = true;
     this.lastPollAt = Date.now();
@@ -153,14 +173,14 @@ export class SyncEngine {
       this.onRemoteApplied?.();
       if (!this.saving) this.emit({ kind: "saved", at: Date.now() });
     } catch (err) {
-      this.fail(err);
+      this.handleError(err);
     } finally {
       this.polling = false;
     }
   }
 
   private async flush(): Promise<void> {
-    if (this.disposed) return;
+    if (this.disposed || !this.started || this.locked) return;
     if (this.saving) {
       this.queuedSave = true;
       return;
@@ -180,7 +200,15 @@ export class SyncEngine {
         } catch (err) {
           if (err instanceof ConflictError && attempt < 2) {
             // Another client committed first. Pull their state, merge, retry.
-            const remote = await this.store.open();
+            let remote: Uint8Array | null;
+            try {
+              remote = await this.store.open();
+            } catch (openErr) {
+              // Someone re-keyed the board. Retrying would only overwrite it.
+              if (openErr instanceof WrongPassphraseError) this.lock();
+              else this.fail(openErr);
+              return;
+            }
             if (remote) Y.applyUpdate(this.doc, remote, ORIGIN_REMOTE);
             continue;
           }
@@ -188,10 +216,10 @@ export class SyncEngine {
         }
       }
     } catch (err) {
-      this.fail(err);
+      this.handleError(err);
     } finally {
       this.saving = false;
-      if (this.queuedSave && !this.disposed) {
+      if (this.queuedSave && !this.disposed && !this.locked) {
         this.queuedSave = false;
         this.emit({ kind: "pending" });
         this.saveTimer = setTimeout(() => {
@@ -209,5 +237,21 @@ export class SyncEngine {
   private fail(err: unknown): void {
     const message = err instanceof Error ? err.message : String(err);
     this.emit({ kind: "error", message });
+  }
+
+  private handleError(err: unknown): void {
+    if (err instanceof WrongPassphraseError) this.lock();
+    else this.fail(err);
+  }
+
+  /** Stop saving and polling for good. Only a fresh engine with the right passphrase can resume. */
+  private lock(): void {
+    this.locked = true;
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = undefined;
+    this.queuedSave = false;
+    document.removeEventListener("visibilitychange", this.handleVisibility);
+    this.emit({ kind: "locked" });
   }
 }

@@ -1023,6 +1023,165 @@ code {
   background: var(--vgui-accent);
 }
 
+/* Dark UI chrome on a filter-free (light-theme) canvas: colours render exactly as picked. */
+.excalidraw.excalidraw.theme--light {
+  --list-border-color: var(--color-gray-80);
+  --ImageExportModal-preview-border: #5c5c5c;
+  --userlist-hint-bg-color: var(--color-gray-90);
+  --userlist-hint-heading-color: var(--color-gray-30);
+  --userlist-hint-text-color: var(--color-gray-40);
+  --userlist-collaborators-border-color: var(--color-gray-80);
+  --button-destructive-bg-color: #5a0000;
+  --button-destructive-color: #ffa8a8;
+  --button-gray-1: #363636;
+  --button-gray-2: #272727;
+  --button-gray-3: #222;
+  --button-special-active-bg-color: #204624;
+  --dialog-border-color: var(--color-gray-80);
+  --dropdown-icon: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="292.4" height="292.4" viewBox="0 0 292 292"><path fill="%23ced4da" d="M287 197L159 69c-4-3-8-5-13-5s-9 2-13 5L5 197c-3 4-5 8-5 13s2 9 5 13c4 4 8 5 13 5h256c5 0 9-1 13-5s5-8 5-13-1-9-5-13z"/></svg>');
+  --focus-highlight-color: #228be6;
+  --icon-green-fill-color: #69db7c;
+  --default-bg-color: #121212;
+  --input-bg-color: #121212;
+  --input-border-color: #2e2e2e;
+  --input-hover-bg-color: #181818;
+  --input-label-color: #e9ecef;
+  --island-bg-color: #232329;
+  --keybinding-color: var(--color-gray-60);
+  --link-color: #4dabf7;
+  --overlay-bg-color: rgba(52, 58, 64, .12);
+  --popup-secondary-bg-color: #222;
+  --popup-text-color: #ced4da;
+  --select-highlight-color: #4dabf7;
+  --shadow-island: 0px 0px .9310142993927002px 0px rgba(0, 0, 0, .17), 0px 0px 3.1270833015441895px 0px rgba(0, 0, 0, .08), 0px 7px 14px 0px rgba(0, 0, 0, .05);
+  --modal-shadow: 0px 100px 80px rgba(0, 0, 0, .07), 0px 41.7776px 33.4221px rgba(0, 0, 0, .0503198), 0px 22.3363px 17.869px rgba(0, 0, 0, .0417275), 0px 12.5216px 10.0172px rgba(0, 0, 0, .035), 0px 6.6501px 5.32008px rgba(0, 0, 0, .0282725), 0px 2.76726px 2.21381px rgba(0, 0, 0, .0196802);
+  --avatar-border-color: var(--color-gray-85);
+  --scrollbar-thumb: #343a40;
+  --scrollbar-thumb-hover: #495057;
+  --color-slider-track: hsl(244, 23%, 39%);
+  --color-selection: #3530c4;
+  --color-icon-white: var(--color-gray-90);
+  --color-primary: #a8a5ff;
+  --color-primary-darker: #b2aeff;
+  --color-primary-darkest: #beb9ff;
+  --color-primary-light: #4f4d6f;
+  --color-primary-light-darker: #43415e;
+  --color-primary-hover: #bbb8ff;
+  --color-disabled: var(--color-gray-70);
+  --color-text-warning: var(--color-gray-80);
+  --color-danger: #ffa8a5;
+  --color-danger-dark: #672120;
+  --color-danger-darker: #8f2625;
+  --color-danger-darkest: #ac2b29;
+  --color-danger-text: #fbcbcc;
+  --color-danger-background: #fbcbcc;
+  --color-danger-icon-background: #672120;
+  --color-danger-color: #261919;
+  --color-danger-icon-color: #fbcbcc;
+  --color-warning-background: var(--color-warning);
+  --color-warning-icon-background: var(--color-warning-dark);
+  --color-warning-color: var(--color-gray-80);
+  --color-warning-icon-color: var(--color-gray-80);
+  --color-muted: var(--color-gray-80);
+  --color-muted-darker: var(--color-gray-60);
+  --color-muted-darkest: var(--color-gray-20);
+  --color-muted-background: var(--color-gray-40);
+  --color-muted-background-darker: var(--color-gray-20);
+  --color-logo-text: #e2dfff;
+  --color-surface-high: hsl(245, 10%, 21%);
+  --color-surface-low: hsl(240, 8%, 15%);
+  --color-surface-mid: hsl(240 6% 10%);
+  --color-surface-lowest: hsl(0, 0%, 7%);
+  --color-on-surface: #e3e3e8;
+  --color-brand-hover: #bbb8ff;
+  --color-on-primary-container: #e0dfff;
+  --color-brand-active: #d0ccff;
+  --color-border-outline: #8e8d9c;
+  --color-border-outline-variant: #46464f;
+  --color-surface-primary-container: #403e6a;
+}
+
+.excalidraw.excalidraw.theme--light .color-picker-type-elementBackground .color-picker-keybinding,.excalidraw.excalidraw.theme--light .color-picker-swatch[aria-label=transparent] .color-picker-keybinding {
+  color:#000;
+}
+
+.excalidraw.excalidraw.theme--light .picker-type-elementBackground .picker-keybinding,.excalidraw.excalidraw.theme--light .picker-swatch[aria-label=transparent] .picker-keybinding {
+  color:#000;
+}
+
+.excalidraw.excalidraw.theme--light .QuickSearch__wrapper {
+  border-bottom:none;
+}
+
+.excalidraw.excalidraw.theme--light .Dialog__action-button--danger,.excalidraw.excalidraw.theme--light .Dialog__action-button--primary {
+  color:var(--color-gray-100);
+}
+
+.excalidraw.excalidraw.theme--light.excalidraw .dropdown-menu-button {
+  --background: var(--color-surface-high);
+}
+
+.excalidraw.excalidraw.theme--light.excalidraw .dropdown-menu-button:hover {
+  --background: #363541;
+}
+
+.excalidraw.excalidraw.theme--light .library-unit--skeleton {
+  background-image:linear-gradient(-45deg,var(--color-gray-100),var(--color-gray-80),var(--color-gray-100));
+}
+
+.excalidraw.excalidraw.theme--light .library-menu-items__no-items {
+  color:var(--color-gray-40);
+}
+
+.excalidraw.excalidraw.theme--light .library-menu-browse-button {
+  color:var(--color-gray-100);
+}
+
+.excalidraw.excalidraw.theme--light .HintViewer {
+  color:var(--color-gray-60);
+}
+
+.excalidraw.excalidraw.theme--light.excalidraw .HelpDialog__btn {
+  --background: var(--color-surface-high);
+}
+
+.excalidraw.excalidraw.theme--light.excalidraw .HelpDialog__btn:hover {
+  --background: #363541;
+}
+
+.excalidraw.excalidraw.theme--light.excalidraw .layer-ui__search-header .ExcTextField__input {
+  background-color:#31303b;
+}
+
+.excalidraw.excalidraw.theme--light.excalidraw .ttd-dialog-panel-button.excalidraw-button {
+  color:var(--color-gray-100);
+}
+
+.excalidraw.excalidraw.theme--light.excalidraw .ttd-dialog-panel-button div.Spinner {
+  --spinner-color: var(--color-gray-100);
+}
+
+.excalidraw.excalidraw.theme--light.excalidraw .App-mobile-menu,.excalidraw.excalidraw.theme--light.excalidraw .App-menu__left {
+  --button-hover-bg: #363541;
+  --button-bg: var(--color-surface-high);
+}
+
+.excalidraw.excalidraw.theme--light .welcome-screen-decor {
+  color:var(--color-gray-60);
+}
+
+.excalidraw.excalidraw.theme--light .welcome-screen-menu-item,.excalidraw.excalidraw.theme--light .welcome-screen-menu-item__shortcut {
+  color:var(--color-gray-60);
+}
+
+.excalidraw.excalidraw.theme--light .welcome-screen-menu-item:hover {
+  background-color:var(--color-surface-low);
+}
+
+.excalidraw.excalidraw.theme--light .welcome-screen-menu-item:hover .welcome-screen-menu-item__icon,.excalidraw.excalidraw.theme--light .welcome-screen-menu-item:hover .welcome-screen-menu-item__shortcut,.excalidraw.excalidraw.theme--light .welcome-screen-menu-item:hover .welcome-screen-menu-item__text,.excalidraw.excalidraw.theme--light .welcome-screen-menu-item:active .welcome-screen-menu-item__icon,.excalidraw.excalidraw.theme--light .welcome-screen-menu-item:active .welcome-screen-menu-item__shortcut,.excalidraw.excalidraw.theme--light .welcome-screen-menu-item:active .welcome-screen-menu-item__text {
+  color:var(--color-gray-10);
+}
+
 /* ---------- Excalidraw UI Overrides (Steam VGUI) ---------- */
 
 .excalidraw {
@@ -1242,4 +1401,63 @@ code {
 .swatch-custom {
   outline: 1px dashed var(--vgui-accent);
   outline-offset: 1px;
+}
+
+/* VGUI shade swatch: the suggested darker-or-brighter VGUI version of a picked colour. */
+.swatch-shade {
+  outline: 1px solid var(--vgui-accent);
+  outline-offset: 1px;
+}
+
+/* ---------- board background picker ---------- */
+
+.bg-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bg-picker-wheel {
+  width: 40px;
+  height: 40px;
+}
+
+.bg-picker-wheel input[type="color"] {
+  width: 52px;
+  height: 52px;
+}
+
+.bg-picker-hex {
+  flex: 1 1 160px;
+  margin-top: 0;
+}
+
+.bg-picker-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bg-picker-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Solid cover over the whole board while it opens or is locked: nothing behind it is visible. */
+.board-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--vgui-canvas, #283125);
+  backdrop-filter: none;
+}
+
+.board-cover-text {
+  color: var(--vgui-text, #fff);
+  font-family: "Tahoma", "MS Sans Serif", "Segoe UI", sans-serif;
+  font-size: 14px;
 }

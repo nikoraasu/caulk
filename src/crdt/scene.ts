@@ -6,6 +6,7 @@
  *              editing different shapes never touch the same CRDT cell
  *   order    : Y.Array<elementId>                    z-order
  *   meta     : Y.Map<elementId, ElementMeta>         who touched what, when
+ *   settings : Y.Map<string, string>                 board-wide canvas settings
  *
  * Conflict granularity is one element. Two people editing the same sticky at
  * the same instant resolve last-writer-wins on that element, which is the same
@@ -59,6 +60,17 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 export type Identity = { id: string; name: string };
 
+/**
+ * An image stored in the repo's assets dir instead of inline. `asset` is the
+ * `caulk-asset:<sha>?type=<mime>` link (see storage/assets.ts).
+ */
+export type AssetFileRef = { id: string; mimeType: string; created: number; asset: string };
+
+const isInlineFile = (f: BinaryFileData | AssetFileRef): f is BinaryFileData =>
+  Boolean(f && "dataURL" in f && f.dataURL);
+const isAssetFile = (f: BinaryFileData | AssetFileRef): f is AssetFileRef =>
+  Boolean(f && "asset" in f && typeof f.asset === "string" && f.asset);
+
 export type ElementMeta = {
   /** Device id of the last writer. */
   by: string;
@@ -91,13 +103,19 @@ export class SceneBridge {
   private readonly elements: Y.Map<ExcalidrawElement>;
   private readonly order: Y.Array<string>;
   private readonly meta: Y.Map<ElementMeta>;
-  private readonly files: Y.Map<BinaryFileData>;
+  private readonly files: Y.Map<BinaryFileData | AssetFileRef>;
   private readonly allowedNicknames: Y.Array<string>;
   private readonly accessRequests: Y.Map<{ name: string; at: number }>;
   private readonly versions = new Map<string, string>();
   private muted = false;
   private disposed = false;
   private currentIdentity: Identity;
+
+  /**
+   * When set, new images are handed here instead of being written to Yjs as data
+   * URLs. The caller uploads them and records the result with setFileAsset.
+   */
+  onLocalFiles?: (files: BinaryFileData[]) => void;
 
   constructor(
     private readonly doc: Y.Doc,
@@ -109,7 +127,7 @@ export class SceneBridge {
     this.elements = doc.getMap<ExcalidrawElement>("elements");
     this.order = doc.getArray<string>("order");
     this.meta = doc.getMap<ElementMeta>("meta");
-    this.files = doc.getMap<BinaryFileData>("files");
+    this.files = doc.getMap<BinaryFileData | AssetFileRef>("files");
     this.allowedNicknames = doc.getArray<string>("allowedNicknames");
     this.accessRequests = doc.getMap<{ name: string; at: number }>("accessRequests");
     this.elements.observe(this.handleRemoteChange);
@@ -117,12 +135,40 @@ export class SceneBridge {
     this.files.observe(this.handleRemoteFilesChange);
   }
 
+  /** Inline images only (entries that carry a dataURL). */
   getFiles(): BinaryFiles {
     const out: BinaryFiles = {};
     for (const [id, f] of this.files.entries()) {
-      if (f && f.id) out[id] = clone(f);
+      if (f && f.id && isInlineFile(f)) out[id] = clone(f);
     }
     return out;
+  }
+
+  /** Images that live in the repo as assets. */
+  getFileRefs(): AssetFileRef[] {
+    const out: AssetFileRef[] = [];
+    for (const f of this.files.values()) {
+      if (f && f.id && isAssetFile(f)) out.push(clone(f));
+    }
+    return out;
+  }
+
+  /** Inline images that have not been moved to the repo yet. */
+  getInlineFiles(): BinaryFileData[] {
+    const out: BinaryFileData[] = [];
+    for (const f of this.files.values()) {
+      if (f && f.id && isInlineFile(f) && !isAssetFile(f)) out.push(clone(f));
+    }
+    return out;
+  }
+
+  /** Replace an inline entry (or add one) with a repo asset reference. */
+  setFileAsset(ref: AssetFileRef): void {
+    if (this.disposed) return;
+    if (!this.isNicknameAllowed(this.currentIdentity.name)) return;
+    this.doc.transact(() => {
+      this.files.set(ref.id, clone(ref));
+    }, ORIGIN_LOCAL);
   }
 
   updateIdentity(next: Identity): void {
@@ -240,6 +286,32 @@ export class SceneBridge {
     };
   }
 
+  /** Board-wide canvas background. Lives in the `settings` map, synced like the timer. */
+  getViewBackground(): string | undefined {
+    const raw = this.doc.getMap<string>("settings").get("viewBackgroundColor");
+    return typeof raw === "string" ? raw : undefined;
+  }
+
+  setViewBackground(color: string): void {
+    const map = this.doc.getMap<string>("settings");
+    this.doc.transact(() => {
+      if (map.get("viewBackgroundColor") !== color) map.set("viewBackgroundColor", color);
+    }, ORIGIN_LOCAL);
+  }
+
+  /** Fires for changes that arrive from other peers only; local writes do not echo back. */
+  observeViewBackground(cb: (color: string | undefined) => void): () => void {
+    const map = this.doc.getMap<string>("settings");
+    const handler = (_event: unknown, tx: Y.Transaction) => {
+      if (this.disposed || tx.origin === ORIGIN_LOCAL) return;
+      cb(this.getViewBackground());
+    };
+    map.observe(handler);
+    return () => {
+      map.unobserve(handler);
+    };
+  }
+
   /** Push the current document state into the editor. Used once at boot. */
   hydrate(
     existing: readonly ExcalidrawElement[] = [],
@@ -327,7 +399,20 @@ export class SceneBridge {
       }
     }
 
-    if (!orderChanged && changedElements.length === 0 && removed.length === 0 && newFiles.length === 0) return false;
+    // With a file uploader attached, images leave through onLocalFiles instead of Yjs.
+    const hook = this.onLocalFiles;
+    const inlineFiles = hook ? [] : newFiles;
+    const handOff = hook && newFiles.length > 0 ? newFiles : null;
+
+    if (
+      !orderChanged &&
+      changedElements.length === 0 &&
+      removed.length === 0 &&
+      inlineFiles.length === 0
+    ) {
+      if (hook && handOff) hook(handOff);
+      return false;
+    }
 
     this.muted = true;
     try {
@@ -346,13 +431,14 @@ export class SceneBridge {
           this.order.delete(0, this.order.length);
           this.order.insert(0, ids);
         }
-        for (const f of newFiles) {
+        for (const f of inlineFiles) {
           this.files.set(f.id, clone(f));
         }
       }, ORIGIN_LOCAL);
     } finally {
       this.muted = false;
     }
+    if (hook && handOff) hook(handOff);
     return true;
   }
 

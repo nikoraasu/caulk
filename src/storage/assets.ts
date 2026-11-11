@@ -1,10 +1,11 @@
 /**
- * Binary attachments (local video clips) stored as separate encrypted files next
+ * Binary attachments (local video clips and images) stored as separate encrypted files next
  * to the board, so the board itself stays small and the live relay never carries
  * the bytes.
  *
- *   boards/roadmap.caulk                      live board
- *   boards/.assets/<sha256 of plaintext>.bin  encrypted asset
+ *   boards/roadmap.caulk                         live board
+ *   boards/.assets/roadmap/<sha256>.bin          encrypted asset, one dir per board
+ *   boards/.assets/<sha256>.bin                  legacy shared dir, read-only fallback
  *
  * Assets are content-addressed: the same bytes always map to the same file, so
  * an upload is skipped when the file is already there. The element on the board
@@ -26,8 +27,22 @@ export const ASSET_MAX_BYTES = ASSET_MAX_MB * 1024 * 1024;
 const FALLBACK_MIME = "application/octet-stream";
 const REF_RE = /^caulk-asset:([0-9a-f]{64})(?:\?type=([^&#]*))?$/;
 
-/** `boards/roadmap.caulk` -> `boards/.assets`. Mirrors historyDirFor in config.ts. */
+/**
+ * `boards/roadmap.caulk` -> `boards/.assets/roadmap`. One dir per board, because each
+ * board's assets are encrypted with that board's passphrase. Mirrors historyDirFor.
+ */
 export function assetsDirFor(boardPath: string): string {
+  const idx = boardPath.lastIndexOf("/");
+  const dir = idx === -1 ? "" : boardPath.slice(0, idx);
+  const file = idx === -1 ? boardPath : boardPath.slice(idx + 1);
+  return [dir, ".assets", file.replace(/\.(caulk|slate)$/i, "")].filter(Boolean).join("/");
+}
+
+/**
+ * `boards/roadmap.caulk` -> `boards/.assets`: the old shared dir. Read-only fallback
+ * for assets uploaded before per-board dirs existed (live videos still live there).
+ */
+export function legacyAssetsDirFor(boardPath: string): string {
   const idx = boardPath.lastIndexOf("/");
   const dir = idx === -1 ? "" : boardPath.slice(0, idx);
   return [dir, ".assets"].filter(Boolean).join("/");
@@ -49,6 +64,30 @@ export function parseAssetRef(ref: string): { sha: string; mime: string } | null
   return { sha: m[1], mime };
 }
 
+/** Decode a base64 `data:` URL (what Excalidraw keeps for images). */
+export function dataURLToBytes(dataURL: string): { bytes: Uint8Array; mime: string } {
+  const comma = dataURL.indexOf(",");
+  const header = comma === -1 ? "" : dataURL.slice(0, comma);
+  if (!header.startsWith("data:") || !header.endsWith(";base64")) {
+    throw new Error("This file is corrupted.");
+  }
+  const mime = header.slice(5, -";base64".length).split(";")[0] || FALLBACK_MIME;
+  const binary = atob(dataURL.slice(comma + 1));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return { bytes, mime };
+}
+
+/** Plain base64 `data:` URL. Chunked so large images don't overflow the call stack. */
+export function bytesToDataURL(bytes: Uint8Array, mime: string): string {
+  const CHUNK = 0x8000;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
+  }
+  return `data:${mime || FALLBACK_MIME};base64,${btoa(parts.join(""))}`;
+}
+
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -64,7 +103,7 @@ function encodePlain(bytes: Uint8Array, mime: string): Uint8Array {
 }
 
 function decodePlain(plain: Uint8Array): { bytes: Uint8Array; mime: string } {
-  const corrupt = () => new Error("This video file is corrupted.");
+  const corrupt = () => new Error("This file is corrupted.");
   if (plain.length < 4) throw corrupt();
   const headerLen = new DataView(plain.buffer, plain.byteOffset, plain.byteLength).getUint32(0);
   const start = 4 + headerLen;
@@ -111,6 +150,7 @@ export class AssetStore {
   /** Asset file names (without .bin) known to exist in the assets dir. */
   private known: Set<string> | null = null;
   readonly dir: string;
+  readonly legacyDir: string;
   readonly label: string;
 
   constructor(
@@ -119,6 +159,7 @@ export class AssetStore {
     boardPath: string,
   ) {
     this.dir = assetsDirFor(boardPath);
+    this.legacyDir = legacyAssetsDirFor(boardPath);
     this.label = `${adapter.label}#assets`;
   }
 
@@ -137,7 +178,11 @@ export class AssetStore {
   }
 
   /** Encrypt and store the bytes (skipped if already present). Returns the element link. */
-  async put(bytes: Uint8Array, mime: string): Promise<string> {
+  async put(
+    bytes: Uint8Array,
+    mime: string,
+    opts: { cacheObjectUrl?: boolean } = {},
+  ): Promise<string> {
     if (bytes.byteLength > ASSET_MAX_BYTES) {
       throw new Error(`This file is larger than ${ASSET_MAX_MB} MB.`);
     }
@@ -159,7 +204,8 @@ export class AssetStore {
     }
 
     const key = urlKey(this, ref);
-    if (!objectUrls.has(key)) {
+    // Images are drawn by Excalidraw from dataURLs, so they skip the object URL cache.
+    if ((opts.cacheObjectUrl ?? true) && !objectUrls.has(key)) {
       objectUrls.set(key, Promise.resolve(URL.createObjectURL(new Blob([bytes as BlobPart], { type }))));
     }
     return ref;
@@ -168,10 +214,14 @@ export class AssetStore {
   /** Download and decrypt an asset. Not cached here; see assetObjectUrl. */
   async get(ref: string): Promise<{ bytes: Uint8Array; mime: string }> {
     const parsed = parseAssetRef(ref);
-    if (!parsed) throw new Error("Not a video reference.");
-    const store = new EncryptedStore(this.adapter.clone(this.pathFor(parsed.sha)), this.passphrase);
-    const plain = await store.open();
-    if (!plain) throw new Error("This video is missing from the board's repo.");
+    if (!parsed) throw new Error("Not an asset reference.");
+    // Per-board dir first, then the legacy shared dir for older uploads.
+    let plain = await new EncryptedStore(this.adapter.clone(this.pathFor(parsed.sha)), this.passphrase).open();
+    if (!plain) {
+      const legacyPath = `${this.legacyDir}/${parsed.sha}.bin`;
+      plain = await new EncryptedStore(this.adapter.clone(legacyPath), this.passphrase).open();
+    }
+    if (!plain) throw new Error("This file is missing from the board's repo.");
     return decodePlain(plain);
   }
 }

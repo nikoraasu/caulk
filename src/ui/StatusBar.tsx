@@ -80,6 +80,9 @@ export function StatusBar({
     case "error":
       text = <span title={status.message}>{status.message}</span>;
       break;
+    case "locked":
+      text = "Locked: enter the board password";
+      break;
   }
 
   return (

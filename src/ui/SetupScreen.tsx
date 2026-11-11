@@ -10,10 +10,11 @@ import {
 import {
   boardLabel,
   clearAuth,
-  defaultPassphrase,
   ensureIdentity,
+  getBoardPassphrase,
   loadTarget,
   saveSession,
+  setBoardPassphrase,
   slugifyBoardName,
   type Session,
 } from "../config";
@@ -118,6 +119,8 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
   const [boardName, setBoardName] = useState(
     urlParams.board || (existing ? boardLabel(existing) : "my-board"),
   );
+  const [boardPassword, setBoardPassword] = useState("");
+  const [rememberPassword, setRememberPassword] = useState(false);
   const [check, setCheck] = useState<CheckState>({ state: "idle" });
   const [error, setError] = useState<string | null>(urlParams.error || null);
 
@@ -346,13 +349,18 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
       path: boardPath,
     };
 
+    // A typed password wins; otherwise use whatever this board already has
+    // (its password from earlier, or the default key for an open board).
+    if (boardPassword) {
+      setBoardPassphrase(sessionTarget, boardPassword, { remember: rememberPassword });
+    }
     const session: Session = {
       ...sessionTarget,
       token: credential.token.trim(),
       tokenKind: credential.kind,
       refreshToken: credential.refreshToken,
       expiresAt: credential.expiresAt,
-      passphrase: defaultPassphrase(sessionTarget),
+      passphrase: boardPassword || getBoardPassphrase(sessionTarget),
       identity: ensureIdentity(userName),
     };
 
@@ -720,6 +728,31 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
                     ? "Searching repository for existing boards…"
                     : `Saved as boards/${slugifyBoardName(boardName)}`}
                 </small>
+              </div>
+
+              {/* Optional board password, encrypts this board with the user's own passphrase */}
+              <div className="field">
+                <span>Board password</span>
+                <input
+                  type="password"
+                  value={boardPassword}
+                  onChange={(e) => setBoardPassword(e.target.value)}
+                  placeholder="Optional"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <small>
+                  Optional. Only people who know it can open this board. It is never stored in the
+                  repo.
+                </small>
+                <label className="checkbox" style={{ marginTop: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={rememberPassword}
+                    onChange={(e) => setRememberPassword(e.target.checked)}
+                  />
+                  <span>Remember on this device</span>
+                </label>
               </div>
 
               {/* Branch Toggle (Collapsed by default) */}

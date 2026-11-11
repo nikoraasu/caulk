@@ -286,6 +286,99 @@ export class GitHubAdapter implements StorageAdapter {
     const body = (await res.json()) as { content?: { sha?: string } };
     return { sha: body.content?.sha };
   }
+
+  private repoUrl(suffix = ""): string {
+    return `${this.apiBase}/repos/${encodeURIComponent(this.cfg.owner)}/${encodeURIComponent(
+      this.cfg.repo,
+    )}${suffix}`;
+  }
+
+  /** The caller's permissions on the repo. Only admin and push are read. */
+  async repoPermissions(): Promise<{ admin: boolean; push: boolean }> {
+    const res = await this.send(this.repoUrl(), { headers: this.headers(), cache: "no-store" });
+    this.noteRateLimit(res);
+    if (!res.ok) await this.fail(res);
+    const body = (await res.json()) as { permissions?: { admin?: boolean; push?: boolean } };
+    return { admin: Boolean(body.permissions?.admin), push: Boolean(body.permissions?.push) };
+  }
+
+  /** The commit the configured branch points at. */
+  async branchHead(): Promise<string> {
+    const res = await this.send(this.repoUrl(`/git/ref/heads/${encodePath(this.cfg.branch)}`), {
+      headers: this.headers(),
+      cache: "no-store",
+    });
+    this.noteRateLimit(res);
+    if (!res.ok) await this.fail(res);
+    const body = (await res.json()) as { object?: { sha?: string } };
+    if (!body.object?.sha) throw new GitHubError(502, "GitHub returned a branch without a commit.");
+    return body.object.sha;
+  }
+
+  private async postJson<T>(suffix: string, payload: unknown): Promise<T> {
+    const res = await this.send(this.repoUrl(suffix), {
+      method: "POST",
+      headers: this.headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    });
+    this.noteRateLimit(res);
+    if (!res.ok) await this.fail(res);
+    return (await res.json()) as T;
+  }
+
+  /**
+   * Put several files in ONE commit on the branch, through the Git Data API, so either
+   * every file lands or none does. `expectedHead` (from branchHead) makes this throw
+   * ConflictError when the branch has moved since that read. A branch that moves while
+   * the commit is being written also gives ConflictError (the ref update is not a
+   * fast-forward).
+   */
+  async commitFiles(
+    files: Array<{ path: string; bytes: Uint8Array }>,
+    message: string,
+    opts: { expectedHead?: string } = {},
+  ): Promise<void> {
+    if (files.length === 0) return;
+    const parent = await this.branchHead();
+    if (opts.expectedHead && parent !== opts.expectedHead) {
+      throw new ConflictError(409, "The branch changed while the files were being prepared.");
+    }
+
+    const commitRes = await this.send(this.repoUrl(`/git/commits/${parent}`), {
+      headers: this.headers(),
+      cache: "no-store",
+    });
+    this.noteRateLimit(commitRes);
+    if (!commitRes.ok) await this.fail(commitRes);
+    const baseTree = ((await commitRes.json()) as { tree?: { sha?: string } }).tree?.sha;
+    if (!baseTree) throw new GitHubError(502, "GitHub returned a commit without a tree.");
+
+    const entries: Array<{ path: string; mode: string; type: string; sha: string }> = [];
+    for (const file of files) {
+      const blob = await this.postJson<{ sha: string }>("/git/blobs", {
+        content: bytesToBase64(file.bytes),
+        encoding: "base64",
+      });
+      entries.push({ path: file.path, mode: "100644", type: "blob", sha: blob.sha });
+    }
+    const tree = await this.postJson<{ sha: string }>("/git/trees", { base_tree: baseTree, tree: entries });
+    const commit = await this.postJson<{ sha: string }>("/git/commits", {
+      message,
+      tree: tree.sha,
+      parents: [parent],
+    });
+
+    const refRes = await this.send(this.repoUrl(`/git/refs/heads/${encodePath(this.cfg.branch)}`), {
+      method: "PATCH",
+      headers: this.headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ sha: commit.sha, force: false }),
+    });
+    this.noteRateLimit(refRes);
+    if (refRes.status === 422 || refRes.status === 409) {
+      throw new ConflictError(refRes.status, "The branch moved while the files were being committed. Nothing was changed.");
+    }
+    if (!refRes.ok) await this.fail(refRes);
+  }
 }
 
 /** Cheap sanity check used by the setup screen. */
