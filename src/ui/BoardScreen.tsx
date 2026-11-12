@@ -43,7 +43,6 @@ import { FrameNavigator } from "./FrameNavigator";
 import { PlayerListModal } from "./PlayerListModal";
 import { BranchingOverlay } from "../features/diagram/BranchingOverlay";
 import { SelectionToolbar } from "../features/layout/SelectionToolbar";
-import { SmartGuidesOverlay } from "../features/layout/SmartGuidesOverlay";
 import { CodeSnippetCard } from "../features/embeds/CodeSnippetCard";
 import { ChecklistCard } from "../features/embeds/ChecklistCard";
 import { WebBookmarkCard } from "../features/embeds/WebBookmarkCard";
@@ -2037,17 +2036,17 @@ export function BoardScreen({ session, onClose }: Props) {
         width: 440,
         height: 280,
         angle: 0,
-        strokeColor: "#111410",
-        backgroundColor: "#181c16",
+        strokeColor: "transparent",
+        backgroundColor: "transparent",
         fillStyle: "solid",
-        strokeWidth: 1,
+        strokeWidth: 0,
         strokeStyle: "solid",
         roughness: 0,
         opacity: 100,
         groupIds: [],
         frameId: null,
         index: null,
-        roundness: { type: 3, value: 4 },
+        roundness: null,
         seed: Math.floor(Math.random() * 2e9),
         version: 1,
         versionNonce: Math.floor(Math.random() * 2e9),
@@ -2080,7 +2079,7 @@ export function BoardScreen({ session, onClose }: Props) {
   );
 
   const addChecklistCard = useCallback(
-    (title = "Sprint Checklist") => {
+    (title = "Checklist") => {
       const api = apiRef.current;
       if (!api) return;
       const appState = api.getAppState();
@@ -2096,17 +2095,17 @@ export function BoardScreen({ session, onClose }: Props) {
         width: 320,
         height: 240,
         angle: 0,
-        strokeColor: "#111410",
-        backgroundColor: "#3e4637",
+        strokeColor: "transparent",
+        backgroundColor: "transparent",
         fillStyle: "solid",
-        strokeWidth: 1,
+        strokeWidth: 0,
         strokeStyle: "solid",
         roughness: 0,
         opacity: 100,
         groupIds: [],
         frameId: null,
         index: null,
-        roundness: { type: 3, value: 4 },
+        roundness: null,
         seed: Math.floor(Math.random() * 2e9),
         version: 1,
         versionNonce: Math.floor(Math.random() * 2e9),
@@ -2118,11 +2117,7 @@ export function BoardScreen({ session, onClose }: Props) {
         customData: {
           isChecklistCard: true,
           title,
-          items: [
-            { id: `c-${Date.now()}-1`, text: "Review pull requests", done: true },
-            { id: `c-${Date.now()}-2`, text: "Verify automated tests pass", done: false },
-            { id: `c-${Date.now()}-3`, text: "Deploy staging release", done: false },
-          ],
+          items: [],
         },
       });
 
@@ -2156,17 +2151,17 @@ export function BoardScreen({ session, onClose }: Props) {
         width: 340,
         height: 200,
         angle: 0,
-        strokeColor: "#111410",
-        backgroundColor: "#3e4637",
+        strokeColor: "transparent",
+        backgroundColor: "transparent",
         fillStyle: "solid",
-        strokeWidth: 1,
+        strokeWidth: 0,
         strokeStyle: "solid",
         roughness: 0,
         opacity: 100,
         groupIds: [],
         frameId: null,
         index: null,
-        roundness: { type: 3, value: 4 },
+        roundness: null,
         seed: Math.floor(Math.random() * 2e9),
         version: 1,
         versionNonce: Math.floor(Math.random() * 2e9),
@@ -4879,9 +4874,6 @@ export function BoardScreen({ session, onClose }: Props) {
           bridgeRef={bridgeRef}
           onToast={setToastMessage}
         />
-
-        {/* Dynamic Smart Alignment Guides */}
-        <SmartGuidesOverlay apiRef={apiRef} />
 
         {/* Bottom-left dock: Radar Minimap + Notifications Stack above Excalidraw zoom/undo */}
         <div

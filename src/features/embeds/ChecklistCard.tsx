@@ -77,7 +77,7 @@ export const ChecklistCard: React.FC<Props> = ({ element, onUpdateElement }) => 
             placeholder="Checklist Title"
           />
           <span className="caulk-checklist-progress-meta">
-            {completedCount}/{totalCount} ({progressPercent}%)
+            {totalCount === 0 ? "0 items" : `${completedCount}/${totalCount} (${progressPercent}%)`}
           </span>
         </div>
         <div className="caulk-checklist-progress-bar">
@@ -87,8 +87,8 @@ export const ChecklistCard: React.FC<Props> = ({ element, onUpdateElement }) => 
 
       <div className="caulk-checklist-items">
         {items.length === 0 ? (
-          <div style={{ fontSize: 10, color: "var(--vgui-muted, #d0d8cc)", padding: "10px 4px", textAlign: "center" }}>
-            No checklist items yet. Add one below!
+          <div className="caulk-checklist-empty">
+            Empty checklist. Add an item below.
           </div>
         ) : (
           items.map((item) => (

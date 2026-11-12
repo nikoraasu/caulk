@@ -7,14 +7,17 @@
   flex-direction: column;
   background: #181c16;
   border: 1px solid var(--vgui-border, #111410);
-  border-right-color: var(--vgui-light, #7a8b71);
-  border-bottom-color: var(--vgui-light, #7a8b71);
-  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.05), 0 4px 12px rgba(0, 0, 0, 0.5);
-  border-radius: 4px;
+  border-top-color: var(--vgui-border-light, #7a8b71);
+  border-left-color: var(--vgui-border-light, #7a8b71);
+  border-right-color: var(--vgui-border-dark, #252b20);
+  border-bottom-color: var(--vgui-border-dark, #252b20);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.08), inset -1px -1px 0 var(--vgui-dark, #252b20), 0 4px 14px rgba(0, 0, 0, 0.5);
+  border-radius: var(--theme-radius-sm, 0px);
   overflow: hidden;
   font-family: var(--vgui-font-mono, "Courier New", monospace);
   color: #e6ede3;
   user-select: text;
+  box-sizing: border-box;
 }
 
 .caulk-code-header {
