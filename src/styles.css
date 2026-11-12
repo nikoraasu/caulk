@@ -2219,6 +2219,101 @@ code {
   overflow: hidden;
 }
 
+.theme-picker-window.window-frame {
+  background: var(--vgui-bg) !important;
+  color: var(--vgui-text) !important;
+  border-color: var(--vgui-accent) !important;
+}
+
+.theme-picker-window .card {
+  background: var(--vgui-bg) !important;
+  color: var(--vgui-text) !important;
+}
+
+.theme-picker-window .window-titlebar {
+  background: var(--vgui-bg) !important;
+  color: var(--vgui-text) !important;
+}
+
+.theme-picker-window .theme-color-swatch {
+  border: 1.5px solid rgba(0, 0, 0, 0.5);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.4), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* Magic Theme Main Color Generator Hero */
+.theme-main-color-card {
+  padding: 10px 12px;
+  background: var(--vgui-base, #3e4637);
+  border: 1px solid var(--vgui-dark, #343d2f);
+  border-radius: var(--theme-radius-sm, 2px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.theme-main-color-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.theme-main-color-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--vgui-accent, #c59c3a);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-main-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.theme-main-shades-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.theme-shade-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border-radius: var(--theme-radius-sm, 2px);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  font-size: 10px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.theme-shade-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.theme-live-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--theme-radius-sm, 2px);
+  margin-bottom: 10px;
+  border: 1px solid var(--vgui-dark, #343d2f);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+}
+
 .theme-preset-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

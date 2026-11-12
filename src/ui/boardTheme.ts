@@ -500,11 +500,80 @@ function rgbToHex(r: number, g: number, b: number): string {
   );
 }
 
-function mixHex(a: string, b: string, ratioB: number): string {
+export function mixHex(a: string, b: string, ratioB: number): string {
   const [ar, ag, ab] = hexToRgb(a);
   const [br, bg, bb] = hexToRgb(b);
   const t = Math.max(0, Math.min(1, ratioB));
   return rgbToHex(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t);
+}
+
+export type GeneratedThemePalette = {
+  surface: string;
+  base: string;
+  accent: string;
+  text: string;
+  suggestedCanvas: string;
+  accentHighlight: string;
+};
+
+/**
+ * Generate a complete, harmonious theme palette from a single chosen main color.
+ * Uses relative luminance to create fitting shades for UI surface, sunken wells,
+ * vibrant accents, legible text, and atmospheric canvas backgrounds.
+ */
+export function generateShadesFromMainColor(mainColor: string): GeneratedThemePalette {
+  const clean = normalizeThemeHex(mainColor) ?? "#4b5844";
+  const [h, s, l] = hexToHsl(clean);
+  const lum = relativeLuminance(clean);
+  const isDark = lum < 0.38;
+
+  if (isDark) {
+    const surface = clean;
+    const baseLightness = Math.max(6, Math.min(l - 5, Math.round(l * 0.75)));
+    const base = hslToHex(h, Math.min(100, Math.round(s * 0.95)), baseLightness);
+
+    let accentHue = h;
+    let accentSat = Math.max(70, s);
+    let accentLit = 54;
+    if (s < 12) {
+      accentHue = 42;
+      accentSat = 85;
+      accentLit = 54;
+    } else if (h >= 55 && h <= 165) {
+      accentHue = 40;
+      accentSat = 86;
+      accentLit = 52;
+    } else if (h > 165 && h <= 250) {
+      accentHue = (h + 30) % 360;
+      accentLit = 55;
+    } else if (h > 250 && h <= 325) {
+      accentHue = 188;
+      accentSat = 90;
+      accentLit = 54;
+    } else {
+      accentHue = 45;
+      accentSat = 90;
+      accentLit = 52;
+    }
+    const accent = hslToHex(accentHue, accentSat, accentLit);
+    const accentHighlight = hslToHex(accentHue, accentSat, Math.min(78, accentLit + 12));
+    const text = "#ffffff";
+    const canvasLit = Math.max(7, Math.min(l - 10, Math.round(l * 0.55)));
+    const suggestedCanvas = hslToHex(h, Math.min(100, Math.round(s * 0.75)), canvasLit);
+
+    return { surface, base, accent, text, suggestedCanvas, accentHighlight };
+  } else {
+    const surface = clean;
+    const base = hslToHex(h, Math.min(100, Math.round(s * 0.6)), Math.min(99, Math.max(l + 4, 96)));
+    let accentHue = h;
+    if (s < 12) accentHue = 210;
+    const accent = hslToHex(accentHue, Math.max(75, s), Math.max(28, Math.min(42, l - 40)));
+    const accentHighlight = hslToHex(accentHue, Math.max(75, s), Math.max(36, Math.min(50, l - 30)));
+    const text = hslToHex(h, Math.min(25, s), 12);
+    const suggestedCanvas = hslToHex(h, Math.min(100, Math.round(s * 0.6)), Math.max(80, l - 8));
+
+    return { surface, base, accent, text, suggestedCanvas, accentHighlight };
+  }
 }
 
 function rgba(hex: string, alpha: number): string {

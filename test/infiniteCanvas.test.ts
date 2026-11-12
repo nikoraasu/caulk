@@ -4,6 +4,7 @@ import { layoutHierarchy } from "../src/features/diagram/hierarchyLayout";
 import { alignElements, distributeElements, packGrid } from "../src/features/layout/align";
 import { BUILTIN_TEMPLATES } from "../src/features/templates/builtin";
 import { sanitizeElement } from "../src/crdt/scene";
+import { generateShadesFromMainColor, normalizeThemeHex } from "../src/ui/boardTheme";
 
 function mockElement(id: string, x: number, y: number, width = 100, height = 60, extra: Record<string, unknown> = {}): ExcalidrawElement {
   return sanitizeElement({
@@ -154,11 +155,42 @@ async function testRichEntitiesAndTemplates() {
   console.log("ok  Builtin 2x2 Strategy Matrices verified");
 }
 
+async function testThemeShadesGenerator() {
+  console.log("-> 4: Magic Theme Main Color Shade Generator");
+
+  // Test 1: Dark olive main color (like VGUI)
+  const olivePalette = generateShadesFromMainColor("#4b5844");
+  assert.equal(olivePalette.surface, "#4b5844");
+  assert.equal(olivePalette.text, "#ffffff");
+  assert.ok(olivePalette.base.startsWith("#"));
+  assert.ok(olivePalette.accent.startsWith("#"));
+  assert.ok(olivePalette.suggestedCanvas.startsWith("#"));
+  console.log("ok  Dark main color derives dark well, white text, and amber/gold accent");
+
+  // Test 2: Light main color (like clean slate/air)
+  const lightPalette = generateShadesFromMainColor("#f0f4f8");
+  assert.equal(lightPalette.surface, "#f0f4f8");
+  assert.notEqual(lightPalette.text, "#ffffff", "Light theme text should be dark slate");
+  assert.ok(lightPalette.base.startsWith("#"));
+  assert.ok(lightPalette.accent.startsWith("#"));
+  console.log("ok  Light main color derives clean well, dark text, and high-contrast accent");
+
+  // Test 3: Vibrant colors (purple, crimson, blue)
+  for (const c of ["#7c3aed", "#be123c", "#2563eb"]) {
+    const pal = generateShadesFromMainColor(c);
+    assert.equal(pal.surface, c);
+    assert.equal(normalizeThemeHex(pal.accent), pal.accent);
+    assert.equal(normalizeThemeHex(pal.base), pal.base);
+  }
+  console.log("ok  Vibrant palettes generated cleanly for #7c3aed, #be123c, #2563eb");
+}
+
 async function main() {
   await testHierarchyLayout();
   await testAlignAndDistribute();
   await testRichEntitiesAndTemplates();
-  console.log("\nAll Infinite Canvas v2 (Diagramming, Layout & Entities) tests passed!");
+  await testThemeShadesGenerator();
+  console.log("\nAll Infinite Canvas v2 (Diagramming, Layout, Entities & Themeing) tests passed!");
 }
 
 main().catch((err) => {

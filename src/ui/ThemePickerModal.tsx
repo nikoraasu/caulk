@@ -3,11 +3,14 @@ import {
   BOARD_THEME_LIST,
   BOARD_THEME_PRESETS,
   CUSTOM_THEME_STARTERS,
+  generateShadesFromMainColor,
   getThemePreset,
+  mixHex,
   normalizeThemeHex,
   resolveEffectiveColors,
   sanitizeCustomThemeSpec,
   type BoardThemeConfig,
+  type GeneratedThemePalette,
   type ThemePresetSpec,
   type ThemeStyleMode,
   type ThemeUiColors,
@@ -23,6 +26,9 @@ type Props = {
 };
 
 type ColorFieldKey = keyof Required<ThemeUiColors>;
+
+const FULL_HEX_RE = /^#?([0-9a-fA-F]{6})$/;
+const SHORTHAND_HEX_RE = /^#?([0-9a-fA-F]{3})$/;
 
 const COLOR_FIELDS: Array<{ key: ColorFieldKey; label: string; hint: string }> = [
   { key: "surface", label: "UI Surface", hint: "Toolbars, panels, frames" },
@@ -78,6 +84,10 @@ export function ThemePickerModal({
   const [drafts, setDrafts] = useState<Required<ThemeUiColors>>(effective);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
+  // Main color picker state for generating matching shades
+  const [mainColorDraft, setMainColorDraft] = useState<string>(() => effective.surface);
+  const generatedPalette: GeneratedThemePalette = generateShadesFromMainColor(mainColorDraft);
+
   // Custom theme editor state
   const [customDraft, setCustomDraft] = useState<ThemePresetSpec>(() => {
     if (theme.customTheme) return { ...theme.customTheme };
@@ -103,6 +113,14 @@ export function ThemePickerModal({
       accentHighlight: presetSpec.accentHighlight || effective.accent,
     };
   });
+
+  const [customColorDrafts, setCustomColorDrafts] = useState<Record<string, string>>(() => ({
+    surface: customDraft.defaultColors.surface,
+    base: customDraft.defaultColors.base,
+    accent: customDraft.defaultColors.accent,
+    text: customDraft.defaultColors.text,
+    suggestedCanvas: customDraft.suggestedCanvas,
+  }));
 
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
@@ -135,8 +153,15 @@ export function ThemePickerModal({
     soundEngine.play("create");
   };
 
+  // Synchronize drafts when preset changes, without clobbering active keystrokes
   useEffect(() => {
-    setDrafts(resolveEffectiveColors(theme, currentCanvasBackground));
+    const fresh = resolveEffectiveColors(theme, currentCanvasBackground);
+    setDrafts((prev) => ({
+      surface: FULL_HEX_RE.test(prev.surface) ? fresh.surface : prev.surface,
+      base: FULL_HEX_RE.test(prev.base) ? fresh.base : prev.base,
+      accent: FULL_HEX_RE.test(prev.accent) ? fresh.accent : prev.accent,
+      text: FULL_HEX_RE.test(prev.text) ? fresh.text : prev.text,
+    }));
   }, [
     theme.preset,
     theme.adaptToBackground,
@@ -175,17 +200,131 @@ export function ThemePickerModal({
     });
   };
 
-  const updateColor = (key: ColorFieldKey, rawValue: string, liveHex?: string) => {
-    setDrafts((prev) => ({ ...prev, [key]: rawValue }));
-    const hex = liveHex ?? normalizeThemeHex(rawValue);
-    if (!hex) return;
+  // Quick Override Color Handlers (Does not autocomplete while typing!)
+  const handleQuickHexChange = (key: ColorFieldKey, rawValue: string) => {
+    const text = rawValue.startsWith("#") ? rawValue : (rawValue.length > 0 ? `#${rawValue}` : "");
+    setDrafts((prev) => ({ ...prev, [key]: text }));
+
+    // Only commit live changes when a full 6-digit hex code is typed
+    const match = FULL_HEX_RE.exec(text);
+    if (match) {
+      const fullHex = `#${match[1].toLowerCase()}`;
+      onChange({
+        ...theme,
+        colors: {
+          ...theme.colors,
+          [key]: fullHex,
+        },
+      });
+    }
+  };
+
+  const handleQuickHexBlur = (key: ColorFieldKey) => {
+    const raw = (drafts[key] || "").trim();
+    const match3 = SHORTHAND_HEX_RE.exec(raw);
+    if (match3) {
+      const d = match3[1];
+      const fullHex = `#${d[0]}${d[0]}${d[1]}${d[1]}${d[2]}${d[2]}`.toLowerCase();
+      setDrafts((prev) => ({ ...prev, [key]: fullHex }));
+      onChange({
+        ...theme,
+        colors: {
+          ...theme.colors,
+          [key]: fullHex,
+        },
+      });
+      return;
+    }
+    const match6 = FULL_HEX_RE.exec(raw);
+    if (match6) {
+      const fullHex = `#${match6[1].toLowerCase()}`;
+      setDrafts((prev) => ({ ...prev, [key]: fullHex }));
+      onChange({
+        ...theme,
+        colors: {
+          ...theme.colors,
+          [key]: fullHex,
+        },
+      });
+      return;
+    }
+    // Revert invalid hex on blur
+    setDrafts((prev) => ({ ...prev, [key]: effective[key] }));
+  };
+
+  const handleQuickColorPicker = (key: ColorFieldKey, hex: string) => {
+    const clean = hex.toLowerCase();
+    setDrafts((prev) => ({ ...prev, [key]: clean }));
     onChange({
       ...theme,
       colors: {
         ...theme.colors,
-        [key]: hex,
+        [key]: clean,
       },
     });
+  };
+
+  // Magic Main Color Palette Application
+  const applyMainColorPalette = (chosenHex?: string) => {
+    const target = chosenHex ?? mainColorDraft;
+    const clean = normalizeThemeHex(target) ?? target;
+    const palette = generateShadesFromMainColor(clean);
+    setDrafts({
+      surface: palette.surface,
+      base: palette.base,
+      accent: palette.accent,
+      text: palette.text,
+    });
+    setMainColorDraft(palette.surface);
+    onChange({
+      ...theme,
+      colors: {
+        surface: palette.surface,
+        base: palette.base,
+        accent: palette.accent,
+        text: palette.text,
+      },
+    });
+    if (matchCanvas && palette.suggestedCanvas) {
+      onApplyCanvasBackground(palette.suggestedCanvas);
+    }
+    setStatusMsg(`✓ Applied theme shades generated from ${palette.surface}`);
+    setTimeout(() => setStatusMsg(null), 3000);
+  };
+
+  const handleMainColorHexChange = (rawText: string) => {
+    const text = rawText.startsWith("#") ? rawText : (rawText.length > 0 ? `#${rawText}` : "");
+    setMainColorDraft(text);
+    const match = FULL_HEX_RE.exec(text);
+    if (match) {
+      applyMainColorPalette(`#${match[1].toLowerCase()}`);
+    }
+  };
+
+  const handleMainColorHexBlur = () => {
+    const raw = mainColorDraft.trim();
+    const match3 = SHORTHAND_HEX_RE.exec(raw);
+    if (match3) {
+      const d = match3[1];
+      const fullHex = `#${d[0]}${d[0]}${d[1]}${d[1]}${d[2]}${d[2]}`.toLowerCase();
+      setMainColorDraft(fullHex);
+      applyMainColorPalette(fullHex);
+      return;
+    }
+    const match6 = FULL_HEX_RE.exec(raw);
+    if (match6) {
+      const fullHex = `#${match6[1].toLowerCase()}`;
+      setMainColorDraft(fullHex);
+      applyMainColorPalette(fullHex);
+      return;
+    }
+    setMainColorDraft(effective.surface);
+  };
+
+  const handleMainColorPicker = (hex: string) => {
+    const clean = hex.toLowerCase();
+    setMainColorDraft(clean);
+    applyMainColorPalette(clean);
   };
 
   const resetColors = () => {
@@ -197,6 +336,13 @@ export function ThemePickerModal({
   // Custom Studio Handlers
   const handleLoadStarter = (starter: ThemePresetSpec) => {
     setCustomDraft({ ...starter });
+    setCustomColorDrafts({
+      surface: starter.defaultColors.surface,
+      base: starter.defaultColors.base,
+      accent: starter.defaultColors.accent,
+      text: starter.defaultColors.text,
+      suggestedCanvas: starter.suggestedCanvas,
+    });
     setStatusMsg(`Loaded template: "${starter.name}"`);
     setTimeout(() => setStatusMsg(null), 3000);
   };
@@ -215,13 +361,70 @@ export function ThemePickerModal({
       suggestedCanvas: currentCanvasBackground || presetSpec.suggestedCanvas,
       accentHighlight: presetSpec.accentHighlight || effective.accent,
     });
+    setCustomColorDrafts({
+      surface: effective.surface,
+      base: effective.base,
+      accent: effective.accent,
+      text: effective.text,
+      suggestedCanvas: currentCanvasBackground || presetSpec.suggestedCanvas,
+    });
     setActiveTab("custom");
     setStatusMsg("Customized from current theme! Make changes below.");
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
-  const updateCustomColor = (key: ColorFieldKey, hex: string) => {
-    const clean = normalizeThemeHex(hex) ?? hex;
+  const handleCustomHexChange = (key: ColorFieldKey, rawValue: string) => {
+    const text = rawValue.startsWith("#") ? rawValue : (rawValue.length > 0 ? `#${rawValue}` : "");
+    setCustomColorDrafts((prev) => ({ ...prev, [key]: text }));
+
+    const match = FULL_HEX_RE.exec(text);
+    if (match) {
+      const clean = `#${match[1].toLowerCase()}`;
+      setCustomDraft((prev) => ({
+        ...prev,
+        defaultColors: {
+          ...prev.defaultColors,
+          [key]: clean,
+        },
+      }));
+    }
+  };
+
+  const handleCustomHexBlur = (key: ColorFieldKey) => {
+    const raw = (customColorDrafts[key] || "").trim();
+    const match3 = SHORTHAND_HEX_RE.exec(raw);
+    if (match3) {
+      const d = match3[1];
+      const fullHex = `#${d[0]}${d[0]}${d[1]}${d[1]}${d[2]}${d[2]}`.toLowerCase();
+      setCustomColorDrafts((prev) => ({ ...prev, [key]: fullHex }));
+      setCustomDraft((prev) => ({
+        ...prev,
+        defaultColors: {
+          ...prev.defaultColors,
+          [key]: fullHex,
+        },
+      }));
+      return;
+    }
+    const match6 = FULL_HEX_RE.exec(raw);
+    if (match6) {
+      const fullHex = `#${match6[1].toLowerCase()}`;
+      setCustomColorDrafts((prev) => ({ ...prev, [key]: fullHex }));
+      setCustomDraft((prev) => ({
+        ...prev,
+        defaultColors: {
+          ...prev.defaultColors,
+          [key]: fullHex,
+        },
+      }));
+      return;
+    }
+    setCustomColorDrafts((prev) => ({ ...prev, [key]: customDraft.defaultColors[key] }));
+  };
+
+  const handleCustomColorPicker = (key: ColorFieldKey, hex: string) => {
+    const clean = hex.toLowerCase();
+    setCustomColorDrafts((prev) => ({ ...prev, [key]: clean }));
     setCustomDraft((prev) => ({
       ...prev,
       defaultColors: {
@@ -229,6 +432,61 @@ export function ThemePickerModal({
         [key]: clean,
       },
     }));
+  };
+
+  const handleCustomCanvasHexChange = (rawValue: string) => {
+    const text = rawValue.startsWith("#") ? rawValue : (rawValue.length > 0 ? `#${rawValue}` : "");
+    setCustomColorDrafts((prev) => ({ ...prev, suggestedCanvas: text }));
+
+    const match = FULL_HEX_RE.exec(text);
+    if (match) {
+      const clean = `#${match[1].toLowerCase()}`;
+      setCustomDraft((prev) => ({ ...prev, suggestedCanvas: clean }));
+    }
+  };
+
+  const handleCustomCanvasBlur = () => {
+    const raw = (customColorDrafts.suggestedCanvas || "").trim();
+    const match3 = SHORTHAND_HEX_RE.exec(raw);
+    if (match3) {
+      const d = match3[1];
+      const fullHex = `#${d[0]}${d[0]}${d[1]}${d[1]}${d[2]}${d[2]}`.toLowerCase();
+      setCustomColorDrafts((prev) => ({ ...prev, suggestedCanvas: fullHex }));
+      setCustomDraft((prev) => ({ ...prev, suggestedCanvas: fullHex }));
+      return;
+    }
+    const match6 = FULL_HEX_RE.exec(raw);
+    if (match6) {
+      const fullHex = `#${match6[1].toLowerCase()}`;
+      setCustomColorDrafts((prev) => ({ ...prev, suggestedCanvas: fullHex }));
+      setCustomDraft((prev) => ({ ...prev, suggestedCanvas: fullHex }));
+      return;
+    }
+    setCustomColorDrafts((prev) => ({ ...prev, suggestedCanvas: customDraft.suggestedCanvas }));
+  };
+
+  const handleApplyMainColorToCustomDraft = (chosenHex?: string) => {
+    const palette = generateShadesFromMainColor(chosenHex ?? mainColorDraft);
+    setCustomDraft((prev) => ({
+      ...prev,
+      defaultColors: {
+        surface: palette.surface,
+        base: palette.base,
+        accent: palette.accent,
+        text: palette.text,
+      },
+      suggestedCanvas: palette.suggestedCanvas,
+      accentHighlight: palette.accentHighlight,
+    }));
+    setCustomColorDrafts({
+      surface: palette.surface,
+      base: palette.base,
+      accent: palette.accent,
+      text: palette.text,
+      suggestedCanvas: palette.suggestedCanvas,
+    });
+    setStatusMsg(`✓ Generated custom shades from ${palette.surface}`);
+    setTimeout(() => setStatusMsg(null), 3000);
   };
 
   const handleApplyCustomTheme = () => {
@@ -280,16 +538,39 @@ export function ThemePickerModal({
   };
 
   const hasCustomColors = Boolean(theme.colors && Object.keys(theme.colors).length > 0);
+  const darkBorder = mixHex(effective.surface, "#000000", 0.4);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="window-frame modal-window theme-picker-window"
         onClick={(e) => e.stopPropagation()}
+        style={{
+          "--vgui-bg": effective.surface,
+          "--vgui-base": effective.base,
+          "--vgui-bg-dark": effective.base,
+          "--vgui-accent": effective.accent,
+          "--vgui-selected-bg": effective.accent,
+          "--vgui-text": effective.text,
+          "--ink": effective.text,
+          "--ink-soft": mixHex(effective.text, effective.surface, 0.35),
+          backgroundColor: effective.surface,
+          color: effective.text,
+          borderColor: effective.accent,
+        } as React.CSSProperties}
       >
-        <div className="window-titlebar">
+        <div
+          className="window-titlebar"
+          style={{
+            background: effective.surface,
+            color: effective.text,
+            borderBottom: `1px solid ${darkBorder}`,
+          }}
+        >
           <div className="window-title">
-            <span className="window-lambda">λ</span>
+            <span className="window-lambda" style={{ color: effective.accent }}>
+              λ
+            </span>
             <span>Board Theme &amp; Custom Studio</span>
           </div>
           <div className="window-controls">
@@ -299,7 +580,13 @@ export function ThemePickerModal({
           </div>
         </div>
 
-        <div className="card modal-body">
+        <div
+          className="card modal-body"
+          style={{
+            background: effective.surface,
+            color: effective.text,
+          }}
+        >
           <div className="card-head">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
               <div>
@@ -335,6 +622,143 @@ export function ThemePickerModal({
 
           {activeTab === "presets" ? (
             <>
+              {/* Magic Main Color Generator */}
+              <div
+                className="theme-main-color-card"
+                style={{
+                  background: effective.base,
+                  borderColor: darkBorder,
+                  color: effective.text,
+                }}
+              >
+                <div className="theme-main-color-header">
+                  <span className="theme-main-color-title" style={{ color: effective.accent }}>
+                    <span>🎨 Theme Generator — Pick a Main Color</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="chip-btn"
+                    onClick={() => applyMainColorPalette()}
+                    style={{ background: effective.accent, color: "#ffffff", borderColor: effective.accent }}
+                    title="Generate and apply fitting shades of this color across all UI elements"
+                  >
+                    ✨ Generate &amp; Apply Palette
+                  </button>
+                </div>
+                <div className="theme-main-color-row">
+                  <div
+                    className="swatch-wheel theme-color-swatch"
+                    style={{ background: normalizeThemeHex(mainColorDraft) ?? effective.surface }}
+                    title="Click wheel to pick any main color"
+                  >
+                    <input
+                      type="color"
+                      value={normalizeThemeHex(mainColorDraft) ?? effective.surface}
+                      onChange={(e) => handleMainColorPicker(e.target.value)}
+                      aria-label="Main color picker wheel"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    className="theme-color-hex"
+                    value={mainColorDraft}
+                    onChange={(e) => handleMainColorHexChange(e.target.value)}
+                    onBlur={handleMainColorHexBlur}
+                    spellCheck={false}
+                    maxLength={7}
+                    placeholder="#4b5844"
+                    aria-label="Main color hex code"
+                    style={{ width: 85 }}
+                  />
+                  <div className="theme-main-shades-preview">
+                    <span
+                      className="theme-shade-chip"
+                      style={{ background: generatedPalette.surface, color: generatedPalette.text }}
+                      title={`Surface: ${generatedPalette.surface}`}
+                    >
+                      <span className="theme-shade-dot" style={{ background: generatedPalette.surface }} />
+                      Surface
+                    </span>
+                    <span
+                      className="theme-shade-chip"
+                      style={{ background: generatedPalette.base, color: generatedPalette.text }}
+                      title={`Inner Well: ${generatedPalette.base}`}
+                    >
+                      <span className="theme-shade-dot" style={{ background: generatedPalette.base }} />
+                      Well
+                    </span>
+                    <span
+                      className="theme-shade-chip"
+                      style={{ background: generatedPalette.accent, color: "#ffffff" }}
+                      title={`Accent: ${generatedPalette.accent}`}
+                    >
+                      <span className="theme-shade-dot" style={{ background: generatedPalette.accent }} />
+                      Accent
+                    </span>
+                    <span
+                      className="theme-shade-chip"
+                      style={{ background: generatedPalette.suggestedCanvas, color: generatedPalette.text }}
+                      title={`Canvas: ${generatedPalette.suggestedCanvas}`}
+                    >
+                      <span className="theme-shade-dot" style={{ background: generatedPalette.suggestedCanvas }} />
+                      Canvas
+                    </span>
+                  </div>
+                </div>
+                <p className="theme-radius-hint" style={{ margin: "2px 0 0" }}>
+                  Pick your brand or aesthetic color. Caulk automatically harmonizes depths, wells, accents, and contrast.
+                </p>
+              </div>
+
+              {/* Live Active Theme Preview */}
+              <div
+                className="theme-live-preview-bar"
+                style={{
+                  background: effective.surface,
+                  borderColor: darkBorder,
+                  color: effective.text,
+                }}
+              >
+                <span style={{ fontWeight: 700, fontSize: 11, color: effective.accent }}>
+                  λ {presetSpec.name}
+                </span>
+                <span style={{ opacity: 0.6 }}>|</span>
+                <span
+                  style={{
+                    padding: "2px 8px",
+                    background: effective.accent,
+                    color: "#ffffff",
+                    borderRadius: `${currentUiRadius > 0 ? 3 : 0}px`,
+                    fontWeight: 700,
+                    fontSize: 10,
+                  }}
+                >
+                  Primary Active
+                </span>
+                <span
+                  style={{
+                    padding: "2px 8px",
+                    background: effective.base,
+                    color: effective.text,
+                    border: `1px solid ${darkBorder}`,
+                    borderRadius: `${currentUiRadius > 0 ? 3 : 0}px`,
+                    fontSize: 10,
+                  }}
+                >
+                  Well Input
+                </span>
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    color: effective.accent,
+                    fontWeight: 700,
+                    fontSize: 10,
+                  }}
+                >
+                  {isCustomActive ? "CUSTOM THEME" : presetSpec.badge}
+                </span>
+              </div>
+
               <div className="theme-preset-grid" role="radiogroup" aria-label="Theme presets">
                 {BOARD_THEME_LIST.map((preset) => {
                   const active = theme.preset === preset.id && !isCustomActive;
@@ -350,20 +774,22 @@ export function ThemePickerModal({
                       <div
                         className={`theme-preset-preview theme-preview-${preset.id}`}
                         style={{
-                          background: preset.defaultColors.surface,
-                          color: preset.defaultColors.text,
-                          borderColor: preset.defaultColors.accent,
+                          background: active ? effective.surface : preset.defaultColors.surface,
+                          color: active ? effective.text : preset.defaultColors.text,
+                          borderColor: active ? effective.accent : preset.defaultColors.accent,
                         }}
                       >
                         <span
                           className="theme-preview-bar"
                           style={{
-                            background: preset.defaultColors.accent,
+                            background: active ? effective.accent : preset.defaultColors.accent,
                             color:
-                              preset.id === "frutiger-aero" ||
-                              preset.id === "frutiger-glacier" ||
-                              preset.id === "frutiger-metal" ||
-                              preset.id === "windows-xp"
+                              active
+                                ? "#ffffff"
+                                : preset.id === "frutiger-aero" ||
+                                  preset.id === "frutiger-glacier" ||
+                                  preset.id === "frutiger-metal" ||
+                                  preset.id === "windows-xp"
                                 ? "#fff"
                                 : preset.defaultColors.text,
                           }}
@@ -373,8 +799,8 @@ export function ThemePickerModal({
                         <span
                           className="theme-preview-well"
                           style={{
-                            background: preset.defaultColors.base,
-                            borderColor: preset.defaultColors.accent,
+                            background: active ? effective.base : preset.defaultColors.base,
+                            borderColor: active ? effective.accent : preset.defaultColors.accent,
                           }}
                         />
                       </div>
@@ -512,24 +938,45 @@ export function ThemePickerModal({
                     const value = effective[key];
                     const draft = drafts[key];
                     const invalid = normalizeThemeHex(draft) === null;
+                    const swatchBg = normalizeThemeHex(draft) ?? value;
                     return (
-                      <div key={key} className="theme-color-field">
-                        <div className="swatch-wheel theme-color-swatch" title={`Pick ${label}`}>
+                      <div
+                        key={key}
+                        className="theme-color-field"
+                        style={{
+                          background: effective.base,
+                          borderColor: darkBorder,
+                          color: effective.text,
+                        }}
+                      >
+                        <div
+                          className="swatch-wheel theme-color-swatch"
+                          title={`Pick ${label}`}
+                          style={{ background: swatchBg }}
+                        >
                           <input
                             type="color"
-                            value={value}
-                            onChange={(e) => updateColor(key, e.target.value, e.target.value.toLowerCase())}
+                            value={normalizeThemeHex(value) ?? value}
+                            onChange={(e) => handleQuickColorPicker(key, e.target.value)}
                             aria-label={`${label} color picker`}
                           />
                         </div>
                         <div className="theme-color-meta">
-                          <span className="theme-color-label">{label}</span>
-                          <span className="theme-color-hint">{hint}</span>
+                          <span className="theme-color-label" style={{ color: effective.text }}>
+                            {label}
+                          </span>
+                          <span
+                            className="theme-color-hint"
+                            style={{ color: mixHex(effective.text, effective.surface, 0.4) }}
+                          >
+                            {hint}
+                          </span>
                           <input
                             type="text"
                             className="theme-color-hex"
                             value={draft}
-                            onChange={(e) => updateColor(key, e.target.value)}
+                            onChange={(e) => handleQuickHexChange(key, e.target.value)}
+                            onBlur={() => handleQuickHexBlur(key)}
                             spellCheck={false}
                             maxLength={7}
                             aria-invalid={invalid}
@@ -834,17 +1281,35 @@ export function ThemePickerModal({
 
               {/* Color Customization */}
               <div className="theme-studio-section">
-                <h2>Theme Colors</h2>
+                <div className="theme-colors-head">
+                  <h2>Theme Colors</h2>
+                  <div className="theme-colors-actions">
+                    <button
+                      type="button"
+                      className="chip-btn"
+                      onClick={() => handleApplyMainColorToCustomDraft()}
+                      title="Generate harmonious shades from current main color into custom draft"
+                    >
+                      🎨 Generate from Main Color ({mainColorDraft})
+                    </button>
+                  </div>
+                </div>
                 <div className="theme-color-grid">
                   {COLOR_FIELDS.map(({ key, label, hint }) => {
                     const value = customDraft.defaultColors[key];
+                    const draftVal = customColorDrafts[key] ?? value;
+                    const swatchBg = normalizeThemeHex(draftVal) ?? value;
                     return (
                       <div key={key} className="theme-color-field">
-                        <div className="swatch-wheel theme-color-swatch" title={`Pick ${label}`}>
+                        <div
+                          className="swatch-wheel theme-color-swatch"
+                          title={`Pick ${label}`}
+                          style={{ background: swatchBg }}
+                        >
                           <input
                             type="color"
-                            value={value}
-                            onChange={(e) => updateCustomColor(key, e.target.value)}
+                            value={normalizeThemeHex(value) ?? value}
+                            onChange={(e) => handleCustomColorPicker(key, e.target.value)}
                             aria-label={`${label} color picker`}
                           />
                         </div>
@@ -854,8 +1319,9 @@ export function ThemePickerModal({
                           <input
                             type="text"
                             className="theme-color-hex"
-                            value={value}
-                            onChange={(e) => updateCustomColor(key, e.target.value)}
+                            value={draftVal}
+                            onChange={(e) => handleCustomHexChange(key, e.target.value)}
+                            onBlur={() => handleCustomHexBlur(key)}
                             spellCheck={false}
                             maxLength={7}
                             aria-label={`${label} hex value`}
@@ -866,16 +1332,24 @@ export function ThemePickerModal({
                   })}
                   {/* Suggested Canvas */}
                   <div className="theme-color-field">
-                    <div className="swatch-wheel theme-color-swatch" title="Pick Canvas Background">
+                    <div
+                      className="swatch-wheel theme-color-swatch"
+                      title="Pick Canvas Background"
+                      style={{
+                        background:
+                          normalizeThemeHex(customColorDrafts.suggestedCanvas) ?? customDraft.suggestedCanvas,
+                      }}
+                    >
                       <input
                         type="color"
-                        value={customDraft.suggestedCanvas}
-                        onChange={(e) =>
-                          setCustomDraft({
-                            ...customDraft,
-                            suggestedCanvas: e.target.value,
-                          })
+                        value={
+                          normalizeThemeHex(customDraft.suggestedCanvas) ?? customDraft.suggestedCanvas
                         }
+                        onChange={(e) => {
+                          const clean = e.target.value.toLowerCase();
+                          setCustomColorDrafts((prev) => ({ ...prev, suggestedCanvas: clean }));
+                          setCustomDraft((prev) => ({ ...prev, suggestedCanvas: clean }));
+                        }}
                         aria-label="Suggested canvas color picker"
                       />
                     </div>
@@ -885,13 +1359,9 @@ export function ThemePickerModal({
                       <input
                         type="text"
                         className="theme-color-hex"
-                        value={customDraft.suggestedCanvas}
-                        onChange={(e) =>
-                          setCustomDraft({
-                            ...customDraft,
-                            suggestedCanvas: e.target.value,
-                          })
-                        }
+                        value={customColorDrafts.suggestedCanvas ?? customDraft.suggestedCanvas}
+                        onChange={(e) => handleCustomCanvasHexChange(e.target.value)}
+                        onBlur={handleCustomCanvasBlur}
                         spellCheck={false}
                         maxLength={7}
                         aria-label="Suggested canvas hex value"
