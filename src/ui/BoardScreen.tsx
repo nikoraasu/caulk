@@ -4550,9 +4550,9 @@ export function BoardScreen({ session, onClose }: Props) {
           onUnlinkTask={handleUnlinkTaskFromElement}
         />
 
-        {/* Bottom-left notification bar above Excalidraw zoom & undo/redo controls */}
+        {/* Bottom-left dock: Radar Minimap + Notifications Stack above Excalidraw zoom/undo */}
         <div
-          className={`caulk-notif-stack${
+          className={`caulk-bottom-left-dock${
             placingComment ||
             pingMode ||
             presenting ||
@@ -4563,6 +4563,19 @@ export function BoardScreen({ session, onClose }: Props) {
               : ""
           }`}
         >
+          {/* Tactical Radar Minimap HUD */}
+          <Minimap
+            getAppState={() => apiRef.current?.getAppState() ?? null}
+            getElements={() => apiRef.current?.getSceneElements() ?? []}
+            onNavigate={handleMinimapNavigate}
+            onZoomToFit={handleZoomToFit}
+            onResetZoom={handleResetZoom}
+            onGoToOrigin={handleGoToOrigin}
+            isOpen={minimapOpen}
+            onToggle={toggleMinimap}
+          />
+
+          <div className="caulk-notif-stack">
           {timerPickerOpen && (
             <div className="topbar-popover">
               <div className="topbar-popover-title">Meeting Timer</div>
@@ -4665,6 +4678,7 @@ export function BoardScreen({ session, onClose }: Props) {
           )}
 
           {digest && <DigestBanner digest={digest} onDismiss={() => setDigest(null)} />}
+          </div>
         </div>
       </div>
 
@@ -5002,18 +5016,6 @@ export function BoardScreen({ session, onClose }: Props) {
             ))}
         </div>
       )}
-
-      {/* Tactical Radar Minimap HUD */}
-      <Minimap
-        getAppState={() => apiRef.current?.getAppState() ?? null}
-        getElements={() => apiRef.current?.getSceneElements() ?? []}
-        onNavigate={handleMinimapNavigate}
-        onZoomToFit={handleZoomToFit}
-        onResetZoom={handleResetZoom}
-        onGoToOrigin={handleGoToOrigin}
-        isOpen={minimapOpen}
-        onToggle={toggleMinimap}
-      />
 
       <StatusBar
         status={status}

@@ -1,12 +1,11 @@
 /* Tactical Radar Minimap HUD */
 
 .caulk-minimap-container {
-  position: absolute;
-  right: 18px;
-  bottom: 38px;
-  z-index: 45;
+  position: relative;
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
+  width: 240px;
   background: var(--vgui-bg, #3e4637);
   border: 2px solid var(--vgui-border, #111410);
   border-right-color: var(--vgui-border-light, #7a8b71);
@@ -22,7 +21,7 @@
 }
 
 .caulk-minimap-container.collapsed {
-  width: auto;
+  width: 240px;
 }
 
 .caulk-minimap-header {
@@ -152,7 +151,7 @@
 .caulk-waypoints-dock {
   position: absolute;
   right: 18px;
-  bottom: 236px;
+  bottom: 16px;
   z-index: 44;
   display: flex;
   align-items: center;
