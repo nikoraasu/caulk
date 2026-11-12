@@ -1,0 +1,214 @@
+/* Tactical Radar Minimap HUD */
+
+.caulk-minimap-container {
+  position: absolute;
+  right: 18px;
+  bottom: 38px;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  background: var(--vgui-bg, #3e4637);
+  border: 2px solid var(--vgui-border, #111410);
+  border-right-color: var(--vgui-border-light, #7a8b71);
+  border-bottom-color: var(--vgui-border-light, #7a8b71);
+  box-shadow:
+    inset 1px 1px 0 var(--vgui-light, #7a8b71),
+    inset -1px -1px 0 var(--vgui-dark, #252b20),
+    0 8px 24px rgba(0, 0, 0, 0.65);
+  font-family: var(--vgui-font-mono, "Courier New", monospace);
+  color: var(--vgui-text, #ffffff);
+  user-select: none;
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.18s ease;
+}
+
+.caulk-minimap-container.collapsed {
+  width: auto;
+}
+
+.caulk-minimap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--vgui-bg-dark, #2b3226);
+  border-bottom: 1px solid var(--vgui-border, #111410);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+
+.caulk-minimap-header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--vgui-accent, #c59c3a);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.caulk-minimap-hotkey-badge {
+  display: inline-block;
+  padding: 1px 4px;
+  font-size: 9px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--vgui-border-dark, #343d2f);
+  border-radius: 2px;
+  color: var(--vgui-muted, #d0d8cc);
+}
+
+.caulk-minimap-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.caulk-minimap-zoom-pill {
+  font-size: 10px;
+  color: var(--vgui-muted, #d0d8cc);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+.caulk-minimap-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--vgui-text, #ffffff);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 3px;
+  line-height: 1;
+}
+
+.caulk-minimap-toggle-btn:hover {
+  color: var(--vgui-accent, #c59c3a);
+}
+
+.caulk-minimap-canvas-wrapper {
+  position: relative;
+  width: 240px;
+  height: 150px;
+  background: #141a12;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+.caulk-minimap-canvas {
+  display: block;
+  width: 240px;
+  height: 150px;
+}
+
+/* Tactical scanline effect over radar */
+.caulk-minimap-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    rgba(18, 24, 16, 0) 50%,
+    rgba(0, 0, 0, 0.25) 50%
+  );
+  background-size: 100% 4px;
+  opacity: 0.7;
+}
+
+.caulk-minimap-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 6px;
+  background: var(--vgui-bg-dark, #2b3226);
+  border-top: 1px solid var(--vgui-border, #111410);
+  font-size: 10px;
+  gap: 4px;
+}
+
+.caulk-minimap-btn {
+  background: var(--vgui-base, #3e4637);
+  border: 1px solid var(--vgui-border, #111410);
+  border-right-color: var(--vgui-border-light, #7a8b71);
+  border-bottom-color: var(--vgui-border-light, #7a8b71);
+  box-shadow: inset 1px 1px 0 var(--vgui-light, #7a8b71);
+  color: var(--vgui-text, #ffffff);
+  font-size: 10px;
+  padding: 2px 5px;
+  cursor: pointer;
+  border-radius: 1px;
+  font-family: inherit;
+  transition: all 0.1s ease;
+}
+
+.caulk-minimap-btn:hover {
+  background: var(--vgui-hover, #55644e);
+  color: var(--vgui-accent, #c59c3a);
+}
+
+.caulk-minimap-btn:active {
+  box-shadow: inset 1px 1px 0 var(--vgui-dark, #252b20);
+  transform: translate(1px, 1px);
+}
+
+/* Spatial Camera Waypoints Quick-Bar Dock */
+.caulk-waypoints-dock {
+  position: absolute;
+  right: 18px;
+  bottom: 236px;
+  z-index: 44;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--vgui-bg, #3e4637);
+  border: 1px solid var(--vgui-border, #111410);
+  border-right-color: var(--vgui-border-light, #7a8b71);
+  border-bottom-color: var(--vgui-border-light, #7a8b71);
+  box-shadow:
+    inset 1px 1px 0 var(--vgui-light, #7a8b71),
+    inset -1px -1px 0 var(--vgui-dark, #252b20),
+    0 4px 16px rgba(0, 0, 0, 0.5);
+  padding: 3px 6px;
+  font-family: var(--vgui-font-mono, "Courier New", monospace);
+}
+
+.caulk-waypoints-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--vgui-accent, #c59c3a);
+  letter-spacing: 0.5px;
+  margin-right: 2px;
+}
+
+.caulk-waypoint-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--vgui-base, #2b3226);
+  border: 1px solid var(--vgui-border, #111410);
+  color: var(--vgui-text, #ffffff);
+  font-family: inherit;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 1px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.caulk-waypoint-chip:hover {
+  background: var(--vgui-hover, #55644e);
+  border-color: var(--vgui-accent, #c59c3a);
+  color: var(--vgui-accent, #c59c3a);
+}
+
+.caulk-waypoint-chip .slot-num {
+  font-weight: 700;
+  color: var(--vgui-accent, #c59c3a);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+.caulk-waypoint-chip .slot-name {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

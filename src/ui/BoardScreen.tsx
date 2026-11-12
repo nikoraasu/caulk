@@ -37,7 +37,9 @@ import {
   type Session,
 } from "../config";
 import { getFreshToken } from "../auth/token";
-import { SceneBridge, sanitizeElement, type CanvasBackgroundImage, type Digest, type TimerState } from "../crdt/scene";
+import { SceneBridge, sanitizeElement, type CanvasBackgroundImage, type Digest, type TimerState, type Waypoint } from "../crdt/scene";
+import { Minimap } from "./Minimap";
+import { FrameNavigator } from "./FrameNavigator";
 import { SnapshotStore, type SnapshotInfo } from "../history/snapshots";
 import { AssetStore, assetObjectUrl } from "../storage/assets";
 import { ImageAssetSync } from "../sync/imageAssets";
@@ -365,6 +367,27 @@ export function BoardScreen({ session, onClose }: Props) {
     });
   }, []);
   const [clusterModalOpen, setClusterModalOpen] = useState(false);
+  const [minimapOpen, setMinimapOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("caulk.minimap_open") !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const toggleMinimap = useCallback(() => {
+    setMinimapOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("caulk.minimap_open", next ? "1" : "0");
+      } catch {}
+      setToastMessage(next ? "🛰️ Radar Minimap enabled [M]" : "🛰️ Radar Minimap hidden [M]");
+      return next;
+    });
+  }, []);
+  const [frameNavigatorOpen, setFrameNavigatorOpen] = useState(false);
+  const [waypoints, setWaypoints] = useState<Record<string, Waypoint>>({});
+  const [allFrames, setAllFrames] = useState<ExcalidrawElement[]>([]);
+  const lastFramesSigRef = useRef<string>("");
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [sprints, setSprints] = useState<SprintRecord[]>([]);
   const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
@@ -917,6 +940,10 @@ export function BoardScreen({ session, onClose }: Props) {
     const unobserveBoardTheme = bridge.observeBoardTheme((remoteTheme) => {
       setBoardTheme(remoteTheme ?? DEFAULT_BOARD_THEME);
     });
+    const unobserveWaypoints = bridge.observeWaypoints((remoteWaypoints) => {
+      setWaypoints(remoteWaypoints);
+    });
+    setWaypoints(bridge.getWaypoints());
     const unobserveComments = observeComments(doc, setCommentThreads);
     const unobserveReactions = observeElementReactions(doc, setElementReactions);
     const unobserveVoting = observeVoting(doc, setVoting);
@@ -1038,6 +1065,7 @@ export function BoardScreen({ session, onClose }: Props) {
       unobserveBackground();
       unobserveBgImage();
       unobserveBoardTheme();
+      unobserveWaypoints();
       unobserveComments();
       unobserveReactions();
       unobserveVoting();
@@ -1505,6 +1533,23 @@ export function BoardScreen({ session, onClose }: Props) {
         viewBackgroundRef.current = background;
         setCurrentViewBackground(background);
         bridgeRef.current?.setViewBackground(background);
+      }
+
+      // Update canvas frames list for FrameNavigator and presentation mode
+      const currentFrames = (elements as readonly ExcalidrawElement[])
+        .filter(
+          (el) =>
+            (el.type === "frame" || (el.customData as Record<string, unknown> | undefined)?.isFrame) &&
+            !el.isDeleted,
+        )
+        .sort((a, b) => (a.y !== b.y ? a.y - b.y : a.x - b.x));
+      const framesSig = currentFrames
+        .map((f) => `${f.id}:${(f as any).name || ""}:${f.version}:${f.x}:${f.y}`)
+        .join(",");
+      if (framesSig !== lastFramesSigRef.current) {
+        lastFramesSigRef.current = framesSig;
+        setAllFrames(currentFrames);
+        setPresentationFrames(currentFrames);
       }
 
       // Update selected roundable elements for per-object radius changer whenever selection changes
@@ -2819,6 +2864,222 @@ export function BoardScreen({ session, onClose }: Props) {
     );
   }, []);
 
+  // --- Infinite Canvas Camera Navigation & Spatial Orientation (Phase 1) ---
+
+  const handleMinimapNavigate = useCallback((sceneX: number, sceneY: number) => {
+    const api = apiRef.current;
+    if (!api) return;
+    const appState = api.getAppState();
+    const zoom = appState.zoom.value;
+    const nextScrollX = appState.width / 2 - sceneX * zoom;
+    const nextScrollY = appState.height / 2 - sceneY * zoom;
+    api.updateScene({
+      appState: { scrollX: nextScrollX, scrollY: nextScrollY },
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+  }, []);
+
+  const handleZoomToFit = useCallback(() => {
+    const api = apiRef.current;
+    if (!api) return;
+    const elements = api.getSceneElements().filter((el) => !el.isDeleted);
+    if (elements.length > 0) {
+      api.scrollToContent(elements, { fitToViewport: true, animate: true });
+      soundEngine.play("click");
+      setToastMessage("🔍 Zoomed to fit all board elements (Shift+1)");
+    } else {
+      setToastMessage("Board is empty");
+    }
+  }, []);
+
+  const handleZoomToSelection = useCallback(() => {
+    const api = apiRef.current;
+    if (!api) return;
+    const appState = api.getAppState();
+    const elements = api.getSceneElements();
+    const selected = elements.filter((el) => appState.selectedElementIds[el.id] && !el.isDeleted);
+    if (selected.length > 0) {
+      api.scrollToContent(selected, { fitToViewport: true, animate: true });
+      soundEngine.play("click");
+      setToastMessage(`🔍 Zoomed to ${selected.length} selected element(s) (Shift+2)`);
+    } else {
+      setToastMessage("No elements selected to zoom to (Shift+2)");
+    }
+  }, []);
+
+  const handleResetZoom = useCallback(() => {
+    const api = apiRef.current;
+    if (!api) return;
+    const appState = api.getAppState();
+    const currentCenterX = (appState.width / 2 - appState.scrollX) / appState.zoom.value;
+    const currentCenterY = (appState.height / 2 - appState.scrollY) / appState.zoom.value;
+    const newScrollX = appState.width / 2 - currentCenterX * 1;
+    const newScrollY = appState.height / 2 - currentCenterY * 1;
+    api.updateScene({
+      appState: { zoom: { value: 1 as any }, scrollX: newScrollX, scrollY: newScrollY },
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+    soundEngine.play("click");
+    setToastMessage("🔍 Zoom reset to 100% (Shift+0)");
+  }, []);
+
+  const handleGoToOrigin = useCallback(() => {
+    const api = apiRef.current;
+    if (!api) return;
+    const appState = api.getAppState();
+    api.updateScene({
+      appState: { scrollX: appState.width / 2, scrollY: appState.height / 2 },
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+    soundEngine.play("click");
+    setToastMessage("📍 Returned to World Origin (0, 0) [H]");
+  }, []);
+
+  const saveWaypoint = useCallback((slot: string) => {
+    const api = apiRef.current;
+    const bridge = bridgeRef.current;
+    if (!api || !bridge) return;
+    const appState = api.getAppState();
+    const wp: Waypoint = {
+      id: slot,
+      name: `Waypoint ${slot}`,
+      scrollX: appState.scrollX,
+      scrollY: appState.scrollY,
+      zoom: appState.zoom.value,
+      created: Date.now(),
+    };
+    bridge.setWaypoint(slot, wp);
+    soundEngine.play("click");
+    setToastMessage(`📌 Saved camera waypoint [${slot}] (Ctrl+Alt+${slot})`);
+  }, []);
+
+  const jumpToWaypoint = useCallback((slot: string) => {
+    const bridge = bridgeRef.current;
+    const api = apiRef.current;
+    if (!bridge || !api) return;
+    const wp = bridge.getWaypoints()[slot];
+    if (!wp) {
+      setToastMessage(`Waypoint [${slot}] not set yet. Press Ctrl+Alt+${slot} to save current view.`);
+      return;
+    }
+    api.updateScene({
+      appState: {
+        scrollX: wp.scrollX,
+        scrollY: wp.scrollY,
+        zoom: { value: wp.zoom as any },
+      },
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+    soundEngine.play("ping");
+    setToastMessage(`🚀 Jumped to waypoint [${slot}]: ${wp.name}`);
+  }, []);
+
+  const handleSelectFrame = useCallback((frame: ExcalidrawElement) => {
+    const api = apiRef.current;
+    if (!api) return;
+    api.scrollToContent([frame], { fitToViewport: true, animate: true });
+    soundEngine.play("click");
+  }, []);
+
+  const handleRenameFrame = useCallback((frameId: string, newName: string) => {
+    const api = apiRef.current;
+    const bridge = bridgeRef.current;
+    if (!api || !bridge) return;
+    const elements = api.getSceneElements();
+    const target = elements.find((el) => el.id === frameId);
+    if (!target) return;
+    const updated = {
+      ...target,
+      name: newName,
+      customData: {
+        ...(target.customData as Record<string, unknown> | undefined),
+        frameTitle: newName,
+      },
+    };
+    const restored = restoreElements([updated], elements);
+    api.updateScene({ elements: restored as readonly OrderedExcalidrawElement[] });
+    bridge.applyLocal(restored as readonly ExcalidrawElement[]);
+    setToastMessage(`✓ Renamed frame to "${newName}"`);
+  }, []);
+
+  useEffect(() => {
+    const onNavigationKeyDown = (e: KeyboardEvent) => {
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])"))
+      ) {
+        return;
+      }
+      const api = apiRef.current;
+      if (!api) return;
+      if (api.getAppState().editingTextElement) return;
+
+      // 1. M toggles radar minimap
+      if (e.key.toLowerCase() === "m" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleMinimap();
+        return;
+      }
+
+      // 2. H returns to origin (0, 0)
+      if (e.key.toLowerCase() === "h" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        handleGoToOrigin();
+        return;
+      }
+
+      // 3. Shift + 1, 2, 0 camera zoom shortcuts
+      if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === "!" || e.key === "1") {
+          e.preventDefault();
+          handleZoomToFit();
+          return;
+        }
+        if (e.key === "@" || e.key === "2") {
+          e.preventDefault();
+          handleZoomToSelection();
+          return;
+        }
+        if (e.key === ")" || e.key === "0") {
+          e.preventDefault();
+          handleResetZoom();
+          return;
+        }
+      }
+
+      // 4. Ctrl + Alt + [1-9]: Save camera waypoint
+      if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey) {
+        if (e.key >= "1" && e.key <= "9") {
+          e.preventDefault();
+          saveWaypoint(e.key);
+          return;
+        }
+      }
+
+      // 5. Alt + [1-9]: Jump to camera waypoint
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        if (e.key >= "1" && e.key <= "9") {
+          e.preventDefault();
+          jumpToWaypoint(e.key);
+          return;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", onNavigationKeyDown);
+    return () => window.removeEventListener("keydown", onNavigationKeyDown);
+  }, [
+    toggleMinimap,
+    handleGoToOrigin,
+    handleZoomToFit,
+    handleZoomToSelection,
+    handleResetZoom,
+    saveWaypoint,
+    jumpToWaypoint,
+  ]);
+
   // When an arrow key is pressed to nudge a frame, keep unselected child elements inside the frame locked to it
   useEffect(() => {
     const onFrameNudgeKeyDown = (e: KeyboardEvent) => {
@@ -3714,6 +3975,33 @@ export function BoardScreen({ session, onClose }: Props) {
                 >
                   <span>🏷️</span>
                   <span>{showTags ? "Tags: ON" : "Tags: OFF"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`sidebar-trigger${frameNavigatorOpen ? " active" : ""}`}
+                  title="Frames & Outline Navigator (Table of Contents)"
+                  onClick={() => setFrameNavigatorOpen((v) => !v)}
+                  style={{ fontSize: 12, padding: "0 8px", height: 36 }}
+                >
+                  <span>📐</span>
+                  <span>Frames</span>
+                  {allFrames.length > 0 && (
+                    <span className="comment-top-badge" style={{ background: "var(--vgui-accent, #c59c3a)" }}>
+                      {allFrames.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  className={`sidebar-trigger${minimapOpen ? " active" : ""}`}
+                  title="Toggle Tactical Radar Minimap (M)"
+                  onClick={toggleMinimap}
+                  style={{ fontSize: 12, padding: "0 8px", height: 36 }}
+                >
+                  <span>🛰️</span>
+                  <span>Radar</span>
                 </button>
 
                 <button
@@ -4682,6 +4970,50 @@ export function BoardScreen({ session, onClose }: Props) {
           </span>
         </div>
       )}
+
+      {/* Frame Outline & Table of Contents Drawer */}
+      <FrameNavigator
+        frames={allFrames}
+        allElements={apiRef.current?.getSceneElements() ?? []}
+        onSelectFrame={handleSelectFrame}
+        onAddFrame={addFrame}
+        onRenameFrame={handleRenameFrame}
+        isOpen={frameNavigatorOpen}
+        onClose={() => setFrameNavigatorOpen(false)}
+      />
+
+      {/* Spatial Camera Waypoints Quick Bar Dock */}
+      {Object.keys(waypoints).length > 0 && (
+        <div className="caulk-waypoints-dock">
+          <span className="caulk-waypoints-label">📍 WAYPOINTS:</span>
+          {Object.entries(waypoints)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([slot, wp]) => (
+              <button
+                key={slot}
+                type="button"
+                className="caulk-waypoint-chip"
+                title={`Jump to ${wp.name} (Alt+${slot})`}
+                onClick={() => jumpToWaypoint(slot)}
+              >
+                <span className="slot-num">{slot}</span>
+                <span className="slot-name">{wp.name}</span>
+              </button>
+            ))}
+        </div>
+      )}
+
+      {/* Tactical Radar Minimap HUD */}
+      <Minimap
+        getAppState={() => apiRef.current?.getAppState() ?? null}
+        getElements={() => apiRef.current?.getSceneElements() ?? []}
+        onNavigate={handleMinimapNavigate}
+        onZoomToFit={handleZoomToFit}
+        onResetZoom={handleResetZoom}
+        onGoToOrigin={handleGoToOrigin}
+        isOpen={minimapOpen}
+        onToggle={toggleMinimap}
+      />
 
       <StatusBar
         status={status}

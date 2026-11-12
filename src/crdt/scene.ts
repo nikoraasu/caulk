@@ -52,6 +52,38 @@ export function serializeCanvasBackgroundImage(bg: CanvasBackgroundImage | undef
   });
 }
 
+export type Waypoint = {
+  id: string;
+  name: string;
+  scrollX: number;
+  scrollY: number;
+  zoom: number;
+  created: number;
+};
+
+export function parseWaypoints(raw: unknown): Record<string, Waypoint> {
+  if (!raw || typeof raw !== "string") return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      const result: Record<string, Waypoint> = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        if (v && typeof v === "object" && typeof (v as any).scrollX === "number") {
+          result[k] = v as Waypoint;
+        }
+      }
+      return result;
+    }
+  } catch {
+    /* ignore malformed json */
+  }
+  return {};
+}
+
+export function serializeWaypoints(waypoints: Record<string, Waypoint>): string {
+  return JSON.stringify(waypoints);
+}
+
 export function sanitizeElement<T extends ExcalidrawElement = ExcalidrawElement>(el: any): T {
   if (!el || typeof el !== "object") return el;
   const isLegacyFrame = el.type === "rectangle" && Boolean(el.customData?.isFrame);
@@ -399,6 +431,44 @@ export class SceneBridge {
       if (this.disposed || tx.origin === ORIGIN_LOCAL) return;
       if (!event.keysChanged.has("canvasBackgroundImage")) return;
       cb(this.getCanvasBackgroundImage());
+    };
+    map.observe(handler);
+    return () => {
+      map.unobserve(handler);
+    };
+  }
+
+  /** Spatial camera bookmarks / waypoints. Synced in the `settings` map. */
+  getWaypoints(): Record<string, Waypoint> {
+    return parseWaypoints(this.doc.getMap<string>("settings").get("waypoints"));
+  }
+
+  setWaypoint(slot: string, waypoint: Waypoint): void {
+    const map = this.doc.getMap<string>("settings");
+    const current = this.getWaypoints();
+    const updated = { ...current, [slot]: waypoint };
+    this.doc.transact(() => {
+      map.set("waypoints", serializeWaypoints(updated));
+    }, ORIGIN_LOCAL);
+  }
+
+  deleteWaypoint(slot: string): void {
+    const map = this.doc.getMap<string>("settings");
+    const current = this.getWaypoints();
+    if (!current[slot]) return;
+    const updated = { ...current };
+    delete updated[slot];
+    this.doc.transact(() => {
+      map.set("waypoints", serializeWaypoints(updated));
+    }, ORIGIN_LOCAL);
+  }
+
+  observeWaypoints(cb: (waypoints: Record<string, Waypoint>) => void): () => void {
+    const map = this.doc.getMap<string>("settings");
+    const handler = (event: Y.YMapEvent<string>, tx: Y.Transaction) => {
+      if (this.disposed || tx.origin === ORIGIN_LOCAL) return;
+      if (!event.keysChanged.has("waypoints")) return;
+      cb(this.getWaypoints());
     };
     map.observe(handler);
     return () => {
