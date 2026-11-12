@@ -6,4 +6,5 @@
 * [UI integration](ui-integration.md) - what lives inside Excalidraw's UI.
 * [Progress manager](progress-manager.md) - CRDT task system, multi-views, subtasks, roles, and canvas integration.
 * [Headless CLI](headless-cli.md) - CLI and CRDT mutator for autonomous AI agents and headless board operations.
+* [Infinite canvas v2](infinite-canvas.md) - spatial radar minimap, camera waypoints, quick branching, tree layout, rich embeds, matrices, and theme shade generator.
 * [Video assets](video-assets.md) - local videos as encrypted repo files.

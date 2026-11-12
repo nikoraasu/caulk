@@ -4,7 +4,7 @@ title: UI integration with Excalidraw
 description: Which Caulk features live inside Excalidraw's own UI and the gotchas found doing it.
 tags: [ui, excalidraw]
 resource: /src/ui/BoardScreen.tsx
-generated: { by: antigravity/gemini, at: "2026-11-12T22:40:00Z" }
+generated: { by: "antigravity/gemini", at: "2026-11-13T00:45:00Z" }
 ---
 
 # Layout
@@ -12,11 +12,11 @@ generated: { by: antigravity/gemini, at: "2026-11-12T22:40:00Z" }
 - **AI assistant**: `<Sidebar name="ai">` child of `<Excalidraw>`, toggled with `api.toggleSidebar`; docked state in localStorage `caulk.ai_docked.v1`. Sidebar children unmount when closed (typed text is lost).
 - **Top-right UI** (`renderTopRightUI`):
   - Root: AI and Video buttons.
-  - Unified **Tools** dropdown (`caulk-tools-anchor` / `toolsMenuOpen`) consolidating timers, comments, voting, templates, presentation/summon/attention-ping, frame/AI/Mermaid/stamp, video, board background, and **Theme & UI colors…** (`ThemePickerModal`), with active tool badge count.
-- **Main menu** (`<MainMenu>`, group `"Board"`): kept slim — board background, theme & UI colors, sticky palette toggle, switch board/log out, plus Excalidraw defaults (ClearCanvas, SaveAsImage, Export, ChangeCanvasBackground, Help). Duplicate tool actions were moved to Tools.
-- **Notification stack**: `.caulk-notif-stack` anchored bottom-left above Excalidraw's zoom & undo/redo controls (`raised` state offsets when active banners show) for timer popover, ping/present/follow/placing-comment/voting status bars instead of floating over the top toolbar.
+  - Unified **Tools** dropdown (`caulk-tools-anchor` / `toolsMenuOpen`) consolidating timers, comments, voting, templates, presentation/summon/attention-ping, frame/AI/Mermaid/stamp, video, board background, and **Theme & UI colors…** (`ThemePickerModal`), with active tool badge count. Frame tools are consolidated cleanly here to prevent toolbar clutter.
+- **Top bar** (`.vgui-topbar`): title, save label, running timer, following indicator, live pill, avatars (click to follow), Issues drawer button, and single consolidated **Tasks** button (removed duplicate canvas-level tasks button). Excalidraw's own `.UserList` is hidden in CSS to avoid a duplicate peer list.
+- **Player list scoreboard** (`PlayerListModal.tsx`): Pressing <kbd>TAB</kbd> toggles a multiplayer-style scoreboard HUD displaying all currently connected peers, their avatars, roles, cursor color badges, real-time connection latency / ping, and 1-click camera follow/spectate controls.
+- **Radar minimap & notification stack**: Tactical Radar Minimap (`RadarMinimap.tsx`) is anchored to the bottom-left corner directly above Excalidraw's zoom & undo/redo buttons. The notification stack (`.caulk-notif-stack`) dynamically offsets directly above the radar minimap (accounting for open/collapsed states), so alerts, timers, and voting status banners never overlap zoom controls or canvas tools.
 - **Stickies**: one button portaled to `document.body`, `position: fixed`, aligned to `.App-toolbar` via ResizeObserver; horizontal colour popover, closed by default. **N** drops a sticky at the mouse. Narrow screens use a fixed "📝 Sticky" button.
-- **Top bar** (`.vgui-topbar`): title, save label, running timer, following indicator, live pill, avatars (click to follow). Excalidraw's own `.UserList` is hidden in CSS to avoid a duplicate peer list.
 - **Video frame**: `VideoEmbedFrame.tsx` wraps video/iframe embeds in theme-styled window chrome (`vgui-video-window`) with custom player controls. Creating the `embeddable` element in `BoardScreen.tsx` sets clean borderless framing by default.
 - **Global Theming & Custom Theme Studio**:
   - **Presets**: 11 authentic OS aesthetics driving `html[data-board-theme]` and style modes (`vgui`, `windows-xp`, `frutiger-aero`, `frutiger-glacier`, `frutiger-aqua`, `frutiger-dorfic`, `frutiger-metal`, `mac-os9`, `win95`, `dos-tui`, `vaporwave`).
