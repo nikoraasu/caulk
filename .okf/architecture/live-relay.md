@@ -4,7 +4,7 @@ title: Live relay
 description: Real-time collaboration via an encrypted HTTP long-poll relay in PHP, with smoothed cursors.
 tags: [live, realtime, relay, awareness]
 resource: /src/sync/live.ts
-generated: { by: claude-opus-5-5/okf, at: "2026-11-11T00:50:00Z" }
+generated: { by: antigravity/gemini, at: "2026-11-11T16:58:00Z" }
 ---
 
 # Protocol (`public/api/signal.php`)
@@ -17,10 +17,15 @@ generated: { by: claude-opus-5-5/okf, at: "2026-11-11T00:50:00Z" }
 # Client (`LiveSession`)
 
 - Doc updates batched every 40ms (`Y.mergeUpdates`); retry after 2s if relay down.
-- Awareness (y-protocols) throttled to 50ms; carries a `trail` of timestamped pointer samples.
+- Awareness (y-protocols) throttled to 50ms; carries pointer `trail`, and in `dev/` `votingSessionId`, `presenting`, `PeerSummon`, `PeerPing`, plus `isElectedSaver()`.
 - Join: publish `hello` (state vector); peers reply with a directed diff + awareness, and send their own hello back so the joiner's unsynced state flows too.
 - Polling: single-flight long polls while visible; 2s short polls when hidden; falls back to 300ms short polling after 3 strikes (failure, >20s, or empty <1s).
 - First poll ignores replayed awareness (prevents ghost duplicates after reload). A precomputed encrypted "goodbye" is sent on `pagehide` via keepalive fetch.
+
+# Multi-repo & GitLab suitability
+
+- **GitHub repos:** Works out of the box across arbitrary user repos as long as OAuth/GitHub App callback matches the hosted domain and `signal.php` relay traffic scales within shared-hosting limits (currently no per-room auth or rate limits on `signal.php`).
+- **GitLab repos:** Live relay itself is storage-agnostic (only needs a room key string + passphrase), **but** durable storage (`GitHubAdapter`), auth (`auth.php` + `SetupScreen`), and asset sync (`AssetStore`) are GitHub-only today; GitLab needs a GitLab REST adapter + GitLab OAuth flow.
 
 # Cursor smoothing
 

@@ -8,10 +8,12 @@ type Props = {
   liveStatus: LiveStatus;
   lastPollAt: number;
   remoteEdits: number;
+  pendingUploads?: number;
   rateLimit: RateLimit;
   label: string;
   busy: boolean;
   historyOpen: boolean;
+  activityCount?: number;
   onHistory: () => void;
   onSaveNow: () => void;
   onPullNow: () => void;
@@ -33,10 +35,12 @@ export function StatusBar({
   liveStatus,
   lastPollAt,
   remoteEdits,
+  pendingUploads = 0,
   rateLimit,
   label,
   busy,
   historyOpen,
+  activityCount,
   onHistory,
   onSaveNow,
   onPullNow,
@@ -108,6 +112,11 @@ export function StatusBar({
             {remoteEdits} remote {remoteEdits === 1 ? "update" : "updates"}
           </span>
         )}
+        {pendingUploads > 0 && (
+          <span className="badge" title="Images waiting to encrypt and upload to GitHub">
+            {pendingUploads} {pendingUploads === 1 ? "image" : "images"} waiting to upload
+          </span>
+        )}
       </div>
 
       <div className="status-right">
@@ -131,9 +140,9 @@ export function StatusBar({
         <button
           className={`btn ghost ${historyOpen ? "active" : ""}`}
           onClick={onHistory}
-          title="Board snapshot history"
+          title="Board snapshot history & collaborative activity audit log"
         >
-          History
+          History {activityCount !== undefined && activityCount > 0 ? `(${activityCount})` : ""}
         </button>
         <button className="btn ghost" onClick={onPullNow} disabled={busy}>
           Pull

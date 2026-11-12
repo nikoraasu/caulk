@@ -107,12 +107,88 @@ The code is done (`src/auth/token.ts`, `public/api/auth.php`). The owner still h
 
 ---
 
-## 8. Miro-style features (owner liked them, in this order)
+## 8. Miro-style features (owner APPROVED, build these in order)
 
-1. Comments and threads on elements
-2. Templates (retro, kanban, brainstorm…)
-3. Dot voting + "bring everyone to me"
-4. Boards home page (list and preview boards in the repo)
-5. Later: smarter stickies (auto-fit text, tags, AI clustering), Kanban cards synced with GitHub Issues, tables, mind-map nodes, search, view/comment-only links, roles, PDF/CSV export, activity panel, mobile polish, onboarding.
+These are agreed with the owner. Build them; don't ask first. Each feature goes in **new files**
+(`src/features/<name>/…`); `BoardScreen.tsx` only gets a few lines to mount components and wire callbacks
+(menu item, shortcut). All shared state lives in the board's Yjs doc (`src/crdt/scene.ts`, see how the
+`timer` and `settings` maps are done), so it syncs live and saves to GitHub encrypted like everything else.
+Ephemeral state (who is voting, "look here" pings) goes over awareness in `src/sync/live.ts`.
+After each feature: checks pass, add a unit test for the Yjs data helpers, commit, tell the owner what to try.
 
-Plan each one with the owner before building, and keep `BoardScreen.tsx` changes small (put new UI in new components).
+### 8.1 Comments and threads
+**Why:** most async work in Miro happens in comments; Caulk has none.
+**Data:** Yjs map `comments`: `threadId → { id, elementId?: string, x, y, resolved: boolean, createdAt,
+author, messages: [{ id, author, text, at, reactions: { [emoji]: string[] /* author names */ } }] }`.
+Store `messages` as a `Y.Array` inside a `Y.Map` per thread so concurrent replies merge.
+**UI:**
+1. Comment tool: menu item "Add comment" + shortcut **C**; next click on the canvas drops a pin. If the click
+   hits an element, store `elementId` and keep the pin offset relative to it (pin follows the element when moved).
+2. Pins: small round avatar badges rendered in an overlay layer, positioned with scene→viewport conversion
+   (`sceneCoordsToViewportCoords` from Excalidraw), updated on scroll/zoom (`onScrollChange`). Unread count dot.
+3. Clicking a pin opens a thread popover: messages, reply box (Enter sends, Shift+Enter newline), **@mentions**
+   autocompleted from live peers + previous authors, emoji reactions on each message (👍 ❤️ 😂 🎉 👀 + picker),
+   Resolve / Reopen, delete own message.
+4. Comments sidebar (Excalidraw sidebar like the AI one): all threads, filter Open / Resolved / Mentions me,
+   click to scroll the canvas to the pin.
+5. Deleting an element keeps its threads but marks them "element removed" (pin stays at last position).
+6. Toggle "Show comments" in the Caulk menu (hide pins while presenting).
+**Done when:** two browsers see a new comment, reply, reaction and resolve within ~1s; comments survive reload
+and appear after a GitHub pull on a third device.
+
+### 8.2 Reactions and dot voting on stickies
+**Why:** this plus the existing timer covers most workshop activity.
+**Data:** Yjs map `votes`: `{ session?: { id, votesPerPerson, endsAt?, startedBy, anonymous }, ballots:
+{ [sessionId]: { [author]: elementId[] } } }`; Yjs map `reactions`: `elementId → { [emoji]: author[] }`.
+**UI:**
+1. Reactions: hover/select a sticky or shape → small floating bar with 5 emojis; counts render as chips on the
+   element's bottom edge (overlay, not Excalidraw elements). Click your own reaction again to remove it.
+   Replace the current "stamp reaction" (`stampReaction` in BoardScreen.tsx ~1477, which inserts text elements)
+   with this, or keep stamps only as a separate "stamp" tool.
+2. Voting session: menu "Start voting…" → dialog (votes per person, default 3; optional duration reusing the
+   timer; anonymous yes/no; only frame X or whole board). Everyone gets a banner "Voting: 2 of 3 votes left".
+   Click a sticky to add a dot, click again to remove. Others' dots hidden until the session ends (if anonymous).
+3. End (starter clicks End, or timer runs out): results panel sorted by votes, click a row to jump to it,
+   "Copy results as Markdown", and optional "Tag top N" that writes a small "N votes" label.
+**Done when:** three browsers vote, limits are enforced per person, results match, and a reload mid-session
+keeps the votes.
+
+### 8.3 "Bring everyone to me" and attention pings
+**Why:** the key feature for running a meeting. Follow mode already exists (BoardScreen.tsx ~1230,
+`followingPeerId`), this is the reverse.
+**Steps:**
+1. Awareness field `summon: { at, viewport }` set by the presenter (button next to peer avatars + menu
+   "Bring everyone to me"). Every peer whose `followingPeerId` is null starts following the presenter
+   (reuse the existing easing code) with a toast "<name> brought you here — Esc to stop".
+2. "Look here" ping: Alt+click (or menu) → awareness `ping: { x, y, at }`; peers see a pulsing ring at that
+   scene point for 4s and an edge arrow if it's off-screen. Rate limit 1 per 2s.
+3. Presenter mode toggle: while on, new joiners auto-follow the presenter.
+**Done when:** in two browsers, summon moves the other view, Esc releases it, and pings show on/off-screen.
+
+### 8.4 Templates
+**Why:** new boards start empty; templates are how Miro onboards.
+**Steps:**
+1. A template = JSON `{ name, description, elements, files? }`. Built-ins in `src/features/templates/builtin/`:
+   Retro (went well / to improve / actions), Kanban (To do / Doing / Done), Brainstorm, SWOT, Mind map,
+   User story map, Flowchart starter, Weekly planning.
+2. "Insert template…" menu item → gallery modal with thumbnails (`exportToSvg` of the elements); inserting
+   regenerates element ids and places the template at the viewport centre, inside a frame.
+3. "Save selection as template": writes `templates/<slug>.json` (encrypted, same storage as boards) to the
+   repo; gallery shows a "This repo" section.
+4. When creating a new board, offer "Blank" or a template.
+**Done when:** each built-in inserts correctly twice on one board (no id clashes) and a saved template appears
+in another board in the same repo.
+
+### 8.5 Boards home page
+**Why:** opening a board by typing its path is the biggest friction vs Miro's dashboard.
+**Steps:** after login, show a grid of boards in the connected repo(s) (list via `src/storage/github.ts`),
+with name, last edited time + author (latest commit on the file), a cached thumbnail (render on save, store as
+an encrypted asset next to the board), lock icon for password boards. Actions: open, new (blank/template),
+rename, duplicate, delete (confirm). Search box and "recent" section (localStorage).
+**Done when:** the home page lists every board, thumbnails appear after a board is saved once, rename and
+duplicate work.
+
+### 8.6 Later (not approved yet, ask the owner first)
+Smarter stickies (auto-fit text, tags, AI clustering), Kanban cards synced with GitHub Issues, tables,
+mind-map nodes with Tab/Enter, board search, view/comment-only links, roles, PDF/CSV export, activity panel,
+own-changes-only undo, mobile polish, onboarding tour.

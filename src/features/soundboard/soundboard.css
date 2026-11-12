@@ -1,0 +1,312 @@
+/* ==========================================================================
+   Caulk Soundboard & Audio Clipper Styles (Valve VGUI Aesthetic)
+   ========================================================================== */
+
+.soundboard-window {
+  width: 740px;
+  max-width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--theme-radius, 0px);
+}
+
+.soundboard-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  max-height: calc(90vh - 40px);
+  background: var(--vgui-canvas, #151a13);
+  scrollbar-width: thin;
+  scrollbar-color: var(--vgui-accent, #c59c3a) var(--vgui-base, #1b2219);
+}
+
+.soundboard-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.soundboard-body::-webkit-scrollbar-track {
+  background: var(--vgui-base, #151a14);
+}
+
+.soundboard-body::-webkit-scrollbar-thumb {
+  background: var(--vgui-border, #455243);
+  border-radius: 2px;
+}
+
+/* ---------- Toolbar ---------- */
+.soundboard-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--vgui-base, #1b2219);
+  border: 1px solid var(--vgui-dark, #2b3528);
+  border-bottom-color: var(--vgui-light, #52634e);
+  border-right-color: var(--vgui-light, #52634e);
+  border-radius: var(--theme-radius-sm, 2px);
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* ---------- Sound Cards Grid ---------- */
+.soundboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 10px;
+}
+
+.soundboard-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--vgui-bg, #263023);
+  border: 2px solid var(--vgui-bg);
+  border-top-color: var(--vgui-light, #5a6d56);
+  border-left-color: var(--vgui-light, #5a6d56);
+  border-right-color: var(--vgui-dark, #151a13);
+  border-bottom-color: var(--vgui-dark, #151a13);
+  border-radius: var(--theme-radius-sm, 3px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.06s ease, box-shadow 0.06s ease, background 0.1s ease;
+}
+
+.soundboard-card:hover {
+  background: var(--vgui-hover, #2e3b2b);
+  border-top-color: var(--vgui-accent, #c59c3a);
+}
+
+.soundboard-card:active,
+.soundboard-card.active-bounce {
+  transform: translateY(2px) scale(0.98);
+  border-top-color: var(--vgui-dark, #151a13);
+  border-left-color: var(--vgui-dark, #151a13);
+  border-right-color: var(--vgui-light, #5a6d56);
+  border-bottom-color: var(--vgui-light, #5a6d56);
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.6), 0 0 8px var(--vgui-accent);
+}
+
+.soundboard-card-icon {
+  font-size: 26px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+  flex-shrink: 0;
+}
+
+.soundboard-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.soundboard-card-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink, #ffffff);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.soundboard-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.soundboard-card-duration {
+  font-size: 10px;
+  color: var(--vgui-muted, #7e9477);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.soundboard-hotkey-badge {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--vgui-accent, #c59c3a);
+  background: rgba(0, 0, 0, 0.35);
+  padding: 1px 4px;
+  border-radius: 2px;
+  border: 1px solid var(--vgui-border, #455243);
+}
+
+/* Card Actions (Edit/Delete) */
+.soundboard-card-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 3px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.soundboard-card:hover .soundboard-card-actions {
+  opacity: 1;
+}
+
+.soundboard-mini-btn {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--vgui-border, #455243);
+  color: var(--ink, #ffffff);
+  border-radius: 2px;
+  padding: 1px 4px;
+  font-size: 10px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.soundboard-mini-btn:hover {
+  background: var(--vgui-accent, #c59c3a);
+  color: #000000;
+}
+
+.soundboard-mini-btn.danger:hover {
+  background: var(--err, #e53e3e);
+  color: #ffffff;
+}
+
+/* ---------- Audio Clipper & Waveform Editor ---------- */
+.audio-clipper-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: var(--vgui-base, #1b2219);
+  border: 1px solid var(--vgui-border, #455243);
+  border-radius: var(--theme-radius-sm, 3px);
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.audio-clipper-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.audio-clipper-error {
+  padding: 6px 10px;
+  background: rgba(229, 62, 62, 0.15);
+  border: 1px solid var(--err, #e53e3e);
+  color: var(--err, #e53e3e);
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.audio-clipper-waveform-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--vgui-canvas, #101410);
+  border: 1px solid var(--vgui-border, #455243);
+  border-radius: 3px;
+}
+
+.audio-clipper-waveform {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  gap: 2px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.audio-waveform-bar {
+  flex: 1;
+  border-radius: 1px;
+  min-height: 3px;
+  transition: background 0.1s ease;
+}
+
+.audio-clipper-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .audio-clipper-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.audio-clipper-emoji-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: 200px;
+}
+
+.audio-emoji-btn {
+  background: none;
+  border: 1px solid transparent;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 2px;
+  line-height: 1;
+}
+
+.audio-emoji-btn:hover,
+.audio-emoji-btn.active {
+  background: var(--vgui-hover, #2e3b2b);
+  border-color: var(--vgui-accent, #c59c3a);
+}
+
+/* ---------- Footer & Toast ---------- */
+.soundboard-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--vgui-dark, #2b3528);
+  font-size: 11px;
+  color: var(--vgui-muted, #7e9477);
+}
+
+.soundboard-broadcast-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--vgui-base, #1b2219);
+  border: 1px solid var(--vgui-accent, #c59c3a);
+  border-radius: var(--theme-radius-sm, 3px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+  color: var(--ink, #ffffff);
+  font-size: 12px;
+  font-weight: 700;
+  z-index: 9999;
+  animation: soundboardToastSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+@keyframes soundboardToastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

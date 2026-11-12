@@ -17,8 +17,16 @@
  *   [u32 BE header length][header JSON {"v":1,"mime":"..."}][payload bytes]
  */
 
-import { EncryptedStore } from "./encrypted";
-import type { GitHubAdapter } from "./github";
+import {
+  deriveKey,
+  decryptEnvelope,
+  encryptEnvelope,
+  parseEnvelope,
+  PBKDF2_ITERATIONS,
+} from "../crypto/envelope";
+import { base64ToBytes, randomBytes } from "../lib/bytes";
+import { getCachedAssetEnvelope, putCachedAssetEnvelope } from "./assetCache";
+import { GitHubError, type GitHubAdapter } from "./github";
 
 export const ASSET_REF_PREFIX = "caulk-asset:";
 export const ASSET_MAX_MB = 25;
@@ -146,9 +154,32 @@ export function assetObjectUrl(store: AssetStore, ref: string): Promise<string> 
   return pending;
 }
 
+const DIR_REFRESH_COOLDOWN_MS = 2_000;
+const GITHUB_DIR_LIST_LIMIT = 1_000;
+
+type DirIndex = {
+  /** Maps content sha256 -> git blob sha (may be empty if just uploaded without a returned blob sha). */
+  entries: Map<string, string>;
+  totalEntries: number;
+  fetchedAt: number;
+};
+
+async function decryptAssetEnvelope(raw: Uint8Array, passphrase: string): Promise<Uint8Array> {
+  const env = parseEnvelope(raw);
+  const key = await deriveKey(passphrase, base64ToBytes(env.kdf.salt), env.kdf.iterations);
+  return decryptEnvelope(env, key);
+}
+
+/**
+ * Keeps the encrypted assets for one board under `<parent>/.assets/<board>/`.
+ * Reads fall back to the old shared `<parent>/.assets/` so existing boards still open.
+ */
 export class AssetStore {
-  /** Asset file names (without .bin) known to exist in the assets dir. */
-  private known: Set<string> | null = null;
+  /** Coalesced directory listings so concurrent image downloads share one listDir call. */
+  private dirIndexPromise: Promise<DirIndex> | null = null;
+  private legacyDirIndexPromise: Promise<DirIndex> | null = null;
+  private dirRefreshedFrom = new WeakMap<DirIndex, Promise<DirIndex>>();
+  private legacyRefreshedFrom = new WeakMap<DirIndex, Promise<DirIndex>>();
   readonly dir: string;
   readonly legacyDir: string;
   readonly label: string;
@@ -167,14 +198,65 @@ export class AssetStore {
     return `${this.dir}/${sha}.bin`;
   }
 
-  private async hasAsset(sha: string): Promise<boolean> {
-    if (!this.known) {
-      const entries = await this.adapter.listDir(this.dir);
-      this.known = new Set(
-        entries.filter((e) => e.name.endsWith(".bin")).map((e) => e.name.slice(0, -4)),
-      );
+  private cacheKey(sha: string): string {
+    return `${this.adapter.label}\n${sha}`;
+  }
+
+  private async loadDirIndex(dir: string): Promise<DirIndex> {
+    const rows = await this.adapter.listDir(dir);
+    const entries = new Map<string, string>();
+    for (const e of rows) {
+      if (e.name.endsWith(".bin")) {
+        entries.set(e.name.slice(0, -4), e.sha);
+      }
     }
-    return this.known.has(sha);
+    return { entries, totalEntries: rows.length, fetchedAt: Date.now() };
+  }
+
+  private getDirIndex(which: "dir" | "legacy", forceRefresh = false): Promise<DirIndex> {
+    const dir = which === "dir" ? this.dir : this.legacyDir;
+    const current = which === "dir" ? this.dirIndexPromise : this.legacyDirIndexPromise;
+    if (!current || forceRefresh) {
+      const next = this.loadDirIndex(dir);
+      if (which === "dir") this.dirIndexPromise = next;
+      else this.legacyDirIndexPromise = next;
+      next.catch(() => {
+        if (which === "dir" && this.dirIndexPromise === next) this.dirIndexPromise = null;
+        if (which === "legacy" && this.legacyDirIndexPromise === next) this.legacyDirIndexPromise = null;
+      });
+      return next;
+    }
+    return current;
+  }
+
+  private refreshStaleDirIndex(which: "dir" | "legacy", stale: DirIndex): Promise<DirIndex> {
+    const slot = which === "dir" ? this.dirRefreshedFrom : this.legacyRefreshedFrom;
+    const existing = slot.get(stale);
+    if (existing) return existing;
+    const next = this.getDirIndex(which, true);
+    slot.set(stale, next);
+    return next;
+  }
+
+  private async lookupInDir(
+    which: "dir" | "legacy",
+    assetSha: string,
+  ): Promise<{ blobSha: string | null; mayBeTruncated: boolean }> {
+    let idx = await this.getDirIndex(which);
+    let blobSha = idx.entries.get(assetSha);
+    if (blobSha === undefined && Date.now() - idx.fetchedAt > DIR_REFRESH_COOLDOWN_MS) {
+      idx = await this.refreshStaleDirIndex(which, idx);
+      blobSha = idx.entries.get(assetSha);
+    }
+    return {
+      blobSha: blobSha ?? null,
+      mayBeTruncated: idx.totalEntries >= GITHUB_DIR_LIST_LIMIT,
+    };
+  }
+
+  private async hasAsset(sha: string, forceRefresh = false): Promise<boolean> {
+    const idx = await this.getDirIndex("dir", forceRefresh);
+    return idx.entries.has(sha);
   }
 
   /** Encrypt and store the bytes (skipped if already present). Returns the element link. */
@@ -192,14 +274,20 @@ export class AssetStore {
 
     if (!(await this.hasAsset(sha))) {
       try {
-        const store = new EncryptedStore(this.adapter.clone(this.pathFor(sha)), this.passphrase);
-        await store.save(encodePlain(bytes, type));
-        this.known?.add(sha);
+        const salt = randomBytes(16);
+        const key = await deriveKey(this.passphrase, salt, PBKDF2_ITERATIONS);
+        const env = await encryptEnvelope(encodePlain(bytes, type), key, salt);
+        const envelopeBytes = new TextEncoder().encode(JSON.stringify(env, null, 2));
+        const res = await this.adapter
+          .clone(this.pathFor(sha))
+          .write(envelopeBytes, undefined, `caulk: sync ${new Date().toISOString()}`);
+        const idx = await this.dirIndexPromise?.catch(() => null);
+        idx?.entries.set(sha, res.sha ?? "");
+        void putCachedAssetEnvelope(this.cacheKey(sha), envelopeBytes);
       } catch (err) {
         // Another tab or peer may have written the same file first. The content is
         // identical, so that counts as success. Otherwise the error is real.
-        this.known = null;
-        if (!(await this.hasAsset(sha))) throw err;
+        if (!(await this.hasAsset(sha, true))) throw err;
       }
     }
 
@@ -211,17 +299,53 @@ export class AssetStore {
     return ref;
   }
 
-  /** Download and decrypt an asset. Not cached here; see assetObjectUrl. */
+  private async readFromDir(which: "dir" | "legacy", assetSha: string): Promise<Uint8Array | null> {
+    const { blobSha, mayBeTruncated } = await this.lookupInDir(which, assetSha);
+    if (blobSha) {
+      try {
+        return await this.adapter.readBlob(blobSha);
+      } catch (err) {
+        if (err instanceof GitHubError && err.status === 404) return null;
+        throw err;
+      }
+    }
+    // Fall back to /contents/ only when the blob sha wasn't returned or the dir hit GitHub's 1000-entry cap.
+    if (blobSha === "" || mayBeTruncated) {
+      const path = `${which === "dir" ? this.dir : this.legacyDir}/${assetSha}.bin`;
+      const res = await this.adapter.clone(path).read();
+      if (res.status === "ok") return res.bytes;
+    }
+    return null;
+  }
+
+  private async fetchEnvelopeBytes(assetSha: string): Promise<Uint8Array> {
+    const primary = await this.readFromDir("dir", assetSha);
+    if (primary) return primary;
+    const legacy = await this.readFromDir("legacy", assetSha);
+    if (legacy) return legacy;
+    throw new Error("This file is missing from the board's repo.");
+  }
+
+  /** Download and decrypt an asset (cached encrypted in IndexedDB across reloads). */
   async get(ref: string): Promise<{ bytes: Uint8Array; mime: string }> {
     const parsed = parseAssetRef(ref);
     if (!parsed) throw new Error("Not an asset reference.");
-    // Per-board dir first, then the legacy shared dir for older uploads.
-    let plain = await new EncryptedStore(this.adapter.clone(this.pathFor(parsed.sha)), this.passphrase).open();
-    if (!plain) {
-      const legacyPath = `${this.legacyDir}/${parsed.sha}.bin`;
-      plain = await new EncryptedStore(this.adapter.clone(legacyPath), this.passphrase).open();
+
+    const cacheKey = this.cacheKey(parsed.sha);
+    const cached = await getCachedAssetEnvelope(cacheKey);
+    if (cached) {
+      try {
+        const plain = await decryptAssetEnvelope(cached, this.passphrase);
+        return decodePlain(plain);
+      } catch {
+        // Ignore stale or corrupted cache entry and re-fetch cleanly from GitHub.
+      }
     }
-    if (!plain) throw new Error("This file is missing from the board's repo.");
-    return decodePlain(plain);
+
+    const raw = await this.fetchEnvelopeBytes(parsed.sha);
+    const plain = await decryptAssetEnvelope(raw, this.passphrase);
+    const decoded = decodePlain(plain);
+    void putCachedAssetEnvelope(cacheKey, raw);
+    return decoded;
   }
 }

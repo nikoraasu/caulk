@@ -21,13 +21,51 @@
 import * as Y from "yjs";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
+import { parseBoardTheme, serializeBoardTheme, type BoardThemeConfig } from "../ui/boardTheme";
+
+export type CanvasBackgroundImage = {
+  ref: string;
+  tile?: boolean;
+};
+
+export function parseCanvasBackgroundImage(raw: unknown): CanvasBackgroundImage | undefined {
+  if (!raw || typeof raw !== "string") return undefined;
+  try {
+    const obj = JSON.parse(raw) as Partial<CanvasBackgroundImage>;
+    if (obj && typeof obj.ref === "string" && obj.ref.trim().length > 0) {
+      return {
+        ref: obj.ref.trim(),
+        tile: Boolean(obj.tile),
+      };
+    }
+  } catch {
+    /* ignore malformed json */
+  }
+  return undefined;
+}
+
+export function serializeCanvasBackgroundImage(bg: CanvasBackgroundImage | undefined): string | undefined {
+  if (!bg || !bg.ref || !bg.ref.trim()) return undefined;
+  return JSON.stringify({
+    ref: bg.ref.trim(),
+    tile: Boolean(bg.tile),
+  });
+}
 
 export function sanitizeElement<T extends ExcalidrawElement = ExcalidrawElement>(el: any): T {
   if (!el || typeof el !== "object") return el;
+  const isLegacyFrame = el.type === "rectangle" && Boolean(el.customData?.isFrame);
+  const type = isLegacyFrame ? "frame" : el.type;
+  const name = isLegacyFrame
+    ? (el.customData?.frameTitle || el.label?.text || el.name || "Frame")
+    : (el.name ?? null);
+
   return {
     ...el,
+    type,
+    name,
     groupIds: Array.isArray(el.groupIds) ? el.groupIds : [],
-    boundElements: Array.isArray(el.boundElements) ? el.boundElements : (el.boundElements ?? null),
+    boundElements: isLegacyFrame ? null : (Array.isArray(el.boundElements) ? el.boundElements : (el.boundElements ?? null)),
     frameId: el.frameId ?? null,
     index: el.index ?? null,
     link: el.link ?? null,
@@ -305,6 +343,62 @@ export class SceneBridge {
     const handler = (_event: unknown, tx: Y.Transaction) => {
       if (this.disposed || tx.origin === ORIGIN_LOCAL) return;
       cb(this.getViewBackground());
+    };
+    map.observe(handler);
+    return () => {
+      map.unobserve(handler);
+    };
+  }
+
+  /** Board-wide UI theme + custom UI color overrides. Synced in the `settings` map. */
+  getBoardTheme(): BoardThemeConfig | undefined {
+    return parseBoardTheme(this.doc.getMap<string>("settings").get("boardTheme"));
+  }
+
+  setBoardTheme(theme: BoardThemeConfig): void {
+    const map = this.doc.getMap<string>("settings");
+    const encoded = serializeBoardTheme(theme);
+    this.doc.transact(() => {
+      if (map.get("boardTheme") !== encoded) map.set("boardTheme", encoded);
+    }, ORIGIN_LOCAL);
+  }
+
+  observeBoardTheme(cb: (theme: BoardThemeConfig | undefined) => void): () => void {
+    const map = this.doc.getMap<string>("settings");
+    const handler = (event: Y.YMapEvent<string>, tx: Y.Transaction) => {
+      if (this.disposed || tx.origin === ORIGIN_LOCAL) return;
+      if (!event.keysChanged.has("boardTheme")) return;
+      cb(this.getBoardTheme());
+    };
+    map.observe(handler);
+    return () => {
+      map.unobserve(handler);
+    };
+  }
+
+  /** Board-wide canvas wallpaper background image & tiling. Synced in the `settings` map. */
+  getCanvasBackgroundImage(): CanvasBackgroundImage | undefined {
+    return parseCanvasBackgroundImage(this.doc.getMap<string>("settings").get("canvasBackgroundImage"));
+  }
+
+  setCanvasBackgroundImage(bg: CanvasBackgroundImage | undefined): void {
+    const map = this.doc.getMap<string>("settings");
+    const encoded = serializeCanvasBackgroundImage(bg);
+    this.doc.transact(() => {
+      if (encoded === undefined) {
+        if (map.has("canvasBackgroundImage")) map.delete("canvasBackgroundImage");
+      } else {
+        if (map.get("canvasBackgroundImage") !== encoded) map.set("canvasBackgroundImage", encoded);
+      }
+    }, ORIGIN_LOCAL);
+  }
+
+  observeCanvasBackgroundImage(cb: (bg: CanvasBackgroundImage | undefined) => void): () => void {
+    const map = this.doc.getMap<string>("settings");
+    const handler = (event: Y.YMapEvent<string>, tx: Y.Transaction) => {
+      if (this.disposed || tx.origin === ORIGIN_LOCAL) return;
+      if (!event.keysChanged.has("canvasBackgroundImage")) return;
+      cb(this.getCanvasBackgroundImage());
     };
     map.observe(handler);
     return () => {

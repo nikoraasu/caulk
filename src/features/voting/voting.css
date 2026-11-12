@@ -1,0 +1,262 @@
+.voting-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 35;
+  overflow: hidden;
+}
+
+/* Participant Voting Session Banner */
+.voting-banner {
+  position: absolute;
+  bottom: 64px;
+  left: 16px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--vgui-bg-dark, #3e4637);
+  color: var(--vgui-text, #e6e8e3);
+  border: 2px solid;
+  border-color: var(--vgui-border-light, #8c9684) var(--vgui-border-dark, #252b20)
+    var(--vgui-border-dark, #252b20) var(--vgui-border-light, #8c9684);
+  font-size: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  z-index: 45;
+  max-width: calc(100% - 32px);
+}
+
+.voting-banner-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.voting-dot-pip {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid #c4b550;
+  background: transparent;
+}
+
+.voting-dot-pip.used {
+  background: #c4b550;
+}
+
+.voting-banner-btn {
+  padding: 3px 8px;
+  background: #2f382d;
+  color: #e6e8e3;
+  border: 1px solid #8c9684;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.voting-banner-btn.primary {
+  background: #c4b550;
+  color: #1b221b;
+  border-color: #e6d6ac;
+  font-weight: 700;
+}
+
+.voting-banner-btn:hover {
+  filter: brightness(1.08);
+}
+
+/* Popover & reaction button for elements (anchored at bottom edge to avoid rotation handle) */
+.element-reaction-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  background: var(--vgui-bg-dark, #3e4637);
+  border: 1px solid var(--vgui-border-light, #8c9684);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  border-radius: 6px;
+  z-index: 50;
+  white-space: nowrap;
+}
+
+.element-reaction-btn {
+  border: none;
+  background: transparent;
+  color: #e6e8e3;
+  font-size: 14px;
+  line-height: 1;
+  padding: 3px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.element-reaction-btn:hover,
+.element-reaction-btn.active {
+  background: rgba(196, 181, 80, 0.25);
+}
+
+.element-vote-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(140, 150, 132, 0.4);
+}
+
+.element-vote-btn {
+  border: 1px solid #c4b550;
+  background: #2b3429;
+  color: #e6d6ac;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.element-vote-btn:hover:not(:disabled) {
+  background: #c4b550;
+  color: #1b221b;
+}
+
+.element-vote-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Bottom-edge chips strip on elements */
+.element-chips-strip {
+  position: absolute;
+  transform: translateY(6px);
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  z-index: 36;
+}
+
+.element-chip.react-trigger-btn {
+  background: var(--vgui-bg, #4a5442);
+  border: 1px dashed var(--vgui-border-light, #8c9684);
+  cursor: pointer;
+  user-select: none;
+}
+
+.element-chip.react-trigger-btn:hover,
+.element-chip.react-trigger-btn.active {
+  background: var(--vgui-accent, #c4b550);
+  color: #1b221b;
+  border-style: solid;
+  border-color: #fff;
+}
+
+.element-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(45, 54, 43, 0.92);
+  color: #e6e8e3;
+  border: 1px solid rgba(140, 150, 132, 0.7);
+  border-radius: 10px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.element-chip.mine {
+  border-color: #c4b550;
+  background: rgba(74, 88, 60, 0.95);
+  color: #fff3b0;
+}
+
+.element-chip.vote-chip {
+  border-color: #c4b550;
+  background: #2c3424;
+  color: #f6df75;
+}
+
+/* Modals for Start Voting & Results */
+.voting-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.52);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.voting-modal {
+  width: min(440px, 92vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 14px 16px;
+  background: var(--vgui-bg-dark, #3e4637);
+  color: var(--vgui-text, #e6e8e3);
+  border: 2px solid;
+  border-color: var(--vgui-border-light, #8c9684) var(--vgui-border-dark, #252b20)
+    var(--vgui-border-dark, #252b20) var(--vgui-border-light, #8c9684);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.voting-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 14px;
+  color: #c4b550;
+}
+
+.voting-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.voting-form-row select,
+.voting-form-row input[type="number"] {
+  background: #222921;
+  color: #e6e8e3;
+  border: 1px solid #8c9684;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.voting-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.voting-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(25, 32, 24, 0.65);
+  border: 1px solid rgba(140, 150, 132, 0.35);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.voting-result-item:hover {
+  border-color: #c4b550;
+}

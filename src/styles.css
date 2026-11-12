@@ -1,17 +1,25 @@
 :root {
-  /* Steam authentic VGUI palette */
+  /* Steam authentic VGUI palette (dynamically updated by boardTheme.ts) */
   --vgui-bg: #4B5844;
   --vgui-base: #3E4637;
+  --vgui-bg-dark: #3E4637;
+  --vgui-bg-light: #55644e;
+  --vgui-hover: #55644e;
   --vgui-fg: #FFFFFF;
   --vgui-text: #FFFFFF;
   --vgui-selected-bg: #978730;
   --vgui-selected-fg: #FFFFFF;
   --vgui-light: #7A8B71;
+  --vgui-border-light: #7A8B71;
   --vgui-dark: #343D2F;
+  --vgui-border-dark: #343D2F;
   --vgui-border: #000000;
   --vgui-disabled: #3C4636;
   --vgui-accent: #C59C3A;
   --vgui-canvas: #283125;
+  --vgui-muted: #D0D8CC;
+  --vgui-surface-glass: rgba(75, 88, 68, 0.96);
+  --vgui-accent-glow: rgba(197, 156, 58, 0.45);
 
   /* App token mappings */
   --ink: #FFFFFF;
@@ -22,7 +30,11 @@
   --warn: #e09f2b;
   --err: #d64949;
 
-  font-family: "Tahoma", "MS Sans Serif", "Segoe UI", -apple-system, sans-serif;
+  --theme-font: "Tahoma", "MS Sans Serif", "Segoe UI", -apple-system, sans-serif;
+  --theme-radius: 0px;
+  --theme-radius-sm: 0px;
+
+  font-family: var(--theme-font);
   color: var(--ink);
   background: #1B2118;
 }
@@ -57,13 +69,16 @@ body,
   border: 1px solid var(--vgui-bg);
   border-right-color: var(--vgui-border);
   border-bottom-color: var(--vgui-border);
+  border-radius: var(--theme-radius);
   box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 20px 48px rgba(0, 0, 0, 0.7);
   padding: 2px;
+  font-family: var(--theme-font);
+  overflow: hidden;
 }
 
 .window-titlebar {
   background: var(--vgui-bg);
-  color: #FFFFFF;
+  color: var(--ink);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -74,6 +89,15 @@ body,
   letter-spacing: 0.02em;
   border-bottom: 1px solid var(--vgui-border);
   box-shadow: inset 0 -1px 0 var(--vgui-dark);
+  border-top-left-radius: max(0px, calc(var(--theme-radius) - 2px));
+  border-top-right-radius: max(0px, calc(var(--theme-radius) - 2px));
+}
+
+.window-frame > :last-child,
+.modal-window > :last-child,
+.card:last-child {
+  border-bottom-left-radius: max(0px, calc(var(--theme-radius) - 2px));
+  border-bottom-right-radius: max(0px, calc(var(--theme-radius) - 2px));
 }
 
 .window-title {
@@ -83,7 +107,7 @@ body,
 }
 
 .window-lambda {
-  color: #E2B038;
+  color: var(--vgui-accent);
   font-size: 16px;
   font-weight: 900;
   line-height: 1;
@@ -104,7 +128,7 @@ body,
   font-size: 10px;
   font-weight: 700;
   background: var(--vgui-bg);
-  color: #FFFFFF;
+  color: var(--ink);
   border: 1px solid var(--vgui-bg);
   border-right-color: var(--vgui-border);
   border-bottom-color: var(--vgui-border);
@@ -131,7 +155,7 @@ body,
   margin: 0 0 6px;
   font-size: 22px;
   letter-spacing: -0.01em;
-  color: #FFFFFF;
+  color: var(--ink);
 }
 
 .card-head p {
@@ -150,7 +174,7 @@ body,
 }
 
 .field > span {
-  color: #FFFFFF;
+  color: var(--ink);
 }
 
 .field small {
@@ -168,10 +192,10 @@ body,
   border: 1px solid var(--vgui-dark);
   border-bottom-color: var(--vgui-light);
   border-right-color: var(--vgui-light);
-  border-radius: 0px;
+  border-radius: var(--theme-radius-sm);
   box-shadow: inset 1px 1px 0 var(--vgui-border), inset -1px -1px 0 var(--vgui-bg);
   background: var(--vgui-base);
-  color: #FFFFFF;
+  color: var(--ink);
   outline: none;
 }
 
@@ -260,12 +284,12 @@ code {
   font-size: 12px;
   font-weight: 600;
   padding: 5px 14px;
-  border-radius: 0px;
+  border-radius: var(--theme-radius-sm);
   border: 1px solid var(--vgui-bg);
   border-right-color: var(--vgui-border);
   border-bottom-color: var(--vgui-border);
   background: var(--vgui-bg);
-  color: #FFFFFF;
+  color: var(--ink);
   cursor: pointer;
   box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark);
   white-space: nowrap;
@@ -273,7 +297,7 @@ code {
 }
 
 .btn:hover:not(:disabled) {
-  background: #55644e;
+  background: var(--vgui-hover);
 }
 
 .btn:active:not(:disabled) {
@@ -290,13 +314,13 @@ code {
 }
 
 .btn.primary {
-  background: var(--vgui-bg);
+  background: var(--vgui-selected-bg);
   font-weight: 700;
-  color: #FFFFFF;
+  color: var(--vgui-selected-fg);
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: #5c6c54;
+  background: var(--vgui-accent);
 }
 
 .btn.ghost {
@@ -310,7 +334,7 @@ code {
   background: var(--vgui-base);
   border: 1px solid var(--vgui-dark);
   box-shadow: inset 1px 1px 0 var(--vgui-border);
-  color: #FFFFFF;
+  color: var(--ink);
 }
 
 /* ---------- board ---------- */
@@ -382,6 +406,20 @@ code {
   bottom: 38px;
   background: var(--vgui-canvas);
   overflow: hidden;
+}
+
+/* Static behind-canvas wallpaper layer (stays fixed during pan/zoom) */
+.board-canvas-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.board .excalidraw {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
 }
 
 .access-request-alert {
@@ -485,7 +523,7 @@ code {
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border-radius: 0px;
+  border-radius: var(--theme-radius-sm);
   font-size: 11px;
   font-weight: 600;
   background: var(--vgui-bg);
@@ -493,17 +531,18 @@ code {
   border-right-color: var(--vgui-border);
   border-bottom-color: var(--vgui-border);
   box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark);
-  color: #FFFFFF;
+  color: var(--ink);
   cursor: pointer;
   user-select: none;
 }
 
 .topbar-btn:hover {
-  background: #55644e;
+  background: var(--vgui-hover);
 }
 
 .topbar-btn.active {
   background: var(--vgui-selected-bg);
+  color: var(--vgui-selected-fg);
   box-shadow: inset 1px 1px 0 var(--vgui-dark);
 }
 
@@ -517,24 +556,41 @@ code {
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: #FFFFFF;
+  color: var(--ink);
   white-space: nowrap;
 }
 
-/* ---------- topbar extra tools & widgets ---------- */
+/* ---------- bottom-left notification stack (above Excalidraw zoom & undo/redo) ---------- */
+
+.caulk-notif-stack {
+  position: absolute;
+  bottom: 64px;
+  left: 16px;
+  z-index: 44;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  pointer-events: none;
+}
+
+.caulk-notif-stack.raised {
+  bottom: 112px;
+}
+
+.caulk-notif-stack > * {
+  pointer-events: auto;
+}
 
 .topbar-popover {
-  position: absolute;
-  top: 42px;
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
   background: var(--vgui-bg);
   border: 1px solid var(--vgui-bg);
   border-right-color: var(--vgui-border);
   border-bottom-color: var(--vgui-border);
   box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 8px 24px rgba(0, 0, 0, 0.6);
   padding: 10px 14px;
-  z-index: 25;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -559,15 +615,11 @@ code {
 /* ---------- presentation mode bar ---------- */
 
 .presenter-bar {
-  position: fixed;
-  bottom: 52px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 30;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 18px;
+  padding: 8px 14px;
   background: var(--vgui-bg);
   border: 1px solid var(--vgui-bg);
   border-right-color: var(--vgui-border);
@@ -578,7 +630,7 @@ code {
 .presenter-title {
   font-size: 13px;
   font-weight: 700;
-  color: #FFFFFF;
+  color: var(--ink);
   min-width: 140px;
   text-align: center;
 }
@@ -588,7 +640,7 @@ code {
   align-items: center;
   gap: 6px;
   background: var(--vgui-selected-bg);
-  color: #FFFFFF;
+  color: var(--vgui-selected-fg);
   padding: 2px 8px;
   font-size: 11px;
   font-weight: 700;
@@ -602,15 +654,11 @@ code {
 }
 
 .toast-popup {
-  position: fixed;
-  top: 48px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 40;
+  position: relative;
   background: var(--vgui-base);
   border: 1px solid var(--vgui-accent);
-  color: #FFFFFF;
-  padding: 8px 16px;
+  color: var(--ink);
+  padding: 8px 14px;
   font-size: 12px;
   font-weight: 600;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
@@ -626,9 +674,10 @@ code {
    Everything is absolutely positioned so the toolbar keeps its own height. */
 .sticky-anchor {
   position: fixed;
-  z-index: 5;
+  z-index: 2;
   display: flex;
   align-items: center;
+  gap: 4px;
   pointer-events: auto;
 }
 
@@ -668,6 +717,15 @@ code {
   border: 1px solid var(--vgui-border);
 }
 
+.frame-trigger-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  user-select: none;
+}
+
 .sticky-popover {
   position: absolute;
   top: calc(100% + 6px);
@@ -688,12 +746,69 @@ code {
   flex-wrap: nowrap !important;
 }
 
+.sticky-defaults-bar {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--vgui-dark, rgba(0, 0, 0, 0.2));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 250px;
+}
+
+.sticky-defaults-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sticky-defaults-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--vgui-dim, #8b9982);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 60px;
+}
+
+.sticky-defaults-chips {
+  display: flex;
+  gap: 4px;
+}
+
+.sticky-default-chip {
+  padding: 2px 6px;
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 500;
+  background: var(--vgui-bg, #3e4637);
+  color: var(--vgui-text, #e6d6ac);
+  border: 1px solid var(--vgui-border, #283022);
+  border-radius: var(--theme-radius-sm, 2px);
+  cursor: pointer;
+  transition: all 0.1s ease;
+  white-space: nowrap;
+}
+
+.sticky-default-chip:hover {
+  background: var(--vgui-hover, #4c5743);
+  color: #fff;
+}
+
+.sticky-default-chip.active {
+  background: var(--vgui-selected-bg, #978730);
+  color: var(--vgui-selected-fg, #ffffff);
+  border-color: var(--vgui-accent, #c59c3a);
+  font-weight: 700;
+}
+
 /* Narrow layout: one button that opens the swatches above it. */
 .sticky-mobile {
   position: fixed;
   right: 16px;
   bottom: 84px;
-  z-index: 6;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -732,6 +847,129 @@ code {
   gap: 8px;
 }
 
+/* ---------- Per-Object Radius Changer (Sidebar & Floating) ---------- */
+
+.caulk-sidebar-radius-mount {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--vgui-dark, rgba(0, 0, 0, 0.15));
+}
+
+.caulk-sidebar-radius-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.caulk-radius-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.caulk-radius-title {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.8;
+  color: var(--ink);
+}
+
+.caulk-radius-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  background: var(--vgui-selected-bg, #978730);
+  color: var(--vgui-selected-fg, #ffffff);
+  border-radius: var(--theme-radius-sm, 3px);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.caulk-radius-slider-wrap {
+  display: flex;
+  align-items: center;
+  padding: 2px 0;
+}
+
+.caulk-radius-slider {
+  width: 100%;
+  height: 16px;
+  accent-color: var(--vgui-accent, #978730);
+  cursor: pointer;
+}
+
+.caulk-radius-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.caulk-radius-chip {
+  background: var(--vgui-base, rgba(0, 0, 0, 0.08));
+  color: var(--ink);
+  border: 1px solid var(--vgui-dark, rgba(0, 0, 0, 0.25));
+  border-radius: var(--theme-radius-sm, 3px);
+  padding: 2px 5px;
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: all 0.1s ease;
+}
+
+.caulk-radius-chip:hover {
+  background: var(--vgui-light, rgba(255, 255, 255, 0.2));
+  border-color: var(--vgui-accent, #978730);
+}
+
+.caulk-radius-chip.active {
+  background: var(--vgui-accent, #978730);
+  color: #ffffff;
+  border-color: var(--vgui-accent-hi, #c59c3a);
+  font-weight: 700;
+}
+
+.caulk-radius-sticky-hint {
+  font-size: 10px;
+  color: var(--vgui-dim, #8b9982);
+  margin-top: 4px;
+  font-style: italic;
+  font-family: inherit;
+}
+
+/* Theme Picker Retro Sound Controls */
+.theme-sound-section {
+  margin-top: 14px;
+}
+
+.theme-sound-body {
+  margin-top: 10px;
+}
+
+.theme-sound-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-sound-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  min-width: 80px;
+}
+
+.theme-sound-select {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--vgui-dark, rgba(0, 0, 0, 0.3));
+  border-radius: var(--theme-radius-sm, 4px);
+  background: var(--vgui-bg, #fff);
+  color: var(--ink);
+  font-size: 11px;
+}
+
 .sticky-toggle-btn {
   position: absolute;
   left: 16px;
@@ -748,13 +986,13 @@ code {
   box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 4px 14px rgba(0, 0, 0, 0.4);
   font-size: 12px;
   font-weight: 600;
-  color: #FFFFFF;
+  color: var(--ink);
   cursor: pointer;
-  border-radius: 0px;
+  border-radius: var(--theme-radius-sm);
 }
 
 .sticky-toggle-btn:hover {
-  background: #55644e;
+  background: var(--vgui-hover);
 }
 
 .swatch {
@@ -998,11 +1236,7 @@ code {
 /* ---------- digest banner ---------- */
 
 .digest {
-  position: absolute;
-  top: 54px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 7;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1182,24 +1416,36 @@ code {
   color:var(--color-gray-10);
 }
 
-/* ---------- Excalidraw UI Overrides (Steam VGUI) ---------- */
+/* ---------- Excalidraw UI Overrides (Dynamic Board Theme) ---------- */
 
 .excalidraw {
-  --color-surface-low: #4B5844 !important;
-  --color-surface-mid: #3E4637 !important;
-  --color-surface-high: #586750 !important;
-  --color-primary: #978730 !important;
-  --color-primary-darker: #7e7025 !important;
-  --color-primary-darkest: #65591b !important;
-  --color-primary-light: #ab9b3d !important;
-  --color-brand-active: #978730 !important;
-  --color-brand-hover: #a89635 !important;
-  --button-bg: #4B5844 !important;
-  --button-selected-bg: #978730 !important;
-  --button-hover-bg: #57654f !important;
-  --border-radius-lg: 0px !important;
-  --border-radius-md: 0px !important;
-  --ui-font: "Tahoma", "MS Sans Serif", "Segoe UI", sans-serif !important;
+  --color-surface-low: var(--vgui-bg) !important;
+  --color-surface-mid: var(--vgui-base) !important;
+  --color-surface-high: var(--vgui-hover) !important;
+  --color-surface-primary-container: var(--vgui-selected-bg) !important;
+  --color-on-primary-container: var(--vgui-selected-fg) !important;
+  --color-on-surface: var(--ink) !important;
+  --text-primary-color: var(--ink) !important;
+  --icon-fill-color: var(--ink) !important;
+  --input-label-color: var(--ink) !important;
+  --input-bg-color: var(--vgui-base) !important;
+  --input-border-color: var(--vgui-dark) !important;
+  --popup-secondary-bg-color: var(--vgui-base) !important;
+  --popup-text-color: var(--ink) !important;
+  --island-bg-color: var(--vgui-bg) !important;
+  --keybinding-color: var(--ink-soft) !important;
+  --color-primary: var(--vgui-selected-bg) !important;
+  --color-primary-darker: var(--vgui-selected-bg) !important;
+  --color-primary-darkest: var(--vgui-dark) !important;
+  --color-primary-light: var(--vgui-accent) !important;
+  --color-brand-active: var(--vgui-selected-bg) !important;
+  --color-brand-hover: var(--vgui-accent) !important;
+  --button-bg: var(--vgui-bg) !important;
+  --button-selected-bg: var(--vgui-selected-bg) !important;
+  --button-hover-bg: var(--vgui-hover) !important;
+  --border-radius-lg: var(--theme-radius) !important;
+  --border-radius-md: var(--theme-radius-sm) !important;
+  --ui-font: var(--theme-font) !important;
 }
 
 /* Toolbar islands and panels */
@@ -1209,7 +1455,8 @@ code {
   border-right-color: var(--vgui-border) !important;
   border-bottom-color: var(--vgui-border) !important;
   box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 4px 14px rgba(0, 0, 0, 0.5) !important;
-  border-radius: 0px !important;
+  border-radius: var(--theme-radius) !important;
+  color: var(--ink) !important;
 }
 
 /* Tool icon buttons */
@@ -1217,26 +1464,27 @@ code {
 .excalidraw .ToolIcon_type_radio,
 .excalidraw .ExcButton,
 .excalidraw .sidebar-trigger {
-  border-radius: 0px !important;
+  border-radius: var(--theme-radius-sm) !important;
   border: 1px solid var(--vgui-bg) !important;
   border-right-color: var(--vgui-border) !important;
   border-bottom-color: var(--vgui-border) !important;
   box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark) !important;
   background-color: var(--vgui-bg) !important;
-  color: #FFFFFF !important;
+  color: var(--ink) !important;
 }
 
 .excalidraw .sidebar-trigger.active {
   background-color: var(--vgui-selected-bg) !important;
+  color: var(--vgui-selected-fg) !important;
 }
 
 .excalidraw .ToolIcon_type_button:hover,
 .excalidraw .ToolIcon_type_radio:hover,
 .excalidraw .ExcButton:hover {
-  background-color: #55644e !important;
+  background-color: var(--vgui-hover) !important;
 }
 
-/* Active / checked tool icon with Steam gold bar */
+/* Active / checked tool icon with active highlight */
 .excalidraw .ToolIcon_type_radio.active,
 .excalidraw .ToolIcon_type_radio[aria-checked="true"],
 .excalidraw .ToolIcon_type_button.active,
@@ -1244,7 +1492,7 @@ code {
 .excalidraw .ExcButton--selected,
 .excalidraw [aria-selected="true"] {
   background-color: var(--vgui-selected-bg) !important;
-  color: #FFFFFF !important;
+  color: var(--vgui-selected-fg) !important;
   box-shadow: inset 1px 1px 0 var(--vgui-dark) !important;
   border-color: var(--vgui-border) !important;
 }
@@ -1259,8 +1507,8 @@ code {
   border-right-color: var(--vgui-border) !important;
   border-bottom-color: var(--vgui-border) !important;
   box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 10px 30px rgba(0, 0, 0, 0.7) !important;
-  border-radius: 0px !important;
-  color: #FFFFFF !important;
+  border-radius: var(--theme-radius) !important;
+  color: var(--ink) !important;
 }
 
 /* ---------- access modal & dialogs ---------- */
@@ -1272,7 +1520,7 @@ code {
   backdrop-filter: blur(2px);
   display: grid;
   place-items: center;
-  z-index: 50;
+  z-index: 1000;
   padding: 16px;
 }
 
@@ -1281,6 +1529,8 @@ code {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+  border-radius: var(--theme-radius);
+  overflow: hidden;
 }
 
 .modal-body {
@@ -1439,6 +1689,68 @@ code {
   gap: 6px;
 }
 
+.bg-picker-divider {
+  height: 1px;
+  background: var(--vgui-dark);
+  box-shadow: 0 1px 0 var(--vgui-light);
+  margin: 12px 0;
+}
+
+.bg-picker-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--vgui-accent);
+  margin-bottom: 6px;
+}
+
+.bg-picker-image-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-dark), inset -1px -1px 0 var(--vgui-light);
+}
+
+.bg-picker-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bg-picker-thumb {
+  width: 56px;
+  height: 40px;
+  border: 1px solid var(--vgui-border);
+  box-shadow: 1px 1px 0 var(--vgui-light);
+  background-color: var(--vgui-canvas);
+  flex-shrink: 0;
+}
+
+.bg-picker-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: var(--vgui-muted);
+  text-align: center;
+}
+
+.bg-picker-image-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bg-picker-hint {
+  font-size: 11px;
+  color: var(--vgui-muted);
+}
+
 .bg-picker-footer {
   display: flex;
   justify-content: flex-end;
@@ -1461,3 +1773,2189 @@ code {
   font-family: "Tahoma", "MS Sans Serif", "Segoe UI", sans-serif;
   font-size: 14px;
 }
+
+/* ---------- Excalidraw-integrated Caulk Tools popup menu ---------- */
+
+.excalidraw .caulk-tools-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.excalidraw .caulk-tools-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  height: var(--default-button-size, 36px);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.excalidraw .caulk-tools-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 268px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  padding: 6px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--ui-font, "Tahoma", sans-serif);
+}
+
+.caulk-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.caulk-menu-heading {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--vgui-accent, #e2b038);
+  padding: 4px 6px 2px;
+}
+
+.caulk-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--theme-radius-sm);
+  color: var(--ink);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.caulk-menu-item:hover {
+  background: var(--vgui-hover);
+  border-color: var(--vgui-light, #78886e);
+}
+
+.caulk-menu-item.active {
+  background: var(--vgui-selected-bg, #978730);
+  color: var(--vgui-selected-fg, #ffffff);
+}
+
+.caulk-menu-item kbd {
+  font-family: inherit;
+  font-size: 10px;
+  padding: 1px 5px;
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  color: var(--ink-soft);
+}
+
+.caulk-menu-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  color: var(--vgui-accent);
+}
+
+.caulk-menu-inline-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 4px 6px;
+}
+
+.caulk-menu-inline-label {
+  font-size: 11px;
+  color: var(--ink-soft, #cfd8c8);
+  margin-right: 2px;
+}
+
+.caulk-menu-chip {
+  padding: 3px 7px;
+  font-size: 11px;
+  background: var(--vgui-base, #3e4637);
+  color: var(--ink);
+  border: 1px solid var(--vgui-dark, #282e23);
+  border-radius: var(--theme-radius-sm);
+  box-shadow: inset 1px 1px 0 var(--vgui-light, #78886e);
+  cursor: pointer;
+}
+
+.caulk-menu-chip:hover {
+  background: var(--vgui-hover);
+}
+
+.caulk-menu-chip.danger {
+  background: #883333;
+}
+
+.caulk-menu-sep {
+  height: 1px;
+  background: var(--vgui-dark, #282e23);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 2px 4px;
+}
+
+/* ---------- VGUI Video Window Frame & Player ---------- */
+
+.excalidraw .excalidraw__embeddable-container .excalidraw__embeddable-container__inner,
+.excalidraw .excalidraw__embeddable-container .excalidraw__embeddable__outer > * {
+  border-radius: var(--theme-radius) !important;
+}
+
+.excalidraw .excalidraw__embeddable-container .excalidraw__embeddable-hint {
+  border-radius: var(--theme-radius-sm) !important;
+  background: var(--vgui-bg, #4b5844) !important;
+  color: var(--ink, #ffffff) !important;
+  padding: 6px 12px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  border: 1px solid var(--vgui-bg, #4b5844) !important;
+  border-right-color: var(--vgui-border, #000) !important;
+  border-bottom-color: var(--vgui-border, #000) !important;
+  box-shadow: inset 1px 1px 0 var(--vgui-light, #7a8b71), inset -1px -1px 0 var(--vgui-dark, #343d2f), 0 4px 12px rgba(0, 0, 0, 0.6) !important;
+}
+
+.vgui-video-window {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--vgui-bg, #4b5844);
+  border: 1px solid var(--vgui-bg, #4b5844);
+  border-right-color: var(--vgui-border, #000);
+  border-bottom-color: var(--vgui-border, #000);
+  box-shadow: inset 1px 1px 0 var(--vgui-light, #7a8b71), inset -1px -1px 0 var(--vgui-dark, #343d2f);
+  padding: 2px;
+  border-radius: var(--theme-radius);
+  font-family: var(--theme-font);
+}
+
+.vgui-video-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 4px 3px;
+  background: var(--vgui-bg, #4b5844);
+  color: var(--ink, #ffffff);
+  font-size: 11px;
+  font-weight: 700;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.vgui-video-title-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.vgui-video-lambda {
+  color: var(--vgui-accent, #e2b038);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.vgui-video-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vgui-video-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 4px;
+  background: var(--vgui-base, #3e4637);
+  color: var(--ink-soft, #d0d8cc);
+  border: 1px solid var(--vgui-dark, #343d2f);
+  box-shadow: inset 1px 1px 0 var(--vgui-border, #000);
+}
+
+.vgui-video-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.vgui-video-winbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 16px;
+  padding: 0;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  background: var(--vgui-bg, #4b5844);
+  color: var(--ink, #ffffff);
+  border: 1px solid var(--vgui-bg, #4b5844);
+  border-right-color: var(--vgui-border, #000);
+  border-bottom-color: var(--vgui-border, #000);
+  border-radius: var(--theme-radius-sm);
+  box-shadow: inset 1px 1px 0 var(--vgui-light, #7a8b71), inset -1px -1px 0 var(--vgui-dark, #343d2f);
+  cursor: pointer;
+}
+
+.vgui-video-winbtn.transport {
+  width: 22px;
+  height: 19px;
+  font-size: 10px;
+}
+
+.vgui-video-winbtn:hover:not(:disabled) {
+  background: var(--vgui-hover);
+}
+
+.vgui-video-winbtn:active:not(:disabled) {
+  box-shadow: inset 1px 1px 0 var(--vgui-dark, #343d2f);
+  border-color: var(--vgui-border, #000);
+}
+
+.vgui-video-winbtn:disabled {
+  color: var(--vgui-disabled, #3c4636);
+  text-shadow: 1px 1px 0 var(--vgui-light, #7a8b71);
+  cursor: default;
+}
+
+.vgui-video-viewport {
+  flex: 1;
+  min-height: 0;
+  background: #0d110c;
+  border: 1px solid var(--vgui-dark, #343d2f);
+  border-right-color: var(--vgui-light, #7a8b71);
+  border-bottom-color: var(--vgui-light, #7a8b71);
+  box-shadow: inset 1px 1px 0 var(--vgui-border, #000);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.vgui-video-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: #0d110c;
+}
+
+.vgui-player {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #0d110c;
+}
+
+.vgui-player-screen {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0d110c;
+  cursor: pointer;
+}
+
+.vgui-player-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.vgui-player-overlay-play {
+  position: absolute;
+  width: 44px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--vgui-accent);
+  background: var(--vgui-surface-glass);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  border-radius: var(--theme-radius-sm);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 4px 12px rgba(0, 0, 0, 0.65);
+  cursor: pointer;
+}
+
+.vgui-player-overlay-play:hover {
+  background: var(--vgui-hover);
+}
+
+.vgui-player-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px;
+  background: var(--vgui-bg);
+  border-top: 1px solid var(--vgui-border);
+  box-shadow: inset 0 1px 0 var(--vgui-light);
+  flex-shrink: 0;
+}
+
+.vgui-player-time {
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  padding: 0 2px;
+}
+
+.vgui-player-seek {
+  flex: 1;
+  min-width: 40px;
+  height: 8px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--vgui-dark, #343d2f);
+  border-right-color: var(--vgui-light, #7a8b71);
+  border-bottom-color: var(--vgui-light, #7a8b71);
+  box-shadow: inset 1px 1px 0 var(--vgui-border, #000);
+  cursor: pointer;
+}
+
+.vgui-player-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 8px;
+  height: 14px;
+  background: var(--vgui-bg, #4b5844);
+  border: 1px solid var(--vgui-light, #7a8b71);
+  border-right-color: var(--vgui-border, #000);
+  border-bottom-color: var(--vgui-border, #000);
+}
+
+.vgui-player-seek::-moz-range-thumb {
+  width: 8px;
+  height: 14px;
+  border-radius: 0;
+  background: var(--vgui-bg, #4b5844);
+  border: 1px solid var(--vgui-light, #7a8b71);
+  border-right-color: var(--vgui-border, #000);
+  border-bottom-color: var(--vgui-border, #000);
+}
+
+.vgui-video-status {
+  color: #e6d6ac;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+}
+
+.vgui-video-status.error {
+  color: #f87171;
+}
+
+.vgui-file-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  background: var(--vgui-base, #3e4637);
+  border: 1px solid var(--vgui-dark, #343d2f);
+  border-right-color: var(--vgui-light, #7a8b71);
+  border-bottom-color: var(--vgui-light, #7a8b71);
+  box-shadow: inset 1px 1px 0 var(--vgui-border, #000);
+  cursor: pointer;
+}
+
+.vgui-file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.vgui-file-name {
+  font-size: 12px;
+  color: var(--ink, #fff);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Theme Picker Modal ---------- */
+
+.theme-picker-window {
+  width: min(600px, 100%);
+  border-radius: var(--theme-radius);
+  overflow: hidden;
+}
+
+.theme-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 560px) {
+  .theme-preset-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.theme-preset-card {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 8px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  border-radius: var(--theme-radius-sm);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+  cursor: pointer;
+}
+
+.theme-preset-card:hover {
+  background: var(--vgui-hover);
+}
+
+.theme-preset-card.active {
+  background: var(--vgui-selected-bg);
+  color: var(--vgui-selected-fg);
+  border-color: var(--vgui-accent);
+  box-shadow: 0 0 0 1px var(--vgui-accent);
+}
+
+.theme-preset-preview {
+  width: 68px;
+  flex-shrink: 0;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+.theme-preview-frutiger-glacier {
+  border-radius: 7px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, #b8e6fe 50%, #7ecaf8 100%) !important;
+  border-color: #38d2ff !important;
+  box-shadow: 0 0 8px rgba(56, 210, 255, 0.45);
+}
+
+.theme-preview-frutiger-aero {
+  border-radius: 6px;
+  background: linear-gradient(180deg, #ffffff 0%, #a4dbf8 50%, #76beea 100%) !important;
+  border-color: #0088e8 !important;
+  box-shadow: 0 0 6px rgba(0, 136, 232, 0.35);
+}
+
+.theme-preview-frutiger-aqua {
+  border-radius: 6px;
+  background: linear-gradient(180deg, #175e8d 0%, #0b3b5b 50%, #041c2e 100%) !important;
+  border-color: #00d4ff !important;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+}
+
+.theme-preview-frutiger-dorfic {
+  border-radius: 6px;
+  background: linear-gradient(180deg, #ffffff 0%, #e2ecce 50%, #cadcb0 100%) !important;
+  border-color: #5a8f29 !important;
+}
+
+.theme-preview-frutiger-metal {
+  border-radius: 3px;
+  background: linear-gradient(180deg, #e4e8ec 0%, #b4bec8 50%, #8c98a4 100%) !important;
+  border-color: #0074cc !important;
+}
+
+.theme-preview-windows-xp {
+  border-radius: 4px;
+  background: #ece9d8 !important;
+  border-color: #0058e6 !important;
+  box-shadow: 0 0 6px rgba(0, 88, 230, 0.35);
+}
+
+.theme-preview-mac-os9 {
+  border-radius: 3px;
+  background: repeating-linear-gradient(180deg, #efefef 0px, #efefef 1px, #d4d4d4 1px, #d4d4d4 2px) !important;
+  border-color: #888888 !important;
+}
+
+.theme-preview-win95 {
+  border-radius: 0 !important;
+  background: #c0c0c0 !important;
+  border: 1px solid #ffffff !important;
+  border-right-color: #000000 !important;
+  border-bottom-color: #000000 !important;
+}
+
+.theme-preview-dos-tui {
+  border-radius: 0 !important;
+  background: #0000aa !important;
+  box-shadow: 2px 2px 0 #000;
+  font-family: "Consolas", monospace;
+}
+
+.theme-preview-vaporwave {
+  border-radius: 3px;
+  background: linear-gradient(180deg, #441777 0%, #200938 100%) !important;
+  border-color: #ff71ce !important;
+  box-shadow: 0 0 10px rgba(255, 113, 206, 0.55);
+}
+
+.theme-preview-bar {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 2px 4px;
+}
+
+.theme-preview-well {
+  height: 14px;
+  border: 1px solid;
+  opacity: 0.9;
+}
+
+.theme-preset-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.theme-preset-name {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.theme-preset-tagline {
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0.85;
+}
+
+.theme-options-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.theme-canvas-sync-row {
+  align-items: center;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.theme-colors-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--vgui-dark);
+}
+
+.theme-colors-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.theme-colors-head h2 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.theme-colors-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.theme-color-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 520px) {
+  .theme-color-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.theme-color-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  border-radius: var(--theme-radius-sm);
+}
+
+.theme-color-swatch {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.theme-color-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.theme-color-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.theme-color-hint {
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
+.theme-color-hex {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  padding: 2px 5px;
+  width: 82px;
+  background: var(--vgui-bg);
+  color: var(--ink);
+  border: 1px solid var(--vgui-dark);
+  border-radius: var(--theme-radius-sm);
+}
+
+/* ---------- Corner Radius Slider Controls ---------- */
+
+.theme-radius-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--vgui-dark);
+}
+
+.theme-radius-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.theme-radius-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  background: var(--vgui-selected-bg);
+  color: var(--vgui-selected-fg);
+  border-radius: var(--theme-radius-sm);
+}
+
+.theme-radius-custom-tag {
+  font-size: 11px;
+  color: var(--vgui-accent);
+  font-weight: 600;
+}
+
+.theme-radius-preset-tag {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.theme-radius-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.theme-radius-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.theme-radius-slider {
+  flex: 1;
+  accent-color: var(--vgui-selected-bg);
+  cursor: pointer;
+  height: 20px;
+}
+
+.theme-radius-slider-val {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  width: 44px;
+  text-align: right;
+  color: var(--ink);
+}
+
+.theme-radius-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.theme-radius-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   BOARD THEME PRESETS: GLASS, SKEUOMORPHIC & RETRO CHROME
+   ========================================================================== */
+
+/* ---------- Preset 5: Frutiger Glacier (Arctic Crystalline Frost & Cryo Glass) ---------- */
+
+html[data-board-theme="frutiger-glacier"] .window-frame,
+html[data-board-theme="frutiger-glacier"] .excalidraw .Island,
+html[data-board-theme="frutiger-glacier"] .excalidraw .dropdown-menu,
+html[data-board-theme="frutiger-glacier"] .excalidraw .popover,
+html[data-board-theme="frutiger-glacier"] .excalidraw .Modal,
+html[data-board-theme="frutiger-glacier"] .excalidraw .color-picker,
+html[data-board-theme="frutiger-glacier"] .topbar-popover,
+html[data-board-theme="frutiger-glacier"] .presenter-bar,
+html[data-board-theme="frutiger-glacier"] .templates-modal,
+html[data-board-theme="frutiger-glacier"] .presence-banner,
+html[data-board-theme="frutiger-glacier"] .voting-banner,
+html[data-board-theme="frutiger-glacier"] .vgui-video-window {
+  background: linear-gradient(
+    135deg,
+    rgba(245, 252, 255, 0.48) 0%,
+    rgba(200, 238, 255, 0.28) 48%,
+    rgba(160, 222, 255, 0.35) 100%
+  ) !important;
+  backdrop-filter: blur(28px) saturate(200%) brightness(108%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) brightness(108%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.98) !important;
+  border-radius: var(--theme-radius) !important;
+  box-shadow:
+    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(79, 213, 255, 0.25),
+    0 14px 40px rgba(10, 50, 90, 0.2),
+    0 2px 10px rgba(0, 195, 255, 0.25) !important;
+  color: #072844 !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .window-titlebar,
+html[data-board-theme="frutiger-glacier"] .vgui-video-titlebar {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.85) 0%,
+    rgba(230, 248, 255, 0.45) 49%,
+    rgba(175, 230, 255, 0.25) 50%,
+    rgba(210, 245, 255, 0.55) 100%
+  ) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.65) !important;
+  box-shadow: 0 1px 6px rgba(79, 213, 255, 0.25) !important;
+  color: #072844 !important;
+  font-weight: 700;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.9);
+  border-radius: calc(var(--theme-radius) - 2px) calc(var(--theme-radius) - 2px) 0 0 !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .vgui-topbar {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.62) 0%,
+    rgba(220, 245, 255, 0.38) 50%,
+    rgba(185, 230, 255, 0.32) 100%
+  ) !important;
+  backdrop-filter: blur(24px) saturate(190%) brightness(106%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) brightness(106%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 4px 20px rgba(20, 80, 140, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+  color: #082138 !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .statusbar {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.62) 0%,
+    rgba(220, 245, 255, 0.38) 50%,
+    rgba(185, 230, 255, 0.32) 100%
+  ) !important;
+  backdrop-filter: blur(24px) saturate(190%) brightness(106%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) brightness(106%) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.8) !important;
+  border-bottom: none !important;
+  box-shadow: 0 -4px 20px rgba(20, 80, 140, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+  color: #082138 !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .topbar-title {
+  background: rgba(255, 255, 255, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: #072844 !important;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.9), 0 1px 4px rgba(79, 213, 255, 0.15) !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .status-left,
+html[data-board-theme="frutiger-glacier"] .status-right {
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  background: rgba(255, 255, 255, 0.25) !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: #072844 !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .vgui-lambda {
+  color: #009de0 !important;
+  text-shadow: 0 0 12px rgba(0, 195, 255, 0.8) !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .btn,
+html[data-board-theme="frutiger-glacier"] .topbar-btn,
+html[data-board-theme="frutiger-glacier"] .window-btn,
+html[data-board-theme="frutiger-glacier"] .sticky-toggle-btn,
+html[data-board-theme="frutiger-glacier"] .vgui-video-winbtn,
+html[data-board-theme="frutiger-glacier"] .excalidraw .ToolIcon_type_button,
+html[data-board-theme="frutiger-glacier"] .excalidraw .ToolIcon_type_radio,
+html[data-board-theme="frutiger-glacier"] .excalidraw .ExcButton,
+html[data-board-theme="frutiger-glacier"] .excalidraw .sidebar-trigger {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.88) 0%,
+    rgba(228, 246, 255, 0.5) 48%,
+    rgba(185, 230, 255, 0.38) 50%,
+    rgba(215, 245, 255, 0.65) 100%
+  ) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: #072844 !important;
+  box-shadow:
+    inset 0 1px 1px #ffffff,
+    0 2px 6px rgba(30, 100, 160, 0.16) !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .btn:hover:not(:disabled),
+html[data-board-theme="frutiger-glacier"] .topbar-btn:hover:not(:disabled),
+html[data-board-theme="frutiger-glacier"] .window-btn:hover:not(:disabled),
+html[data-board-theme="frutiger-glacier"] .sticky-toggle-btn:hover,
+html[data-board-theme="frutiger-glacier"] .excalidraw .ToolIcon_type_button:hover,
+html[data-board-theme="frutiger-glacier"] .excalidraw .ToolIcon_type_radio:hover,
+html[data-board-theme="frutiger-glacier"] .excalidraw .ExcButton:hover,
+html[data-board-theme="frutiger-glacier"] .excalidraw .sidebar-trigger:hover {
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    rgba(240, 252, 255, 0.75) 48%,
+    rgba(200, 240, 255, 0.6) 50%,
+    rgba(230, 250, 255, 0.9) 100%
+  ) !important;
+  border-color: rgba(255, 255, 255, 0.95) !important;
+  box-shadow:
+    inset 0 1px 1px #ffffff,
+    0 0 10px rgba(56, 210, 255, 0.7) !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .btn.primary,
+html[data-board-theme="frutiger-glacier"] .topbar-btn.active,
+html[data-board-theme="frutiger-glacier"] .excalidraw .ToolIcon_type_radio[aria-checked="true"],
+html[data-board-theme="frutiger-glacier"] .excalidraw .ToolIcon_type_button[aria-checked="true"],
+html[data-board-theme="frutiger-glacier"] .excalidraw [aria-selected="true"] {
+  background: linear-gradient(
+    180deg,
+    #bfe9ff 0%,
+    #00a2e8 48%,
+    #0087c7 50%,
+    #009de0 100%
+  ) !important;
+  color: #ffffff !important;
+  border: 1px solid #007bb8 !important;
+  box-shadow:
+    inset 0 1.5px 1px #ffffff,
+    0 0 14px rgba(0, 195, 255, 0.8) !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .window-btn.close {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 170, 170, 0.6) 100%) !important;
+  border: 1px solid rgba(255, 100, 100, 0.6) !important;
+  color: #a01010 !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .window-btn.close:hover {
+  background: linear-gradient(180deg, #ff9999 0%, #e84545 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(255, 70, 70, 0.6) !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .theme-preset-card,
+html[data-board-theme="frutiger-glacier"] .theme-color-field,
+html[data-board-theme="frutiger-glacier"] .chip-btn {
+  background: rgba(255, 255, 255, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  color: #072844 !important;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.6) !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .chip-btn.active,
+html[data-board-theme="frutiger-glacier"] .chip-btn:hover {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: #00a2e8 !important;
+  box-shadow: 0 0 8px rgba(0, 195, 255, 0.5) !important;
+}
+
+/* ---------- Preset 6: Frutiger Aqua (Deep Ocean Liquid Glass & Bioluminescent Glow) ---------- */
+
+html[data-board-theme="frutiger-aqua"] .window-frame,
+html[data-board-theme="frutiger-aqua"] .excalidraw .Island,
+html[data-board-theme="frutiger-aqua"] .excalidraw .dropdown-menu,
+html[data-board-theme="frutiger-aqua"] .excalidraw .popover,
+html[data-board-theme="frutiger-aqua"] .excalidraw .Modal,
+html[data-board-theme="frutiger-aqua"] .excalidraw .color-picker,
+html[data-board-theme="frutiger-aqua"] .topbar-popover,
+html[data-board-theme="frutiger-aqua"] .presenter-bar,
+html[data-board-theme="frutiger-aqua"] .templates-modal,
+html[data-board-theme="frutiger-aqua"] .presence-banner,
+html[data-board-theme="frutiger-aqua"] .voting-banner,
+html[data-board-theme="frutiger-aqua"] .vgui-video-window {
+  background: linear-gradient(
+    180deg,
+    rgba(20, 75, 120, 0.65) 0%,
+    rgba(11, 55, 88, 0.75) 50%,
+    rgba(6, 32, 52, 0.85) 100%
+  ) !important;
+  backdrop-filter: blur(24px) saturate(180%) brightness(105%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) brightness(105%) !important;
+  border: 1px solid rgba(0, 220, 255, 0.6) !important;
+  border-top: 1.5px solid rgba(130, 235, 255, 0.85) !important;
+  border-radius: var(--theme-radius) !important;
+  box-shadow:
+    inset 0 1.5px 1px rgba(180, 245, 255, 0.7),
+    0 0 24px rgba(0, 212, 255, 0.35),
+    0 14px 40px rgba(0, 15, 35, 0.65) !important;
+  color: #e0f7ff !important;
+}
+
+html[data-board-theme="frutiger-aqua"] .window-titlebar,
+html[data-board-theme="frutiger-aqua"] .vgui-video-titlebar {
+  background: linear-gradient(
+    180deg,
+    rgba(80, 190, 255, 0.55) 0%,
+    rgba(20, 95, 155, 0.35) 49%,
+    rgba(5, 55, 95, 0.3) 50%,
+    rgba(30, 120, 190, 0.45) 100%
+  ) !important;
+  border-bottom: 1px solid rgba(0, 220, 255, 0.45) !important;
+  box-shadow: 0 1px 8px rgba(0, 212, 255, 0.3) !important;
+  color: #e0f7ff !important;
+  font-weight: 700;
+  border-radius: calc(var(--theme-radius) - 2px) calc(var(--theme-radius) - 2px) 0 0 !important;
+}
+
+html[data-board-theme="frutiger-aqua"] .vgui-topbar {
+  background: linear-gradient(
+    180deg,
+    rgba(16, 68, 108, 0.78) 0%,
+    rgba(9, 44, 72, 0.88) 100%
+  ) !important;
+  backdrop-filter: blur(22px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
+  border-bottom: 1px solid rgba(0, 220, 255, 0.5) !important;
+  box-shadow: 0 4px 20px rgba(0, 20, 45, 0.6), inset 0 1px 0 rgba(130, 235, 255, 0.6) !important;
+  color: #e0f7ff !important;
+}
+
+html[data-board-theme="frutiger-aqua"] .statusbar {
+  background: linear-gradient(
+    180deg,
+    rgba(16, 68, 108, 0.78) 0%,
+    rgba(9, 44, 72, 0.88) 100%
+  ) !important;
+  backdrop-filter: blur(22px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
+  border-top: 1px solid rgba(0, 220, 255, 0.5) !important;
+  border-bottom: none !important;
+  box-shadow: 0 -4px 20px rgba(0, 20, 45, 0.5), inset 0 1px 0 rgba(130, 235, 255, 0.6) !important;
+  color: #e0f7ff !important;
+}
+
+html[data-board-theme="frutiger-aqua"] .topbar-title {
+  background: rgba(4, 28, 46, 0.65) !important;
+  border: 1px solid rgba(0, 212, 255, 0.5) !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: #e0f7ff !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 8px rgba(0, 212, 255, 0.25) !important;
+}
+
+html[data-board-theme="frutiger-aqua"] .btn,
+html[data-board-theme="frutiger-aqua"] .topbar-btn,
+html[data-board-theme="frutiger-aqua"] .window-btn,
+html[data-board-theme="frutiger-aqua"] .sticky-toggle-btn,
+html[data-board-theme="frutiger-aqua"] .vgui-video-winbtn,
+html[data-board-theme="frutiger-aqua"] .excalidraw .ToolIcon_type_button,
+html[data-board-theme="frutiger-aqua"] .excalidraw .ToolIcon_type_radio,
+html[data-board-theme="frutiger-aqua"] .excalidraw .ExcButton,
+html[data-board-theme="frutiger-aqua"] .excalidraw .sidebar-trigger {
+  background: linear-gradient(
+    180deg,
+    rgba(45, 145, 215, 0.65) 0%,
+    rgba(16, 75, 120, 0.8) 50%,
+    rgba(8, 48, 80, 0.9) 100%
+  ) !important;
+  border: 1px solid rgba(0, 212, 255, 0.55) !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: #e0f7ff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(180, 245, 255, 0.65),
+    0 2px 6px rgba(0, 20, 40, 0.4) !important;
+}
+
+html[data-board-theme="frutiger-aqua"] .btn.primary,
+html[data-board-theme="frutiger-aqua"] .topbar-btn.active,
+html[data-board-theme="frutiger-aqua"] .excalidraw .ToolIcon_type_radio[aria-checked="true"],
+html[data-board-theme="frutiger-aqua"] .excalidraw .ToolIcon_type_button[aria-checked="true"],
+html[data-board-theme="frutiger-aqua"] .excalidraw [aria-selected="true"] {
+  background: linear-gradient(
+    180deg,
+    #66e4ff 0%,
+    #00d4ff 48%,
+    #00a4cc 50%,
+    #00bce8 100%
+  ) !important;
+  color: #041c2e !important;
+  box-shadow:
+    inset 0 1.5px 1px #ffffff,
+    0 0 16px rgba(0, 212, 255, 0.85) !important;
+}
+
+/* ---------- Preset 2: Frutiger Aero (2007 Glossy Sky Glass) ---------- */
+
+html[data-board-theme="frutiger-aero"] .window-frame,
+html[data-board-theme="frutiger-aero"] .excalidraw .Island,
+html[data-board-theme="frutiger-aero"] .excalidraw .dropdown-menu,
+html[data-board-theme="frutiger-aero"] .excalidraw .popover,
+html[data-board-theme="frutiger-aero"] .excalidraw .Modal,
+html[data-board-theme="frutiger-aero"] .excalidraw .color-picker,
+html[data-board-theme="frutiger-aero"] .topbar-popover,
+html[data-board-theme="frutiger-aero"] .presenter-bar,
+html[data-board-theme="frutiger-aero"] .templates-modal,
+html[data-board-theme="frutiger-aero"] .presence-banner,
+html[data-board-theme="frutiger-aero"] .voting-banner,
+html[data-board-theme="frutiger-aero"] .vgui-video-window {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.58) 0%,
+    rgba(210, 238, 252, 0.42) 50%,
+    rgba(185, 225, 250, 0.46) 100%
+  ) !important;
+  backdrop-filter: blur(22px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.95) !important;
+  border-radius: var(--theme-radius) !important;
+  box-shadow:
+    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3),
+    0 10px 30px rgba(10, 65, 115, 0.2) !important;
+  color: #0b253a !important;
+}
+
+html[data-board-theme="frutiger-aero"] .window-titlebar,
+html[data-board-theme="frutiger-aero"] .vgui-video-titlebar {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.82) 0%,
+    rgba(225, 245, 255, 0.35) 49%,
+    rgba(160, 220, 255, 0.2) 50%,
+    rgba(200, 240, 255, 0.45) 100%
+  ) !important;
+  border-bottom: 1px solid rgba(0, 90, 160, 0.25) !important;
+  box-shadow: none;
+  border-radius: calc(var(--theme-radius) - 2px) calc(var(--theme-radius) - 2px) 0 0 !important;
+  color: #0b253a !important;
+}
+
+html[data-board-theme="frutiger-aero"] .vgui-topbar {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.68) 0%,
+    rgba(205, 235, 252, 0.45) 50%,
+    rgba(180, 222, 250, 0.4) 100%
+  ) !important;
+  backdrop-filter: blur(22px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 4px 18px rgba(10, 65, 115, 0.15), inset 0 1px 0 #ffffff !important;
+  color: #0b253a !important;
+}
+
+html[data-board-theme="frutiger-aero"] .statusbar {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.68) 0%,
+    rgba(205, 235, 252, 0.45) 50%,
+    rgba(180, 222, 250, 0.4) 100%
+  ) !important;
+  backdrop-filter: blur(22px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.8) !important;
+  border-bottom: none !important;
+  box-shadow: 0 -4px 18px rgba(10, 65, 115, 0.12), inset 0 1px 0 #ffffff !important;
+  color: #0b253a !important;
+}
+
+html[data-board-theme="frutiger-aero"] .btn,
+html[data-board-theme="frutiger-aero"] .topbar-btn,
+html[data-board-theme="frutiger-aero"] .window-btn,
+html[data-board-theme="frutiger-aero"] .sticky-toggle-btn,
+html[data-board-theme="frutiger-aero"] .vgui-video-winbtn,
+html[data-board-theme="frutiger-aero"] .excalidraw .ToolIcon_type_button,
+html[data-board-theme="frutiger-aero"] .excalidraw .ToolIcon_type_radio,
+html[data-board-theme="frutiger-aero"] .excalidraw .ExcButton,
+html[data-board-theme="frutiger-aero"] .excalidraw .sidebar-trigger {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.85) 0%,
+    var(--vgui-bg) 52%,
+    var(--vgui-dark) 100%
+  ) !important;
+  border: 1px solid var(--vgui-border) !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: #0b253a !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 3px rgba(0, 50, 100, 0.16) !important;
+}
+
+html[data-board-theme="frutiger-aero"] .btn.primary,
+html[data-board-theme="frutiger-aero"] .topbar-btn.active,
+html[data-board-theme="frutiger-aero"] .excalidraw .ToolIcon_type_radio[aria-checked="true"],
+html[data-board-theme="frutiger-aero"] .excalidraw .ToolIcon_type_button[aria-checked="true"],
+html[data-board-theme="frutiger-aero"] .excalidraw [aria-selected="true"] {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.42) 0%,
+    var(--vgui-selected-bg) 48%,
+    var(--vgui-accent) 100%
+  ) !important;
+  color: #ffffff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 0 10px var(--vgui-accent-glow) !important;
+}
+
+/* ---------- Preset 7: Frutiger Dorfic (Pastoral Early-2000s Sunlit Meadows) ---------- */
+
+html[data-board-theme="frutiger-dorfic"] .window-frame,
+html[data-board-theme="frutiger-dorfic"] .excalidraw .Island,
+html[data-board-theme="frutiger-dorfic"] .excalidraw .dropdown-menu,
+html[data-board-theme="frutiger-dorfic"] .excalidraw .popover,
+html[data-board-theme="frutiger-dorfic"] .excalidraw .Modal,
+html[data-board-theme="frutiger-dorfic"] .excalidraw .color-picker,
+html[data-board-theme="frutiger-dorfic"] .topbar-popover,
+html[data-board-theme="frutiger-dorfic"] .presenter-bar,
+html[data-board-theme="frutiger-dorfic"] .templates-modal,
+html[data-board-theme="frutiger-dorfic"] .presence-banner,
+html[data-board-theme="frutiger-dorfic"] .voting-banner,
+html[data-board-theme="frutiger-dorfic"] .vgui-video-window {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 252, 0.88) 0%,
+    rgba(237, 244, 226, 0.84) 50%,
+    rgba(224, 236, 207, 0.9) 100%
+  ) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(120, 175, 60, 0.45) !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.95) !important;
+  border-radius: var(--theme-radius) !important;
+  box-shadow:
+    inset 0 1.5px 0.5px #ffffff,
+    0 8px 24px rgba(50, 80, 20, 0.16) !important;
+  color: #203014 !important;
+}
+
+html[data-board-theme="frutiger-dorfic"] .window-titlebar,
+html[data-board-theme="frutiger-dorfic"] .vgui-video-titlebar {
+  background: linear-gradient(
+    180deg,
+    #fcfdfa 0%,
+    #e3edd0 48%,
+    #c8d9ab 50%,
+    #dbe8c5 100%
+  ) !important;
+  border-bottom: 1px solid rgba(95, 145, 45, 0.35) !important;
+  box-shadow: none;
+  border-radius: calc(var(--theme-radius) - 2px) calc(var(--theme-radius) - 2px) 0 0 !important;
+  color: #203014 !important;
+}
+
+html[data-board-theme="frutiger-dorfic"] .vgui-topbar {
+  background: linear-gradient(
+    180deg,
+    rgba(252, 254, 248, 0.9) 0%,
+    rgba(235, 243, 222, 0.85) 50%,
+    rgba(222, 235, 202, 0.9) 100%
+  ) !important;
+  backdrop-filter: blur(16px) !important;
+  border-bottom: 1px solid rgba(95, 145, 45, 0.35) !important;
+  box-shadow: 0 3px 12px rgba(60, 90, 30, 0.12), inset 0 1px 0 #ffffff !important;
+  color: #203014 !important;
+}
+
+html[data-board-theme="frutiger-dorfic"] .statusbar {
+  background: linear-gradient(
+    180deg,
+    rgba(252, 254, 248, 0.9) 0%,
+    rgba(235, 243, 222, 0.85) 50%,
+    rgba(222, 235, 202, 0.9) 100%
+  ) !important;
+  backdrop-filter: blur(16px) !important;
+  border-top: 1px solid rgba(95, 145, 45, 0.35) !important;
+  border-bottom: none !important;
+  box-shadow: 0 -3px 12px rgba(60, 90, 30, 0.1), inset 0 1px 0 #ffffff !important;
+  color: #203014 !important;
+}
+
+html[data-board-theme="frutiger-dorfic"] .btn,
+html[data-board-theme="frutiger-dorfic"] .topbar-btn,
+html[data-board-theme="frutiger-dorfic"] .window-btn,
+html[data-board-theme="frutiger-dorfic"] .sticky-toggle-btn,
+html[data-board-theme="frutiger-dorfic"] .vgui-video-winbtn,
+html[data-board-theme="frutiger-dorfic"] .excalidraw .ToolIcon_type_button,
+html[data-board-theme="frutiger-dorfic"] .excalidraw .ToolIcon_type_radio,
+html[data-board-theme="frutiger-dorfic"] .excalidraw .ExcButton,
+html[data-board-theme="frutiger-dorfic"] .excalidraw .sidebar-trigger {
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #edf2e4 50%,
+    #dbe3ce 100%
+  ) !important;
+  border: 1px solid rgba(95, 145, 45, 0.4) !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: #203014 !important;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 1px 3px rgba(60, 90, 30, 0.14) !important;
+}
+
+html[data-board-theme="frutiger-dorfic"] .btn.primary,
+html[data-board-theme="frutiger-dorfic"] .topbar-btn.active,
+html[data-board-theme="frutiger-dorfic"] .excalidraw .ToolIcon_type_radio[aria-checked="true"],
+html[data-board-theme="frutiger-dorfic"] .excalidraw .ToolIcon_type_button[aria-checked="true"],
+html[data-board-theme="frutiger-dorfic"] .excalidraw [aria-selected="true"] {
+  background: linear-gradient(
+    180deg,
+    #a8dc6e 0%,
+    var(--vgui-selected-bg) 50%,
+    #4a7821 100%
+  ) !important;
+  color: #ffffff !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 0 10px rgba(124, 179, 66, 0.5) !important;
+}
+
+/* ---------- Preset 3: Frutiger Metal (Brushed Titanium / Chrome) ---------- */
+
+html[data-board-theme="frutiger-metal"] .window-frame,
+html[data-board-theme="frutiger-metal"] .excalidraw .Island,
+html[data-board-theme="frutiger-metal"] .excalidraw .dropdown-menu,
+html[data-board-theme="frutiger-metal"] .excalidraw .popover,
+html[data-board-theme="frutiger-metal"] .excalidraw .Modal,
+html[data-board-theme="frutiger-metal"] .excalidraw .color-picker,
+html[data-board-theme="frutiger-metal"] .topbar-popover,
+html[data-board-theme="frutiger-metal"] .presenter-bar,
+html[data-board-theme="frutiger-metal"] .templates-modal,
+html[data-board-theme="frutiger-metal"] .presence-banner,
+html[data-board-theme="frutiger-metal"] .voting-banner,
+html[data-board-theme="frutiger-metal"] .vgui-video-window {
+  background: linear-gradient(
+    180deg,
+    #f2f5f7 0%,
+    #cbd5de 45%,
+    #b4bfc9 50%,
+    #c4cfd9 100%
+  ) !important;
+  border: 1px solid #7d8995 !important;
+  border-radius: var(--theme-radius) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 8px 24px rgba(0, 0, 0, 0.4) !important;
+  color: #151c24 !important;
+}
+
+html[data-board-theme="frutiger-metal"] .vgui-topbar {
+  background: linear-gradient(180deg, #dfe5eb 0%, #bcc6d0 50%, #aab5c0 100%) !important;
+  border-bottom: 1px solid #707b86 !important;
+  box-shadow: inset 0 1px 0 #ffffff, 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  color: #151c24 !important;
+}
+
+html[data-board-theme="frutiger-metal"] .statusbar {
+  background: linear-gradient(180deg, #dfe5eb 0%, #bcc6d0 50%, #aab5c0 100%) !important;
+  border-top: 1px solid #707b86 !important;
+  border-bottom: none !important;
+  box-shadow: inset 0 1px 0 #ffffff, 0 -2px 8px rgba(0, 0, 0, 0.25) !important;
+  color: #151c24 !important;
+}
+
+html[data-board-theme="frutiger-metal"] .btn,
+html[data-board-theme="frutiger-metal"] .topbar-btn,
+html[data-board-theme="frutiger-metal"] .window-btn,
+html[data-board-theme="frutiger-metal"] .sticky-toggle-btn,
+html[data-board-theme="frutiger-metal"] .vgui-video-winbtn,
+html[data-board-theme="frutiger-metal"] .excalidraw .ToolIcon_type_button,
+html[data-board-theme="frutiger-metal"] .excalidraw .ToolIcon_type_radio,
+html[data-board-theme="frutiger-metal"] .excalidraw .ExcButton,
+html[data-board-theme="frutiger-metal"] .excalidraw .sidebar-trigger {
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #d8dfe6 50%,
+    #b4bec8 100%
+  ) !important;
+  border: 1px solid #7d8995 !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: #151c24 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+}
+
+html[data-board-theme="frutiger-metal"] .btn.primary,
+html[data-board-theme="frutiger-metal"] .topbar-btn.active,
+html[data-board-theme="frutiger-metal"] .excalidraw .ToolIcon_type_radio[aria-checked="true"],
+html[data-board-theme="frutiger-metal"] .excalidraw .ToolIcon_type_button[aria-checked="true"],
+html[data-board-theme="frutiger-metal"] .excalidraw [aria-selected="true"] {
+  background: linear-gradient(
+    180deg,
+    #4facfe 0%,
+    var(--vgui-selected-bg) 100%
+  ) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 10px rgba(0, 116, 204, 0.6) !important;
+}
+
+/* ---------- Preset 8: Vaporwave (Neon Magenta & Midnight Violet Translucent Grid) ---------- */
+
+html[data-board-theme="vaporwave"] .window-frame,
+html[data-board-theme="vaporwave"] .excalidraw .Island,
+html[data-board-theme="vaporwave"] .excalidraw .dropdown-menu,
+html[data-board-theme="vaporwave"] .excalidraw .popover,
+html[data-board-theme="vaporwave"] .excalidraw .Modal,
+html[data-board-theme="vaporwave"] .excalidraw .color-picker,
+html[data-board-theme="vaporwave"] .topbar-popover,
+html[data-board-theme="vaporwave"] .presenter-bar,
+html[data-board-theme="vaporwave"] .templates-modal,
+html[data-board-theme="vaporwave"] .presence-banner,
+html[data-board-theme="vaporwave"] .voting-banner,
+html[data-board-theme="vaporwave"] .vgui-video-window {
+  background: linear-gradient(
+    180deg,
+    rgba(55, 20, 95, 0.78) 0%,
+    rgba(35, 11, 62, 0.85) 50%,
+    rgba(20, 5, 38, 0.92) 100%
+  ) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid #ff71ce !important;
+  border-radius: var(--theme-radius) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(1, 205, 254, 0.7),
+    0 0 22px rgba(255, 113, 206, 0.45),
+    0 10px 30px rgba(10, 2, 20, 0.7) !important;
+  color: #01cdfe !important;
+}
+
+html[data-board-theme="vaporwave"] .window-titlebar,
+html[data-board-theme="vaporwave"] .vgui-video-titlebar {
+  background: linear-gradient(
+    90deg,
+    #ff71ce 0%,
+    #b967ff 50%,
+    #01cdfe 100%
+  ) !important;
+  color: #100320 !important;
+  font-weight: 800;
+  border-bottom: 1px solid #ff71ce !important;
+  box-shadow: 0 0 12px rgba(255, 113, 206, 0.5) !important;
+  border-radius: calc(var(--theme-radius) - 2px) calc(var(--theme-radius) - 2px) 0 0 !important;
+}
+
+html[data-board-theme="vaporwave"] .vgui-topbar {
+  background: linear-gradient(
+    180deg,
+    rgba(60, 22, 105, 0.85) 0%,
+    rgba(35, 12, 65, 0.9) 100%
+  ) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid #ff71ce !important;
+  box-shadow: 0 4px 20px rgba(255, 113, 206, 0.3), inset 0 1px 0 rgba(1, 205, 254, 0.6) !important;
+  color: #01cdfe !important;
+}
+
+html[data-board-theme="vaporwave"] .statusbar {
+  background: linear-gradient(
+    180deg,
+    rgba(60, 22, 105, 0.85) 0%,
+    rgba(35, 12, 65, 0.9) 100%
+  ) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-top: 1px solid #ff71ce !important;
+  border-bottom: none !important;
+  box-shadow: 0 -4px 20px rgba(255, 113, 206, 0.25), inset 0 1px 0 rgba(1, 205, 254, 0.6) !important;
+  color: #01cdfe !important;
+}
+
+html[data-board-theme="vaporwave"] .btn,
+html[data-board-theme="vaporwave"] .topbar-btn,
+html[data-board-theme="vaporwave"] .window-btn,
+html[data-board-theme="vaporwave"] .sticky-toggle-btn,
+html[data-board-theme="vaporwave"] .vgui-video-winbtn,
+html[data-board-theme="vaporwave"] .excalidraw .ToolIcon_type_button,
+html[data-board-theme="vaporwave"] .excalidraw .ToolIcon_type_radio,
+html[data-board-theme="vaporwave"] .excalidraw .ExcButton,
+html[data-board-theme="vaporwave"] .excalidraw .sidebar-trigger {
+  background: linear-gradient(
+    180deg,
+    #4a1c82 0%,
+    #2a0e4e 100%
+  ) !important;
+  border: 1px solid #01cdfe !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: #01cdfe !important;
+  box-shadow: 0 0 6px rgba(1, 205, 254, 0.35) !important;
+}
+
+html[data-board-theme="vaporwave"] .btn.primary,
+html[data-board-theme="vaporwave"] .topbar-btn.active,
+html[data-board-theme="vaporwave"] .excalidraw .ToolIcon_type_radio[aria-checked="true"],
+html[data-board-theme="vaporwave"] .excalidraw .ToolIcon_type_button[aria-checked="true"],
+html[data-board-theme="vaporwave"] .excalidraw [aria-selected="true"] {
+  background: linear-gradient(
+    180deg,
+    #ff9be2 0%,
+    var(--vgui-selected-bg) 50%,
+    #cc3da0 100%
+  ) !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(255, 113, 206, 0.75) !important;
+}
+
+/* ---------- Preset 9: Windows XP (Luna 2001 Royal Blue & Silver Chrome) ---------- */
+
+html[data-board-theme="windows-xp"] .window-frame,
+html[data-board-theme="windows-xp"] .excalidraw .Island,
+html[data-board-theme="windows-xp"] .excalidraw .dropdown-menu,
+html[data-board-theme="windows-xp"] .excalidraw .popover,
+html[data-board-theme="windows-xp"] .excalidraw .Modal,
+html[data-board-theme="windows-xp"] .excalidraw .color-picker,
+html[data-board-theme="windows-xp"] .topbar-popover,
+html[data-board-theme="windows-xp"] .presenter-bar,
+html[data-board-theme="windows-xp"] .templates-modal,
+html[data-board-theme="windows-xp"] .presence-banner,
+html[data-board-theme="windows-xp"] .voting-banner,
+html[data-board-theme="windows-xp"] .vgui-video-window {
+  background: #ece9d8 !important;
+  border: 1px solid #0055ea !important;
+  border-radius: var(--theme-radius) !important;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #d0ccb8,
+    0 6px 18px rgba(0, 40, 110, 0.25) !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="windows-xp"] .window-titlebar,
+html[data-board-theme="windows-xp"] .vgui-video-titlebar {
+  background: linear-gradient(
+    180deg,
+    #0058e6 0%,
+    #3a8df8 12%,
+    #0055ea 50%,
+    #0042b5 100%
+  ) !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  border-bottom: 1px solid #002e82 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+  border-radius: calc(var(--theme-radius) - 2px) calc(var(--theme-radius) - 2px) 0 0 !important;
+}
+
+html[data-board-theme="windows-xp"] .vgui-topbar {
+  background: linear-gradient(
+    180deg,
+    #0058e6 0%,
+    #3a8df8 12%,
+    #0055ea 50%,
+    #0044b7 100%
+  ) !important;
+  border-bottom: 1px solid #002e82 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 2px 6px rgba(0, 0, 0, 0.25) !important;
+  color: #ffffff !important;
+}
+
+html[data-board-theme="windows-xp"] .vgui-topbar .topbar-btn {
+  background: linear-gradient(180deg, #ffffff 0%, #ece9d8 50%, #d8d4c2 100%) !important;
+  border: 1px solid #003c74 !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="windows-xp"] .statusbar {
+  background: #ece9d8 !important;
+  border-top: 1px solid #ffffff !important;
+  border-bottom: none !important;
+  box-shadow: inset 0 1px 0 #d0ccb8 !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="windows-xp"] .topbar-title {
+  background: #0044b7 !important;
+  border: 1px solid #002e82 !important;
+  color: #ffffff !important;
+}
+
+html[data-board-theme="windows-xp"] .window-btn.close {
+  background: linear-gradient(180deg, #e06045 0%, #c43818 50%, #9e2508 100%) !important;
+  border: 1px solid #ffffff !important;
+  color: #ffffff !important;
+  border-radius: 3px !important;
+}
+
+html[data-board-theme="windows-xp"] .btn,
+html[data-board-theme="windows-xp"] .topbar-btn,
+html[data-board-theme="windows-xp"] .window-btn,
+html[data-board-theme="windows-xp"] .sticky-toggle-btn,
+html[data-board-theme="windows-xp"] .vgui-video-winbtn,
+html[data-board-theme="windows-xp"] .excalidraw .ToolIcon_type_button,
+html[data-board-theme="windows-xp"] .excalidraw .ToolIcon_type_radio,
+html[data-board-theme="windows-xp"] .excalidraw .ExcButton,
+html[data-board-theme="windows-xp"] .excalidraw .sidebar-trigger {
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #ece9d8 50%,
+    #d8d4c2 100%
+  ) !important;
+  border: 1px solid #003c74 !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: #000000 !important;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 1px 2px rgba(0, 0, 0, 0.15) !important;
+}
+
+html[data-board-theme="windows-xp"] .btn.primary,
+html[data-board-theme="windows-xp"] .topbar-btn.active,
+html[data-board-theme="windows-xp"] .excalidraw .ToolIcon_type_radio[aria-checked="true"],
+html[data-board-theme="windows-xp"] .excalidraw .ToolIcon_type_button[aria-checked="true"],
+html[data-board-theme="windows-xp"] .excalidraw [aria-selected="true"] {
+  background: linear-gradient(
+    180deg,
+    #49c256 0%,
+    #2ea836 50%,
+    #1d7c24 100%
+  ) !important;
+  color: #ffffff !important;
+  border-color: #17601c !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 6px rgba(46, 168, 54, 0.5) !important;
+}
+
+/* ---------- Preset 10: Mac OS 9 Platinum (1999 Apple Pinstripes) ---------- */
+
+html[data-board-theme="mac-os9"] .window-frame,
+html[data-board-theme="mac-os9"] .excalidraw .Island,
+html[data-board-theme="mac-os9"] .excalidraw .dropdown-menu,
+html[data-board-theme="mac-os9"] .excalidraw .popover,
+html[data-board-theme="mac-os9"] .excalidraw .Modal,
+html[data-board-theme="mac-os9"] .excalidraw .color-picker,
+html[data-board-theme="mac-os9"] .topbar-popover,
+html[data-board-theme="mac-os9"] .presenter-bar,
+html[data-board-theme="mac-os9"] .templates-modal,
+html[data-board-theme="mac-os9"] .presence-banner,
+html[data-board-theme="mac-os9"] .voting-banner,
+html[data-board-theme="mac-os9"] .vgui-video-window {
+  background: repeating-linear-gradient(
+    180deg,
+    #e8e8e8 0px,
+    #e8e8e8 1px,
+    #d8d8d8 1px,
+    #d8d8d8 2px
+  ) !important;
+  border: 1px solid #777777 !important;
+  border-radius: var(--theme-radius) !important;
+  box-shadow:
+    inset 1px 1px 0 #ffffff,
+    inset -1px -1px 0 #aaaaaa,
+    0 6px 20px rgba(0, 0, 0, 0.22) !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="mac-os9"] .window-titlebar,
+html[data-board-theme="mac-os9"] .vgui-video-titlebar {
+  background: repeating-linear-gradient(
+    180deg,
+    #efefef 0px,
+    #efefef 1px,
+    #cccccc 1px,
+    #cccccc 2px
+  ) !important;
+  border-bottom: 1px solid #777777 !important;
+  box-shadow: inset 0 1px 0 #ffffff !important;
+  border-radius: calc(var(--theme-radius) - 2px) calc(var(--theme-radius) - 2px) 0 0 !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="mac-os9"] .vgui-topbar {
+  background: repeating-linear-gradient(
+    180deg,
+    #e8e8e8 0px,
+    #e8e8e8 1px,
+    #d5d5d5 1px,
+    #d5d5d5 2px
+  ) !important;
+  border-bottom: 1px solid #888888 !important;
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 4px rgba(0, 0, 0, 0.15) !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="mac-os9"] .statusbar {
+  background: repeating-linear-gradient(
+    180deg,
+    #e8e8e8 0px,
+    #e8e8e8 1px,
+    #d5d5d5 1px,
+    #d5d5d5 2px
+  ) !important;
+  border-top: 1px solid #888888 !important;
+  border-bottom: none !important;
+  box-shadow: inset 0 1px 0 #ffffff, 0 -1px 4px rgba(0, 0, 0, 0.1) !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="mac-os9"] .btn,
+html[data-board-theme="mac-os9"] .topbar-btn,
+html[data-board-theme="mac-os9"] .window-btn,
+html[data-board-theme="mac-os9"] .sticky-toggle-btn,
+html[data-board-theme="mac-os9"] .vgui-video-winbtn,
+html[data-board-theme="mac-os9"] .excalidraw .ToolIcon_type_button,
+html[data-board-theme="mac-os9"] .excalidraw .ToolIcon_type_radio,
+html[data-board-theme="mac-os9"] .excalidraw .ExcButton,
+html[data-board-theme="mac-os9"] .excalidraw .sidebar-trigger {
+  background: linear-gradient(
+    180deg,
+    #f2f2f2 0%,
+    #dcdcdc 50%,
+    #c4c4c4 100%
+  ) !important;
+  border: 1px solid #666666 !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: #000000 !important;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 1px 1px rgba(0, 0, 0, 0.15) !important;
+}
+
+html[data-board-theme="mac-os9"] .btn.primary,
+html[data-board-theme="mac-os9"] .topbar-btn.active,
+html[data-board-theme="mac-os9"] .excalidraw .ToolIcon_type_radio[aria-checked="true"],
+html[data-board-theme="mac-os9"] .excalidraw .ToolIcon_type_button[aria-checked="true"],
+html[data-board-theme="mac-os9"] .excalidraw [aria-selected="true"] {
+  background: linear-gradient(
+    180deg,
+    #5a7ec4 0%,
+    var(--vgui-selected-bg) 50%,
+    #284277 100%
+  ) !important;
+  color: #ffffff !important;
+  border-color: #1a2f58 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 0 6px rgba(58, 88, 152, 0.5) !important;
+}
+
+/* ---------- Preset 4: DOS TUI (Borland / Norton VGA Box Chrome) ---------- */
+
+html[data-board-theme="dos-tui"] body,
+html[data-board-theme="dos-tui"] .excalidraw {
+  font-family: var(--theme-font) !important;
+}
+
+html[data-board-theme="dos-tui"] .window-frame,
+html[data-board-theme="dos-tui"] .excalidraw .Island,
+html[data-board-theme="dos-tui"] .excalidraw .dropdown-menu,
+html[data-board-theme="dos-tui"] .excalidraw .popover,
+html[data-board-theme="dos-tui"] .excalidraw .Modal,
+html[data-board-theme="dos-tui"] .excalidraw .color-picker,
+html[data-board-theme="dos-tui"] .topbar-popover,
+html[data-board-theme="dos-tui"] .presenter-bar,
+html[data-board-theme="dos-tui"] .templates-modal,
+html[data-board-theme="dos-tui"] .presence-banner,
+html[data-board-theme="dos-tui"] .voting-banner,
+html[data-board-theme="dos-tui"] .vgui-video-window {
+  background: #0000aa !important;
+  border: 2px solid #ffffff !important;
+  border-radius: 0 !important;
+  box-shadow: 4px 4px 0 #000000 !important;
+  color: #ffffff !important;
+}
+
+html[data-board-theme="dos-tui"] .window-titlebar,
+html[data-board-theme="dos-tui"] .vgui-video-titlebar {
+  background: #00aaaa !important;
+  color: #000000 !important;
+  font-weight: bold;
+  border-bottom: 2px solid #000000 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-board-theme="dos-tui"] .vgui-topbar {
+  background: #00aaaa !important;
+  color: #000000 !important;
+  border-bottom: 2px solid #000000 !important;
+  border-radius: 0 !important;
+  font-family: var(--theme-font) !important;
+}
+
+html[data-board-theme="dos-tui"] .vgui-topbar .topbar-title {
+  background: #0000aa !important;
+  color: #ffff55 !important;
+  border: 1px solid #ffffff !important;
+  border-radius: 0 !important;
+}
+
+html[data-board-theme="dos-tui"] .statusbar {
+  background: #00aaaa !important;
+  color: #000000 !important;
+  border-top: 2px solid #000000 !important;
+  border-bottom: none !important;
+  border-radius: 0 !important;
+  font-family: var(--theme-font) !important;
+}
+
+html[data-board-theme="dos-tui"] .btn,
+html[data-board-theme="dos-tui"] .topbar-btn,
+html[data-board-theme="dos-tui"] .window-btn,
+html[data-board-theme="dos-tui"] .sticky-toggle-btn,
+html[data-board-theme="dos-tui"] .vgui-video-winbtn,
+html[data-board-theme="dos-tui"] .excalidraw .ToolIcon_type_button,
+html[data-board-theme="dos-tui"] .excalidraw .ToolIcon_type_radio,
+html[data-board-theme="dos-tui"] .excalidraw .ExcButton,
+html[data-board-theme="dos-tui"] .excalidraw .sidebar-trigger {
+  background: #00aaaa !important;
+  color: #000000 !important;
+  border: 1px solid #000000 !important;
+  border-radius: 0 !important;
+  box-shadow: 2px 2px 0 #000000 !important;
+}
+
+html[data-board-theme="dos-tui"] .btn.primary,
+html[data-board-theme="dos-tui"] .topbar-btn.active,
+html[data-board-theme="dos-tui"] .excalidraw .ToolIcon_type_radio[aria-checked="true"],
+html[data-board-theme="dos-tui"] .excalidraw .ToolIcon_type_button[aria-checked="true"],
+html[data-board-theme="dos-tui"] .excalidraw [aria-selected="true"] {
+  background: #ffff55 !important;
+  color: #000000 !important;
+  font-weight: bold;
+}
+
+/* ---------- Preset 11: Win95/98 Classic (Redmond 1995 3D Bevel) ---------- */
+
+html[data-board-theme="win95"] body,
+html[data-board-theme="win95"] .excalidraw {
+  font-family: var(--theme-font) !important;
+}
+
+html[data-board-theme="win95"] .window-frame,
+html[data-board-theme="win95"] .excalidraw .Island,
+html[data-board-theme="win95"] .excalidraw .dropdown-menu,
+html[data-board-theme="win95"] .excalidraw .popover,
+html[data-board-theme="win95"] .excalidraw .Modal,
+html[data-board-theme="win95"] .excalidraw .color-picker,
+html[data-board-theme="win95"] .topbar-popover,
+html[data-board-theme="win95"] .presenter-bar,
+html[data-board-theme="win95"] .templates-modal,
+html[data-board-theme="win95"] .presence-banner,
+html[data-board-theme="win95"] .voting-banner,
+html[data-board-theme="win95"] .vgui-video-window {
+  background: #c0c0c0 !important;
+  border-radius: 0 !important;
+  border: 1px solid #ffffff !important;
+  border-right-color: #000000 !important;
+  border-bottom-color: #000000 !important;
+  box-shadow:
+    inset 1px 1px 0 #dfdfdf,
+    inset -1px -1px 0 #808080 !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="win95"] .window-titlebar,
+html[data-board-theme="win95"] .vgui-video-titlebar {
+  background: linear-gradient(90deg, #000080 0%, #1084d0 100%) !important;
+  color: #ffffff !important;
+  font-weight: bold;
+  box-shadow: none;
+  border-radius: 0 !important;
+  border-bottom: 1px solid #808080;
+}
+
+html[data-board-theme="win95"] .vgui-topbar {
+  background: #c0c0c0 !important;
+  border-bottom: 1px solid #808080 !important;
+  box-shadow: inset 0 1px 0 #ffffff, inset 0 -1px 0 #000000 !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="win95"] .statusbar {
+  background: #c0c0c0 !important;
+  border-top: 1px solid #ffffff !important;
+  border-bottom: none !important;
+  box-shadow: inset 0 -1px 0 #808080 !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="win95"] .btn,
+html[data-board-theme="win95"] .topbar-btn,
+html[data-board-theme="win95"] .window-btn,
+html[data-board-theme="win95"] .sticky-toggle-btn,
+html[data-board-theme="win95"] .vgui-video-winbtn,
+html[data-board-theme="win95"] .excalidraw .ToolIcon_type_button,
+html[data-board-theme="win95"] .excalidraw .ToolIcon_type_radio,
+html[data-board-theme="win95"] .excalidraw .ExcButton,
+html[data-board-theme="win95"] .excalidraw .sidebar-trigger {
+  background: #c0c0c0 !important;
+  border-radius: 0 !important;
+  border: 1px solid #ffffff !important;
+  border-right-color: #000000 !important;
+  border-bottom-color: #000000 !important;
+  color: #000000 !important;
+  box-shadow:
+    inset 1px 1px 0 #dfdfdf,
+    inset -1px -1px 0 #808080 !important;
+}
+
+html[data-board-theme="win95"] .btn:active:not(:disabled),
+html[data-board-theme="win95"] .btn.primary,
+html[data-board-theme="win95"] .topbar-btn.active,
+html[data-board-theme="win95"] .excalidraw .ToolIcon_type_radio[aria-checked="true"],
+html[data-board-theme="win95"] .excalidraw .ToolIcon_type_button[aria-checked="true"],
+html[data-board-theme="win95"] .excalidraw [aria-selected="true"] {
+  background: #c0c0c0 !important;
+  border-color: #000000 #ffffff #ffffff #000000 !important;
+  color: #000080 !important;
+  font-weight: bold;
+  box-shadow:
+    inset 1px 1px 0 #808080,
+    inset -1px -1px 0 #dfdfdf !important;
+}
+
+/* ==========================================================================
+   GitHub Issue Cards & Issues Drawer
+   ========================================================================== */
+
+.caulk-issue-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  background: var(--vgui-bg, #2b3327);
+  border: 1px solid var(--vgui-border, #1c221a);
+  border-left-width: 4px;
+  border-radius: var(--theme-radius-sm, 4px);
+  box-shadow: inset 1px 1px 0 var(--vgui-light, rgba(255,255,255,0.08)), inset -1px -1px 0 var(--vgui-dark, rgba(0,0,0,0.3)), 0 4px 12px rgba(0,0,0,0.35);
+  font-family: var(--theme-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  color: var(--ink, #ffffff);
+  user-select: text;
+  overflow: hidden;
+}
+
+.caulk-issue-card.state-open {
+  border-left-color: #238636;
+}
+
+.caulk-issue-card.state-closed {
+  border-left-color: #8957e5;
+}
+
+.issue-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-bottom: 6px;
+}
+
+.issue-card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.issue-gh-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.issue-number-link {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--vgui-accent, #c59c3a);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.issue-number-link:hover {
+  text-decoration: underline;
+}
+
+.issue-state-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.issue-state-badge.open {
+  background: rgba(35, 134, 54, 0.25);
+  color: #3fb950;
+  border: 1px solid rgba(35, 134, 54, 0.45);
+}
+
+.issue-state-badge.closed {
+  background: rgba(137, 87, 229, 0.25);
+  color: #a371f7;
+  border: 1px solid rgba(137, 87, 229, 0.45);
+}
+
+.issue-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.issue-action-btn {
+  padding: 2px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--vgui-base, rgba(0, 0, 0, 0.2));
+  color: var(--vgui-text, #e6d6ac);
+  border: 1px solid var(--vgui-border, rgba(0, 0, 0, 0.3));
+  border-radius: var(--theme-radius-sm, 2px);
+  cursor: pointer;
+  line-height: 1.2;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.issue-action-btn:hover:not(:disabled) {
+  background: var(--vgui-hover, rgba(255, 255, 255, 0.12));
+  color: #ffffff;
+}
+
+.issue-action-btn.toggle.btn-close:hover {
+  background: rgba(218, 54, 51, 0.35);
+  border-color: #da3633;
+}
+
+.issue-action-btn.toggle.btn-reopen:hover {
+  background: rgba(35, 134, 54, 0.35);
+  border-color: #238636;
+}
+
+.issue-action-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.issue-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.issue-card-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink, #ffffff);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+}
+
+.issue-card-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.issue-label-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.issue-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--vgui-dim, #8b9982);
+  border-top: 1px solid var(--vgui-dark, rgba(0, 0, 0, 0.18));
+  padding-top: 6px;
+}
+
+.issue-footer-author {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.issue-author-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.issue-author-name {
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issue-footer-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.issue-comments-badge {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.issue-assignees {
+  display: flex;
+  align-items: center;
+}
+
+.issue-assignee-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--vgui-base, #3e4637);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  border: 1px solid var(--vgui-border, #000);
+  margin-left: -4px;
+  overflow: hidden;
+}
+
+.issue-assignee-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.issue-card-error {
+  font-size: 10px;
+  color: #ff6b6b;
+  margin-top: 4px;
+}
+
+.spin {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.auth-expired-banner {
+  position: absolute;
+  top: 46px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--vgui-base, #1b2219);
+  border: 2px solid var(--err, #d64949);
+  border-radius: var(--theme-radius-sm, 3px);
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--vgui-fg, #ffffff);
+  animation: soundboardToastSlideIn 0.2s ease;
+}
+

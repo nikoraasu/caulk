@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import * as Y from "yjs";
 import {
+  GitHubAdapter,
+  GitHubError,
   fetchCurrentUser,
   fetchUserRepos,
   inspectRepo,
@@ -7,6 +10,20 @@ import {
   type GitHubRepoItem,
   type GitHubUser,
 } from "../storage/github";
+import { EncryptedStore } from "../storage/encrypted";
+import { TemplateGalleryModal } from "../features/templates/TemplateGalleryModal";
+import { seedDocFromTemplate } from "../features/templates/store";
+import type { BoardTemplate } from "../features/templates/types";
+import {
+  clearHomeAuthCaches,
+  loadCachedBoards,
+  loadCachedRepos,
+  loadCachedUser,
+  loadLastRepo,
+  saveCachedRepos,
+  saveCachedUser,
+  saveLastRepo,
+} from "../features/home/store";
 import {
   boardLabel,
   clearAuth,
@@ -16,8 +33,10 @@ import {
   saveSession,
   setBoardPassphrase,
   slugifyBoardName,
+  type BoardTarget,
   type Session,
 } from "../config";
+import { HomeDashboard } from "../features/home/HomeDashboard";
 import {
   getFreshCredential,
   loadStoredToken,
@@ -98,8 +117,8 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
   const kind: TokenKind = cred?.kind ?? "pat";
   const isAppLogin = kind === "app";
 
-  const [ghUser, setGhUser] = useState<GitHubUser | null>(null);
-  const [userRepos, setUserRepos] = useState<GitHubRepoItem[]>([]);
+  const [ghUser, setGhUser] = useState<GitHubUser | null>(() => loadCachedUser());
+  const [userRepos, setUserRepos] = useState<GitHubRepoItem[]>(() => loadCachedRepos());
   const [existingBoards, setExistingBoards] = useState<string[]>([]);
   const [loadingUser, setLoadingUser] = useState(false);
   const [loadingBoards, setLoadingBoards] = useState(false);
@@ -111,7 +130,7 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
     : "";
 
   const [repoInput, setRepoInput] = useState(
-    urlParams.repo || (existing ? `${existing.owner}/${existing.repo}` : ""),
+    urlParams.repo || (existing ? `${existing.owner}/${existing.repo}` : "") || loadLastRepo(),
   );
   const [isCustomRepo, setIsCustomRepo] = useState(false);
   const [branch, setBranch] = useState(existing?.branch ?? "main");
@@ -121,6 +140,9 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
   );
   const [boardPassword, setBoardPassword] = useState("");
   const [rememberPassword, setRememberPassword] = useState(false);
+  const [starterTemplate, setStarterTemplate] = useState<BoardTemplate | null>(null);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
   const [check, setCheck] = useState<CheckState>({ state: "idle" });
   const [error, setError] = useState<string | null>(urlParams.error || null);
 
@@ -176,7 +198,7 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
     };
   }, []);
 
-  // Load GitHub user profile and repositories when token is present
+  // Load GitHub user profile and repositories independently; keep cached lists on rate limits
   useEffect(() => {
     const activeToken = token.trim();
     if (!activeToken) {
@@ -188,36 +210,53 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
     let isSubscribed = true;
     setLoadingUser(true);
 
-    fetchCurrentUser(activeToken)
-      .then((user) => {
+    void Promise.allSettled([
+      fetchCurrentUser(activeToken),
+      fetchUserRepos(activeToken, kind),
+    ])
+      .then(([userRes, reposRes]) => {
         if (!isSubscribed) return;
-        setGhUser(user);
-        return fetchUserRepos(activeToken, kind);
-      })
-      .then((repos) => {
-        if (!isSubscribed || !repos) return;
-        setUserRepos(repos);
+        let firstErr: unknown = null;
 
-        // Preselect repo if empty and repos exist
-        if (!repoInput && repos.length > 0) {
-          const first = repos[0];
-          setRepoInput(first.fullName);
-          setBranch(first.defaultBranch);
-        } else if (repoInput) {
-          const match = repos.find(
-            (r) => r.fullName.toLowerCase() === repoInput.trim().toLowerCase(),
-          );
-          if (match) {
-            setBranch(match.defaultBranch);
-          } else {
-            setIsCustomRepo(true);
+        if (userRes.status === "fulfilled") {
+          setGhUser(userRes.value);
+          saveCachedUser(userRes.value);
+        } else {
+          firstErr = userRes.reason;
+          if (userRes.reason instanceof GitHubError && userRes.reason.status === 401) {
+            setGhUser(null);
+            saveCachedUser(null);
           }
         }
-      })
-      .catch((err) => {
-        if (!isSubscribed) return;
-        setGhUser(null);
-        setError(err instanceof Error ? err.message : String(err));
+
+        if (reposRes.status === "fulfilled") {
+          const repos = reposRes.value;
+          setUserRepos(repos);
+          saveCachedRepos(repos);
+          if (!repoInput && repos.length > 0) {
+            const first = repos[0];
+            setRepoInput(first.fullName);
+            setBranch(first.defaultBranch);
+            saveLastRepo(first.fullName);
+          } else if (repoInput) {
+            const match = repos.find(
+              (r) => r.fullName.toLowerCase() === repoInput.trim().toLowerCase(),
+            );
+            if (match) {
+              setBranch(match.defaultBranch);
+            } else {
+              setIsCustomRepo(true);
+            }
+          }
+        } else if (!firstErr) {
+          firstErr = reposRes.reason;
+        }
+
+        if (firstErr) {
+          setError(firstErr instanceof Error ? firstErr.message : String(firstErr));
+        } else {
+          setError((prev) => (prev && prev.includes("rate limit") ? null : prev));
+        }
       })
       .finally(() => {
         if (isSubscribed) setLoadingUser(false);
@@ -228,11 +267,11 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
     };
   }, [token, kind, repoNonce]);
 
-  // Fetch existing boards whenever a repo is selected
+  // Fetch existing boards only when the manual form is actually active
   useEffect(() => {
+    const manualVisible = Boolean(urlParams.board || showManualForm);
     const parsed = parseRepo(repoInput);
-    if (!parsed || !token.trim()) {
-      setExistingBoards([]);
+    if (!manualVisible || !parsed || !token.trim()) {
       return;
     }
 
@@ -245,7 +284,9 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
         setExistingBoards(boards);
       })
       .catch(() => {
-        if (isSubscribed) setExistingBoards([]);
+        if (!isSubscribed) return;
+        const cached = loadCachedBoards(parsed.owner, parsed.repo).map((b) => b.name);
+        setExistingBoards(cached);
       })
       .finally(() => {
         if (isSubscribed) setLoadingBoards(false);
@@ -254,9 +295,22 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
     return () => {
       isSubscribed = false;
     };
-  }, [repoInput, branch, token]);
+  }, [repoInput, branch, token, showManualForm, urlParams.board]);
 
   const parsed = parseRepo(repoInput);
+  const manualTemplateRepoConfig = useMemo(
+    () =>
+      parsed && token.trim()
+        ? {
+            token: token.trim(),
+            owner: parsed.owner,
+            repo: parsed.repo,
+            branch: branch.trim() || "main",
+            passphrase: boardPassword,
+          }
+        : null,
+    [parsed?.owner, parsed?.repo, token, branch, boardPassword],
+  );
   const canSubmit = Boolean(parsed) && token.trim().length > 10 && boardName.trim().length > 0;
 
   async function verify() {
@@ -291,6 +345,7 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
     }
     setIsCustomRepo(false);
     setRepoInput(fullName);
+    saveLastRepo(fullName);
     const repoData = userRepos.find((r) => r.fullName === fullName);
     if (repoData) {
       setBranch(repoData.defaultBranch);
@@ -306,6 +361,7 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
 
   function handleLogout() {
     clearAuth();
+    clearHomeAuthCaches();
     setCred(null);
     setGhUser(null);
     setUserRepos([]);
@@ -364,8 +420,80 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
       identity: ensureIdentity(userName),
     };
 
+    saveLastRepo(`${session.owner}/${session.repo}`);
+    saveSession(session, { rememberToken: true });
+
+    // Seed brand-new board from selected template if it does not already exist.
+    if (starterTemplate) {
+      try {
+        const adapter = new GitHubAdapter({
+          token: session.token,
+          owner: session.owner,
+          repo: session.repo,
+          branch: session.branch,
+          path: session.path,
+        });
+        const existingData = await adapter.read().catch(() => ({ status: "missing" as const }));
+        if (existingData.status === "missing") {
+          const seedDoc = new Y.Doc();
+          seedDocFromTemplate(seedDoc, starterTemplate);
+          const store = new EncryptedStore(adapter, session.passphrase);
+          await store.save(Y.encodeStateAsUpdate(seedDoc));
+          seedDoc.destroy();
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        return;
+      }
+    }
+
+    onReady(session);
+  }
+
+  async function openDashboardBoard(target: BoardTarget, passphraseOverride?: string) {
+    saveLastRepo(`${target.owner}/${target.repo}`);
+    let credential = cred;
+    if (cred?.kind === "app") {
+      try {
+        const fresh = await getFreshCredential();
+        if (fresh.kind === "app") credential = fresh;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        return;
+      }
+    }
+    if (!credential) {
+      setError("Log in with GitHub first.");
+      return;
+    }
+    const userName = ghUser?.login || "Collaborator";
+    const session: Session = {
+      ...target,
+      token: credential.token.trim(),
+      tokenKind: credential.kind,
+      refreshToken: credential.refreshToken,
+      expiresAt: credential.expiresAt,
+      passphrase: passphraseOverride || getBoardPassphrase(target),
+      identity: ensureIdentity(userName),
+    };
     saveSession(session, { rememberToken: true });
     onReady(session);
+  }
+
+  if (token.trim() && !exchangingCode && !urlParams.board && !showManualForm) {
+    return (
+      <HomeDashboard
+        token={token.trim()}
+        user={ghUser}
+        repos={userRepos}
+        initialRepo={repoInput}
+        initialBranch={branch}
+        apiNotice={error}
+        onOpenBoard={(target, pass) => void openDashboardBoard(target, pass)}
+        onLogout={handleLogout}
+        onSwitchToManual={() => setShowManualForm(true)}
+      />
+    );
   }
 
   return (
@@ -728,6 +856,39 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
                     ? "Searching repository for existing boards…"
                     : `Saved as boards/${slugifyBoardName(boardName)}`}
                 </small>
+                {!existingBoards.some(
+                  (b) => b.toLowerCase() === slugifyBoardName(boardName).toLowerCase(),
+                ) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 11, color: "var(--ink-soft)" }}>Starter:</span>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      style={{
+                        padding: "3px 8px",
+                        fontSize: 11,
+                        background: !starterTemplate ? "var(--vgui-selected-bg)" : undefined,
+                        color: !starterTemplate ? "#FFFFFF" : undefined,
+                      }}
+                      onClick={() => setStarterTemplate(null)}
+                    >
+                      Blank board
+                    </button>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      style={{
+                        padding: "3px 8px",
+                        fontSize: 11,
+                        background: starterTemplate ? "var(--vgui-selected-bg)" : undefined,
+                        color: starterTemplate ? "#FFFFFF" : undefined,
+                      }}
+                      onClick={() => setTemplatePickerOpen(true)}
+                    >
+                      {starterTemplate ? `📐 ${starterTemplate.name} (change…)` : "📐 Start from template…"}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Optional board password, encrypts this board with the user's own passphrase */}
@@ -798,6 +959,13 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
               <button
                 type="button"
                 className="btn ghost"
+                onClick={() => setShowManualForm(false)}
+              >
+                📋 Boards Home
+              </button>
+              <button
+                type="button"
+                className="btn ghost"
                 onClick={verify}
                 disabled={check.state === "checking" || !token.trim()}
               >
@@ -810,6 +978,17 @@ export function SetupScreen({ onReady }: { onReady: (session: Session) => void }
           )}
         </form>
       </div>
+      <TemplateGalleryModal
+        open={templatePickerOpen}
+        repoConfig={manualTemplateRepoConfig}
+        includeBlankOption
+        title="Start New Board from Template"
+        onSelectTemplate={(tpl) => {
+          setStarterTemplate(tpl);
+          setTemplatePickerOpen(false);
+        }}
+        onClose={() => setTemplatePickerOpen(false)}
+      />
     </div>
   );
 }

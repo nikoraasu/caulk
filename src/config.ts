@@ -176,6 +176,16 @@ export function clearBoardPassphrase(target: BoardTarget): void {
 export function loadSession(target: BoardTarget): Session | null {
   const stored = loadStoredToken();
   if (!stored) return null;
+  // If GitHub App token is expired and lacks a refresh token, consider session invalid
+  if (
+    stored.kind === "app" &&
+    stored.expiresAt &&
+    Date.now() > stored.expiresAt &&
+    !stored.refreshToken
+  ) {
+    clearStoredToken();
+    return null;
+  }
   const passphrase =
     findStoredPassphrase(target) ??
     sessionStorage.getItem(PASSPHRASE_KEY) ??
@@ -219,6 +229,9 @@ export function saveSession(session: Session, opts: { rememberToken: boolean }):
     },
     opts.rememberToken,
   );
+  try {
+    sessionStorage.setItem("caulk.active_session.v1", "true");
+  } catch {}
   // Session-scoped only: the "remember on this device" choice belongs to
   // setBoardPassphrase, so saving the session must not touch localStorage.
   const sessionMap = readPassphraseMap(sessionStorage);
@@ -235,6 +248,9 @@ export function clearSession(): void {
   localStorage.removeItem(TARGET_KEY);
   sessionStorage.removeItem(PASSPHRASE_KEY);
   sessionStorage.removeItem(PASSPHRASES_KEY);
+  try {
+    sessionStorage.removeItem("caulk.active_session.v1");
+  } catch {}
 }
 
 export function clearAuth(): void {

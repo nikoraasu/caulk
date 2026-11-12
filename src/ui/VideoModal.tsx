@@ -115,7 +115,7 @@ export function VideoModal({ open, onClose, onInsertVideo, uploadAsset }: Props)
                   fontSize: 12,
                   fontWeight: 600,
                   marginBottom: 6,
-                  color: "var(--vgui-light)",
+                  color: "var(--ink)",
                 }}
               >
                 Video or Embed URL:
@@ -132,7 +132,7 @@ export function VideoModal({ open, onClose, onInsertVideo, uploadAsset }: Props)
               <div
                 style={{
                   fontSize: 11,
-                  color: "var(--vgui-muted)",
+                  color: "var(--ink-soft)",
                   lineHeight: 1.5,
                   marginBottom: 12,
                 }}
@@ -145,7 +145,7 @@ export function VideoModal({ open, onClose, onInsertVideo, uploadAsset }: Props)
 
               {/* Sample link buttons */}
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-                <span style={{ fontSize: 11, color: "var(--vgui-muted)", alignSelf: "center" }}>
+                <span style={{ fontSize: 11, color: "var(--ink-soft)", alignSelf: "center" }}>
                   Try example:
                 </span>
                 <button
@@ -176,42 +176,43 @@ export function VideoModal({ open, onClose, onInsertVideo, uploadAsset }: Props)
                   fontSize: 12,
                   fontWeight: 600,
                   marginBottom: 6,
-                  color: "var(--vgui-light)",
+                  color: "var(--ink)",
                 }}
               >
                 Choose Local Video Clip (&le; {ASSET_MAX_MB} MB):
               </label>
-              <input
-                type="file"
-                accept="video/mp4,video/webm,video/ogg,video/quicktime"
-                onChange={handleFileChange}
-                disabled={uploading}
-                style={{
-                  marginBottom: 8,
-                  fontSize: 12,
-                  color: "var(--vgui-light)",
-                }}
-              />
+              <label className="vgui-file-picker" style={{ marginBottom: 8 }}>
+                <input
+                  type="file"
+                  accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                  onChange={handleFileChange}
+                  disabled={uploading}
+                  className="vgui-file-input"
+                />
+                <span className="btn ghost" style={{ pointerEvents: "none" }}>
+                  Browse…
+                </span>
+                <span className="vgui-file-name">
+                  {file && fileSizeMb !== null
+                    ? `${file.name} (${fileSizeMb} MB)`
+                    : "No video clip selected"}
+                </span>
+              </label>
               {uploading && (
-                <div style={{ fontSize: 12, color: "var(--vgui-orange)", marginBottom: 8 }}>
-                  Uploading…
+                <div style={{ fontSize: 12, color: "var(--vgui-accent)", marginBottom: 8 }}>
+                  Uploading &amp; encrypting…
                 </div>
               )}
-              {file && fileSizeMb !== null && (
-                <div style={{ fontSize: 11, color: "var(--vgui-light)", marginBottom: 8 }}>
-                  Selected: <strong>{file.name}</strong> ({fileSizeMb} MB)
-                  {isFileOversized && (
-                    <div style={{ color: "#f87171", marginTop: 4, lineHeight: 1.4 }}>
-                      ⚠️ File exceeds {ASSET_MAX_MB} MB. Pick a shorter clip, or paste a YouTube, Loom,
-                      Google Drive, or hosted MP4 link in the <strong>Video Link</strong> tab.
-                    </div>
-                  )}
+              {isFileOversized && (
+                <div style={{ fontSize: 11, color: "#f87171", marginBottom: 8, lineHeight: 1.4 }}>
+                  ⚠️ File exceeds {ASSET_MAX_MB} MB. Pick a shorter clip, or paste a YouTube, Loom,
+                  Google Drive, or hosted MP4 link in the <strong>Video Link</strong> tab.
                 </div>
               )}
               <div
                 style={{
                   fontSize: 11,
-                  color: "var(--vgui-muted)",
+                  color: "var(--ink-soft)",
                   lineHeight: 1.5,
                   marginBottom: 12,
                 }}
@@ -229,7 +230,7 @@ export function VideoModal({ open, onClose, onInsertVideo, uploadAsset }: Props)
                 fontSize: 12,
                 fontWeight: 600,
                 marginBottom: 6,
-                color: "var(--vgui-light)",
+                color: "var(--ink)",
               }}
             >
               Default Dimensions:

@@ -7,3 +7,7 @@ public/api/config.php
 public/api/_relay/
 config.php
 gemini_work_summary.txt
+/dev/*
+!/dev/PLAN.md
+!/dev/README.md
+

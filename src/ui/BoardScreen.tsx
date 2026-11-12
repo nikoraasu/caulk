@@ -6,12 +6,14 @@ import {
   MainMenu,
   Sidebar,
   convertToExcalidrawElements,
+  exportToSvg,
   reconcileElements,
   restoreElements,
   viewportCoordsToSceneCoords,
 } from "@excalidraw/excalidraw";
 import type {
   AppState,
+  BinaryFileData,
   BinaryFiles,
   Collaborator,
   ExcalidrawImperativeAPI,
@@ -35,26 +37,127 @@ import {
   type Session,
 } from "../config";
 import { getFreshToken } from "../auth/token";
-import { SceneBridge, sanitizeElement, type Digest, type TimerState } from "../crdt/scene";
+import { SceneBridge, sanitizeElement, type CanvasBackgroundImage, type Digest, type TimerState } from "../crdt/scene";
 import { SnapshotStore, type SnapshotInfo } from "../history/snapshots";
-import { AssetStore, assetObjectUrl, parseAssetRef } from "../storage/assets";
+import { AssetStore, assetObjectUrl } from "../storage/assets";
 import { ImageAssetSync } from "../sync/imageAssets";
 import { EncryptedStore } from "../storage/encrypted";
-import { GitHubAdapter } from "../storage/github";
-import { createGitHubIssue } from "../storage/issues";
+import { GitHubAdapter, fetchRepoCollaborators, type RepoCollaborator } from "../storage/github";
+import {
+  createGitHubIssue,
+  fetchGitHubIssue,
+  isGitHubIssueLink,
+  type IssueDetail,
+} from "../storage/issues";
+import { GitHubIssueCard } from "../features/issues/GitHubIssueCard";
+import { IssuesDrawer } from "../features/issues/IssuesDrawer";
 import { rekeyBoard } from "../storage/rekey";
 import { playMeetingChime } from "../lib/chime";
 import { SyncEngine, type SyncStatus } from "../sync/engine";
-import { getLiveRoomName, LiveSession, type LiveStatus } from "../sync/live";
+import { getLiveRoomName, isElectedSaver, LiveSession, type LiveStatus } from "../sync/live";
 import { DigestBanner } from "./DigestBanner";
 import { HistoryPanel } from "./HistoryPanel";
 import { StatusBar } from "./StatusBar";
 import { AIAssistantDrawer } from "./AIAssistantDrawer";
 import { ChangePasswordModal, UnlockBoardModal } from "./BoardPasswordModal";
 import { VideoModal } from "./VideoModal";
+import { VideoEmbedFrame } from "./VideoEmbedFrame";
 import { BackgroundPicker } from "./BackgroundPicker";
+import { ThemePickerModal } from "./ThemePickerModal";
+import { ElementRadiusControl } from "./ElementRadiusControl";
+import {
+  loadStickyDefaults,
+  saveStickyDefaults,
+  type StickyDefaults,
+} from "../features/stickies/stickyDefaults";
+import {
+  BOARD_THEME_PRESETS,
+  DEFAULT_BOARD_THEME,
+  applyBoardThemeToDom,
+  resetBoardThemeOnDom,
+  type BoardThemeConfig,
+} from "./boardTheme";
 import { VGUI_STICKY_PICKS, vguiShade } from "./vguiColors";
+import { CommentOverlay } from "../features/comments/CommentOverlay";
+import { CommentsSidebar } from "../features/comments/CommentsSidebar";
+import {
+  isThreadUnread,
+  observeComments,
+  type CommentThread,
+} from "../features/comments/store";
+import { VotingOverlay } from "../features/voting/VotingOverlay";
+import { StartVotingModal, VotingResultsModal } from "../features/voting/VotingModals";
+import {
+  observeElementReactions,
+  observeVoting,
+  type ElementReactionBucket,
+  type VotingSnapshot,
+} from "../features/voting/store";
+import { PresenceOverlay } from "../features/presence/PresenceOverlay";
+import { TemplateGalleryModal } from "../features/templates/TemplateGalleryModal";
+import { instantiateTemplate } from "../features/templates/store";
+import type { BoardTemplate, TemplateElement } from "../features/templates/types";
+import { recordRecentBoard, saveBoardThumbnail } from "../features/home/store";
+import { TagsOverlay } from "../features/tags/TagsOverlay";
+import { TagSidebarSection } from "../features/tags/TagSidebarSection";
+import { ClusterModal } from "../features/tags/ClusterModal";
+import { addTagToElement, removeTagFromElement } from "../features/tags/store";
+import { soundEngine } from "../audio/soundEngine";
 import type { RateLimit } from "../storage/types";
+import { WhiteboardTaskCard } from "../features/tasks/TaskCard";
+import { TaskDetailsModal } from "../features/tasks/TaskDetailsModal";
+import { TaskHubModal } from "../features/tasks/TaskHubModal";
+import {
+  subscribeToTasks,
+  subscribeToSprints,
+  subscribeToMilestones,
+  subscribeToMembers,
+  subscribeToCustomRoles,
+  createTask,
+  createSubtask,
+  updateTask,
+  deleteTask,
+  createSprint,
+  updateSprint,
+  deleteSprint,
+  createMilestone,
+  updateMilestone,
+  deleteMilestone,
+  convertElementToTask,
+  setMemberRole,
+  addMember,
+  removeMember,
+  syncRepoCollaborators,
+  addCustomRole,
+  deleteCustomRole,
+  getTask,
+} from "../features/tasks/store";
+import type {
+  TaskRecord,
+  SprintRecord,
+  MilestoneRecord,
+  MemberRecord,
+  CustomRoleRecord,
+} from "../features/tasks/types";
+import { SoundboardModal } from "../features/soundboard/SoundboardModal";
+import type { SoundboardClip } from "../features/soundboard/types";
+import {
+  subscribeToSoundboardClips,
+  subscribeToSoundboardTriggers,
+  getSoundboardClip,
+  addSoundboardClip,
+  updateSoundboardClip,
+  deleteSoundboardClip,
+  triggerSoundboardClip,
+  playSoundboardClip,
+} from "../features/soundboard/store";
+import "../features/soundboard/soundboard.css";
+import {
+  SemanticActivityRecorder,
+  recordActivity,
+  subscribeToActivityLog,
+  type ActivityLogEntry,
+} from "../history/activity";
 
 // Muted sticky colours that fit the VGUI palette (see vguiColors.ts).
 const STICKY_NAMES = ["Gold", "Sage", "Slate", "Clay", "Lilac", "Bone"];
@@ -84,56 +187,6 @@ type Props = {
   session: Session;
   onClose: () => void;
 };
-
-function AssetVideo({ store, reference }: { store: AssetStore; reference: string }) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setSrc(null);
-    setFailed(false);
-    assetObjectUrl(store, reference).then(
-      (url) => {
-        if (!cancelled) setSrc(url);
-      },
-      () => {
-        if (!cancelled) setFailed(true);
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [store, reference]);
-
-  return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        background: "#000000",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: 8,
-        overflow: "hidden",
-      }}
-    >
-      {failed ? (
-        <span style={{ color: "#E6D6AC", fontSize: 12 }}>Video unavailable</span>
-      ) : src ? (
-        <video
-          src={src}
-          controls
-          playsInline
-          style={{ width: "100%", height: "100%", objectFit: "contain" }}
-        />
-      ) : (
-        <span style={{ color: "#E6D6AC", fontSize: 12 }}>Loading video…</span>
-      )}
-    </div>
-  );
-}
 
 export function BoardScreen({ session, onClose }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -169,6 +222,7 @@ export function BoardScreen({ session, onClose }: Props) {
   const hydratedRef = useRef(false);
   // Last canvas background known to both the scene and the doc; onChange writes only real changes.
   const viewBackgroundRef = useRef(DEFAULT_VIEW_BACKGROUND);
+  const [currentViewBackground, setCurrentViewBackground] = useState<string>(DEFAULT_VIEW_BACKGROUND);
   const hydratingRef = useRef(false);
   const localLoadedRef = useRef(false);
   const pointerDownRef = useRef(false);
@@ -203,9 +257,12 @@ export function BoardScreen({ session, onClose }: Props) {
     webrtcPeersCount: 0,
     bcPeersCount: 0,
     peers: [],
+    clientId: 0,
+    peerClientIds: [],
   });
   const [collaborators, setCollaborators] = useState<Map<SocketId, Collaborator>>(new Map());
   const [remoteEdits, setRemoteEdits] = useState(0);
+  const [pendingUploads, setPendingUploads] = useState(0);
   const [rateLimit, setRateLimit] = useState<RateLimit>(null);
   // Only repo admins see the "Board password…" menu item.
   const [isRepoAdmin, setIsRepoAdmin] = useState(false);
@@ -218,8 +275,13 @@ export function BoardScreen({ session, onClose }: Props) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [stickyDefaults, setStickyDefaults] = useState<StickyDefaults>(loadStickyDefaults);
+  const stickyDefaultsRef = useRef<StickyDefaults>(stickyDefaults);
+  stickyDefaultsRef.current = stickyDefaults;
+
   // Desktop: the swatch strip beside Excalidraw's shape toolbar, shown unless toggled off.
   const [stickyPanelOpen, setStickyPanelOpen] = useState(false);
+  const [issuesDrawerOpen, setIssuesDrawerOpen] = useState(false);
   const stickyAnchorRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!stickyPanelOpen) return;
@@ -238,6 +300,23 @@ export function BoardScreen({ session, onClose }: Props) {
   }, [stickyPanelOpen]);
   // Narrow layouts: a single "Sticky" button that opens the swatches.
   const [stickyMobileOpen, setStickyMobileOpen] = useState(false);
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
+  const toolsMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!toolsMenuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!toolsMenuRef.current?.contains(e.target as Node)) setToolsMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setToolsMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [toolsMenuOpen]);
   const [isNarrow, setIsNarrow] = useState(false);
   const [stickyToolbarHost, setStickyToolbarHost] = useState<HTMLElement | null>(null);
   const [customColor, setCustomColor] = useState("#FFD166");
@@ -267,6 +346,63 @@ export function BoardScreen({ session, onClose }: Props) {
   });
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [backgroundPickerOpen, setBackgroundPickerOpen] = useState(false);
+  const [canvasBgConfig, setCanvasBgConfig] = useState<CanvasBackgroundImage | undefined>(undefined);
+  const [canvasBgUrl, setCanvasBgUrl] = useState<string | null>(null);
+  const canvasBgConfigRef = useRef<CanvasBackgroundImage | undefined>(undefined);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const [boardTheme, setBoardTheme] = useState<BoardThemeConfig>(DEFAULT_BOARD_THEME);
+  const [selectedRoundableElements, setSelectedRoundableElements] = useState<readonly ExcalidrawElement[]>([]);
+  const lastRoundableSigRef = useRef<string>("");
+  const [currentActiveTool, setCurrentActiveTool] = useState<string>("selection");
+  const currentActiveToolRef = useRef<string>("selection");
+  const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
+  const [showTags, setShowTags] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("caulk.show_tags") !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const toggleShowTags = useCallback(() => {
+    setShowTags((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("caulk.show_tags", next ? "1" : "0");
+      } catch {}
+      setToastMessage(next ? "🏷️ Tags visible on stickies" : "🏷️ Tags hidden (hover/select to view)");
+      return next;
+    });
+  }, []);
+  const [clusterModalOpen, setClusterModalOpen] = useState(false);
+  const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const [sprints, setSprints] = useState<SprintRecord[]>([]);
+  const [milestones, setMilestones] = useState<MilestoneRecord[]>([]);
+  const [members, setMembers] = useState<MemberRecord[]>([]);
+  const [customRoles, setCustomRoles] = useState<CustomRoleRecord[]>([]);
+  const [repoCollaborators, setRepoCollaborators] = useState<RepoCollaborator[]>([]);
+  const [taskHubOpen, setTaskHubOpen] = useState(false);
+  const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<TaskRecord | null>(null);
+  const [soundboardOpen, setSoundboardOpen] = useState(false);
+  const [soundboardClips, setSoundboardClips] = useState<SoundboardClip[]>([]);
+  const [soundboardBroadcastToast, setSoundboardBroadcastToast] = useState<{
+    id: string;
+    user: string;
+    name: string;
+    icon: string;
+  } | null>(null);
+  const soundboardToastTimerRef = useRef<number | null>(null);
+  const [activityEntries, setActivityEntries] = useState<ActivityLogEntry[]>([]);
+  const activityRecorderRef = useRef<SemanticActivityRecorder | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(() => soundEngine.getConfig().enabled);
+
+  const toggleMuteSound = useCallback(() => {
+    const next = !soundEngine.getConfig().enabled;
+    soundEngine.setEnabled(next);
+    setSoundEnabled(next);
+    if (next) soundEngine.play("click");
+    setToastMessage(next ? "🔊 Retro sound effects enabled" : "🔇 Sound effects muted");
+  }, []);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [creatingIssue, setCreatingIssue] = useState(false);
 
@@ -275,6 +411,221 @@ export function BoardScreen({ session, onClose }: Props) {
 
   const key = boardKey(session);
   const label = useMemo(() => boardLabel(session), [session]);
+
+  // Task 8.1: Comments & threads state (persists seen timestamps per board in localStorage).
+  const [commentThreads, setCommentThreads] = useState<CommentThread[]>([]);
+  const [placingComment, setPlacingComment] = useState(false);
+  const [showComments, setShowComments] = useState(true);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [seenCommentsMap, setSeenCommentsMap] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem(`caulk:comments-seen:${key}`);
+      return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`caulk:comments-seen:${key}`);
+      setSeenCommentsMap(raw ? (JSON.parse(raw) as Record<string, number>) : {});
+    } catch {
+      setSeenCommentsMap({});
+    }
+  }, [key]);
+  const markCommentSeen = useCallback(
+    (threadId: string, at: number) => {
+      setSeenCommentsMap((prev) => {
+        if ((prev[threadId] ?? 0) >= at) return prev;
+        const next = { ...prev, [threadId]: at };
+        try {
+          localStorage.setItem(`caulk:comments-seen:${key}`, JSON.stringify(next));
+        } catch {
+          // ignore storage quota
+        }
+        return next;
+      });
+    },
+    [key],
+  );
+  const unreadCommentsCount = useMemo(
+    () =>
+      commentThreads.filter(
+        (t) => !t.resolved && isThreadUnread(t, seenCommentsMap[t.id] ?? 0, currentIdentity.name),
+      ).length,
+    [commentThreads, seenCommentsMap, currentIdentity.name],
+  );
+  const commentPeerNames = useMemo(() => {
+    const names = new Set<string>([currentIdentity.name]);
+    for (const p of liveStatus.peers) {
+      if (p.name) names.add(p.name);
+    }
+    for (const t of commentThreads) {
+      for (const m of t.messages) {
+        if (m.author) names.add(m.author);
+      }
+    }
+    return Array.from(names);
+  }, [currentIdentity.name, liveStatus.peers, commentThreads]);
+
+  // Task 8.2: Reactions & dot voting state
+  const [elementReactions, setElementReactions] = useState<Map<string, ElementReactionBucket[]>>(
+    () => new Map(),
+  );
+  const [voting, setVoting] = useState<VotingSnapshot>({ session: null, ballots: [] });
+  const [startVotingOpen, setStartVotingOpen] = useState(false);
+  const [votingResultsOpen, setVotingResultsOpen] = useState(false);
+  const prevVotingStatusRef = useRef<"active" | "ended" | null>(null);
+  useEffect(() => {
+    const status = voting.session?.status ?? null;
+    if (prevVotingStatusRef.current === "active" && status === "ended") {
+      setVotingResultsOpen(true);
+    }
+    prevVotingStatusRef.current = status;
+    liveSessionRef.current?.updateVotingSession(
+      status === "active" && voting.session ? voting.session.id : null,
+    );
+  }, [voting.session, liveStatus.connected]);
+  const activeVoters = useMemo(() => {
+    const sid = voting.session?.id;
+    if (!sid || voting.session?.status !== "active") return [];
+    const names = new Set<string>([currentIdentity.name]);
+    for (const p of liveStatus.peers) {
+      if (p.votingSessionId === sid && p.name) names.add(p.name);
+    }
+    return Array.from(names);
+  }, [voting.session, liveStatus.peers, currentIdentity.name]);
+
+  // Task 8.3: Presenter, Summon ("Bring everyone to me"), and Attention Pings state
+  const [presenting, setPresenting] = useState(false);
+  const [pingMode, setPingMode] = useState(false);
+  const [broughtByBanner, setBroughtByBanner] = useState<string | null>(null);
+  useEffect(() => {
+    liveSessionRef.current?.updatePresenting(presenting);
+    if (presenting) {
+      setFollowingPeerId(null);
+      setBroughtByBanner(null);
+    }
+  }, [presenting, liveStatus.connected]);
+  const bringEveryoneToMe = useCallback(() => {
+    soundEngine.play("ping");
+    const api = apiRef.current;
+    const ls = liveSessionRef.current;
+    if (!api) return;
+    const s = api.getAppState();
+    const vp = { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom.value };
+    if (ls) {
+      ls.updateViewport(vp);
+      ls.triggerSummon({
+        id: `sum-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        at: Date.now(),
+        viewport: vp,
+      });
+    }
+    setToastMessage(
+      liveStatus.peersCount > 0
+        ? "📣 Brought peers to your view."
+        : "📣 No other peers connected right now.",
+    );
+  }, [liveStatus.peersCount]);
+  const handleFollowPeer = useCallback((clientId: number | null, broughtBy?: string | null) => {
+    setFollowingPeerId(clientId);
+    setBroughtByBanner(clientId && broughtBy ? broughtBy : null);
+  }, []);
+
+  // Task 8.5: Record board in recent list & cache encrypted preview SVG on save.
+  useEffect(() => {
+    recordRecentBoard(session);
+  }, [session.owner, session.repo, session.branch, session.path]);
+  const lastThumbSaveRef = useRef(0);
+  const maybeSaveThumbRef = useRef<() => void>(() => {});
+  maybeSaveThumbRef.current = () => {
+    const api = apiRef.current;
+    if (!api || Date.now() - lastThumbSaveRef.current < 60_000) return;
+    const els = api.getSceneElements().filter((e) => !e.isDeleted);
+    if (els.length === 0) return;
+    lastThumbSaveRef.current = Date.now();
+    void exportToSvg({
+      elements: els.slice(0, 120),
+      appState: {
+        exportWithDarkMode: false,
+        viewBackgroundColor: viewBackgroundRef.current,
+      },
+      files: null,
+      exportPadding: 14,
+    })
+      .then((svg: SVGSVGElement) => {
+        svg.setAttribute("width", "100%");
+        svg.setAttribute("height", "100%");
+        return saveBoardThumbnail(
+          {
+            token: getFreshToken,
+            owner: session.owner,
+            repo: session.repo,
+            branch: session.branch,
+            boardPath: session.path,
+            passphrase: session.passphrase,
+          },
+          svg.outerHTML,
+        );
+      })
+      .catch(() => {
+        // Best-effort cached thumbnail; never block or error main board sync.
+      });
+  };
+
+  // Task 8.4: Templates gallery & repo templates
+  const [templateGalleryOpen, setTemplateGalleryOpen] = useState(false);
+  const templateRepoConfig = useMemo(
+    () => ({
+      token: getFreshToken,
+      owner: session.owner,
+      repo: session.repo,
+      branch: session.branch,
+      passphrase: session.passphrase,
+    }),
+    [session.owner, session.repo, session.branch, session.passphrase],
+  );
+  const insertTemplateFromGallery = useCallback(
+    (tpl: BoardTemplate | null) => {
+      if (!tpl) {
+        setTemplateGalleryOpen(false);
+        return;
+      }
+      const api = apiRef.current;
+      if (!api) return;
+      const appState = api.getAppState();
+      const rect = containerRef.current?.getBoundingClientRect();
+      const center = rect
+        ? viewportCoordsToSceneCoords(
+            { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 },
+            appState,
+          )
+        : { x: 0, y: 0 };
+      const rawInserted = instantiateTemplate(tpl, {
+        centerX: center.x,
+        centerY: center.y,
+        wrapInFrame: true,
+      });
+      const restoredInserted = restoreElements(
+        rawInserted as unknown as ExcalidrawElement[],
+        null,
+      );
+      const selectedMap: Record<string, true> = {};
+      for (const el of restoredInserted) selectedMap[el.id] = true;
+      api.updateScene({
+        elements: [
+          ...api.getSceneElements(),
+          ...restoredInserted,
+        ] as unknown as OrderedExcalidrawElement[],
+        appState: { selectedElementIds: selectedMap },
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      setTemplateGalleryOpen(false);
+      setToastMessage(`📐 Inserted template "${tpl.name}".`);
+    },
+    [],
+  );
   const storageLabel = useMemo(
     () => `${session.owner}/${session.repo}:${session.path}`,
     [session],
@@ -314,6 +665,7 @@ export function BoardScreen({ session, onClose }: Props) {
       elements: next,
       captureUpdate: CaptureUpdateAction.NEVER,
     });
+    activityRecorderRef.current?.seedInitialElements(next as unknown as ExcalidrawElement[]);
   }, []);
 
   const refreshHistory = useCallback(async () => {
@@ -388,10 +740,29 @@ export function BoardScreen({ session, onClose }: Props) {
       const storedBackground = bridge.getViewBackground();
       if (storedBackground) {
         viewBackgroundRef.current = storedBackground;
+        setCurrentViewBackground(storedBackground);
         api.updateScene({
           appState: { viewBackgroundColor: storedBackground },
           captureUpdate: CaptureUpdateAction.NEVER,
         });
+      }
+      const storedBgImage = bridge.getCanvasBackgroundImage();
+      if (storedBgImage) {
+        canvasBgConfigRef.current = storedBgImage;
+        setCanvasBgConfig(storedBgImage);
+        if (storedBgImage.ref) {
+          assetObjectUrl(assetStore, storedBgImage.ref)
+            .then((url) => setCanvasBgUrl(url))
+            .catch((err) => console.warn("[caulk] failed to load canvas background image", err));
+          api.updateScene({
+            appState: { viewBackgroundColor: "transparent" },
+            captureUpdate: CaptureUpdateAction.NEVER,
+          });
+        }
+      }
+      const storedTheme = bridge.getBoardTheme();
+      if (storedTheme) {
+        setBoardTheme(storedTheme);
       }
       // Starts after the first local files reach Excalidraw: resolves image refs, migrates inline ones.
       imageSyncRef.current?.start();
@@ -454,6 +825,29 @@ export function BoardScreen({ session, onClose }: Props) {
     const snapshots = new SnapshotStore(adapter, session.passphrase, historyDirFor(session.path));
     snapshotsRef.current = snapshots;
 
+    const deliverFiles = (files: BinaryFileData[]) => {
+      const api = apiRef.current;
+      if (!api || files.length === 0) return;
+      api.addFiles(files);
+      const addedIds = new Set(files.map((f) => f.id));
+      const sceneEls = api.getSceneElements();
+      if (
+        sceneEls.some(
+          (el) => el.type === "image" && el.fileId && addedIds.has(el.fileId) && el.status !== "saved",
+        )
+      ) {
+        const refreshed = sceneEls.map((el) =>
+          el.type === "image" && el.fileId && addedIds.has(el.fileId) && el.status !== "saved"
+            ? { ...el, status: "saved" as const }
+            : el,
+        );
+        api.updateScene({
+          elements: refreshed as unknown as OrderedExcalidrawElement[],
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+      }
+    };
+
     const bridge = new SceneBridge(
       doc,
       currentIdentityRef.current,
@@ -478,10 +872,7 @@ export function BoardScreen({ session, onClose }: Props) {
         }
       },
       (remoteFiles) => {
-        const fileList = Object.values(remoteFiles);
-        if (fileList.length > 0 && apiRef.current) {
-          apiRef.current.addFiles(fileList);
-        }
+        deliverFiles(Object.values(remoteFiles));
         if (hydratedRef.current) {
           imageSyncRef.current?.resolveRefs();
           imageSyncRef.current?.migrateInline();
@@ -492,8 +883,9 @@ export function BoardScreen({ session, onClose }: Props) {
       bridge,
       store: assetStore,
       boardKey: key,
-      addFiles: (files) => apiRef.current?.addFiles(files),
+      addFiles: deliverFiles,
       onError: setToastMessage,
+      onPendingChange: setPendingUploads,
     });
 
     const unobserveAllowed = bridge.observeAllowedNicknames(() => {});
@@ -504,20 +896,89 @@ export function BoardScreen({ session, onClose }: Props) {
     const unobserveBackground = bridge.observeViewBackground((color) => {
       if (!color || !apiRef.current) return;
       viewBackgroundRef.current = color;
-      apiRef.current.updateScene({
-        appState: { viewBackgroundColor: color },
-        captureUpdate: CaptureUpdateAction.NEVER,
-      });
+      setCurrentViewBackground(color);
+      if (!canvasBgConfigRef.current?.ref) {
+        apiRef.current.updateScene({
+          appState: { viewBackgroundColor: color },
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+      }
     });
+    const unobserveBgImage = bridge.observeCanvasBackgroundImage((remoteBg) => {
+      canvasBgConfigRef.current = remoteBg;
+      setCanvasBgConfig(remoteBg);
+      if (remoteBg?.ref) {
+        assetObjectUrl(assetStore, remoteBg.ref)
+          .then((url) => setCanvasBgUrl(url))
+          .catch((err) => console.warn("[caulk] failed to load canvas background image", err));
+        apiRef.current?.updateScene({
+          appState: { viewBackgroundColor: "transparent" },
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+      } else {
+        setCanvasBgUrl(null);
+        apiRef.current?.updateScene({
+          appState: { viewBackgroundColor: viewBackgroundRef.current },
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+      }
+    });
+    const unobserveBoardTheme = bridge.observeBoardTheme((remoteTheme) => {
+      setBoardTheme(remoteTheme ?? DEFAULT_BOARD_THEME);
+    });
+    const unobserveComments = observeComments(doc, setCommentThreads);
+    const unobserveReactions = observeElementReactions(doc, setElementReactions);
+    const unobserveVoting = observeVoting(doc, setVoting);
+    const unsubscribeTasks = subscribeToTasks(doc, setTasks);
+    const unsubscribeSprints = subscribeToSprints(doc, setSprints);
+    const unsubscribeMilestones = subscribeToMilestones(doc, setMilestones);
+    const unsubscribeMembers = subscribeToMembers(doc, setMembers);
+    const unsubscribeCustomRoles = subscribeToCustomRoles(doc, setCustomRoles);
+    const unsubscribeSoundboard = subscribeToSoundboardClips(doc, setSoundboardClips);
+    const unsubscribeActivity = subscribeToActivityLog(doc, setActivityEntries);
+    const activityRecorder = new SemanticActivityRecorder(doc, currentIdentityRef.current.name);
+    activityRecorderRef.current = activityRecorder;
+    const unsubscribeSoundboardTriggers = subscribeToSoundboardTriggers(doc, (trigger) => {
+      if (trigger.user !== currentIdentityRef.current.name) {
+        if (soundEngine.getConfig().enabled) {
+          const clip = getSoundboardClip(doc, trigger.clipId);
+          if (clip) {
+            void playSoundboardClip(clip, 0.85);
+          }
+        }
+        if (soundboardToastTimerRef.current) {
+          window.clearTimeout(soundboardToastTimerRef.current);
+        }
+        setSoundboardBroadcastToast({
+          id: trigger.id,
+          user: trigger.user,
+          name: trigger.name,
+          icon: trigger.icon,
+        });
+        soundboardToastTimerRef.current = window.setTimeout(() => {
+          setSoundboardBroadcastToast(null);
+        }, 3500);
+      }
+    });
+
+    if (repoCollaborators.length > 0) {
+      syncRepoCollaborators(doc, repoCollaborators);
+    }
+
+    let effectDisposed = false;
 
     const engine = new SyncEngine({
       doc,
       store,
-      debounceMs: 2000,
-      pollMs: 2500,
+      debounceMs: 10_000,
+      maxWaitMs: 60_000,
+      pollMs: 10_000,
       onStatus: setStatus,
       onRemoteApplied: () => setRateLimit(adapter.rateLimit()),
-      onCommitted: () => maybeSnapshotRef.current(),
+      onCommitted: () => {
+        maybeSnapshotRef.current();
+        maybeSaveThumbRef.current();
+      },
     });
 
     bridgeRef.current = bridge;
@@ -525,14 +986,20 @@ export function BoardScreen({ session, onClose }: Props) {
 
     let activeLiveSession: LiveSession | null = null;
     void getLiveRoomName(session).then((roomName) => {
-      if (!docRef.current) return;
+      if (effectDisposed || !docRef.current) return;
       activeLiveSession = new LiveSession(roomName, {
         doc,
         target: session,
         passphrase: session.passphrase,
         identity: currentIdentityRef.current,
         isAllowed: () => true,
-        onStatusChange: setLiveStatus,
+        onStatusChange: (nextStatus) => {
+          setLiveStatus(nextStatus);
+          engine.setPollMs(nextStatus.connected ? 30_000 : 10_000);
+          engine.setSaver(
+            isElectedSaver(nextStatus.connected, nextStatus.clientId, nextStatus.peerClientIds),
+          );
+        },
         onCollaboratorsChange: (nextCollaborators) => {
           // Pointer frames can arrive up to 60x/s: the scene gets every update, React state only peer changes.
           latestCollaboratorsRef.current = nextCollaborators;
@@ -546,6 +1013,7 @@ export function BoardScreen({ session, onClose }: Props) {
           }
         },
       });
+      engine.setLiveOrigin(activeLiveSession);
       liveSessionRef.current = activeLiveSession;
       // A new live session has not seen our selection or viewport yet, so force the next send.
       selectionRef.current = null;
@@ -565,17 +1033,36 @@ export function BoardScreen({ session, onClose }: Props) {
 
     const rateTimer = setInterval(() => setRateLimit(adapter.rateLimit()), 5000);
     const onHidden = () => {
-      if (document.visibilityState === "hidden") void engine.saveNow();
+      if (document.visibilityState === "hidden") void engine.saveOnHide();
     };
     document.addEventListener("visibilitychange", onHidden);
 
     return () => {
+      effectDisposed = true;
       document.removeEventListener("visibilitychange", onHidden);
       clearInterval(rateTimer);
       unobserveAllowed();
       unobserveRequests();
       unobserveTimer();
       unobserveBackground();
+      unobserveBgImage();
+      unobserveBoardTheme();
+      unobserveComments();
+      unobserveReactions();
+      unobserveVoting();
+      unsubscribeTasks();
+      unsubscribeSprints();
+      unsubscribeMilestones();
+      unsubscribeMembers();
+      unsubscribeCustomRoles();
+      unsubscribeSoundboard();
+      unsubscribeSoundboardTriggers();
+      unsubscribeActivity();
+      activityRecorderRef.current?.dispose();
+      activityRecorderRef.current = null;
+      setCommentThreads([]);
+      setElementReactions(new Map());
+      setVoting({ session: null, ballots: [] });
       activeLiveSession?.destroy();
       liveSessionRef.current = null;
       engine.stop();
@@ -598,6 +1085,26 @@ export function BoardScreen({ session, onClose }: Props) {
     session.passphrase,
     assetStore,
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (session.owner && session.repo) {
+      const tokenProvider = session.token ? () => Promise.resolve(session.token) : getFreshToken;
+      fetchRepoCollaborators(tokenProvider, session.owner, session.repo)
+        .then((collabs) => {
+          if (!cancelled && collabs.length > 0) {
+            setRepoCollaborators(collabs);
+            if (docRef.current) {
+              syncRepoCollaborators(docRef.current, collabs);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [session.owner, session.repo, session.token, getFreshToken]);
 
   useEffect(() => {
     if (apiReady) hydrate();
@@ -699,10 +1206,293 @@ export function BoardScreen({ session, onClose }: Props) {
   // Board background from the background picker. updateScene also fires Excalidraw's onChange,
   // which saves a real change. This saves it directly too; the ref check means only one write happens.
   const applyBoardBackground = useCallback((color: string) => {
-    apiRef.current?.updateScene({ appState: { viewBackgroundColor: color } });
-    if (color === viewBackgroundRef.current) return;
     viewBackgroundRef.current = color;
+    setCurrentViewBackground(color);
     bridgeRef.current?.setViewBackground(color);
+    if (!canvasBgConfigRef.current?.ref) {
+      apiRef.current?.updateScene({ appState: { viewBackgroundColor: color } });
+    }
+  }, []);
+
+  const applyCanvasBackgroundImage = useCallback(
+    (next: CanvasBackgroundImage | undefined) => {
+      canvasBgConfigRef.current = next;
+      setCanvasBgConfig(next);
+      bridgeRef.current?.setCanvasBackgroundImage(next);
+      if (next?.ref) {
+        assetObjectUrl(assetStore, next.ref)
+          .then((url) => setCanvasBgUrl(url))
+          .catch((err) => console.warn("[caulk] failed to load canvas background image", err));
+        apiRef.current?.updateScene({
+          appState: { viewBackgroundColor: "transparent" },
+        });
+      } else {
+        setCanvasBgUrl(null);
+        apiRef.current?.updateScene({
+          appState: { viewBackgroundColor: viewBackgroundRef.current },
+        });
+      }
+    },
+    [assetStore],
+  );
+
+  const applyBoardTheme = useCallback((next: BoardThemeConfig) => {
+    setBoardTheme(next);
+    bridgeRef.current?.setBoardTheme(next);
+  }, []);
+
+  const handleSetElementRadius = useCallback((radius: number) => {
+    const api = apiRef.current;
+    if (!api) return;
+    const currentElements = api.getSceneElements();
+    const appState = api.getAppState();
+    const selectedIds = appState?.selectedElementIds ?? {};
+    const newRoundness = radius > 0 ? { type: 3 as const, value: radius } : null;
+
+    let changed = false;
+    let modifiedSticky = false;
+    const updated = currentElements.map((el) => {
+      if (selectedIds[el.id] && !el.isDeleted && (el.type === "rectangle" || el.type === "diamond" || el.type === "frame")) {
+        if (JSON.stringify(el.roundness) !== JSON.stringify(newRoundness)) {
+          changed = true;
+          if ((el.customData as Record<string, unknown> | undefined)?.isSticky) {
+            modifiedSticky = true;
+          }
+          return {
+            ...el,
+            roundness: newRoundness,
+            version: el.version + 1,
+            versionNonce: Math.floor(Math.random() * 2e9),
+          };
+        }
+      }
+      return el;
+    });
+    if (changed) {
+      if (modifiedSticky) {
+        setStickyDefaults(() => {
+          const next = saveStickyDefaults({ radius });
+          stickyDefaultsRef.current = next;
+          return next;
+        });
+      }
+      soundEngine.play("click");
+      const restored = restoreElements(updated, null);
+      api.updateScene({
+        elements: restored as unknown as OrderedExcalidrawElement[],
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
+    }
+  }, []);
+
+  const handleUpdateStickyDefault = useCallback((partial: Partial<StickyDefaults>) => {
+    soundEngine.play("click");
+    setStickyDefaults(() => {
+      const next = saveStickyDefaults(partial);
+      stickyDefaultsRef.current = next;
+      return next;
+    });
+
+    const api = apiRef.current;
+    if (!api) return;
+    const appState = api.getAppState();
+    const selectedIds = appState?.selectedElementIds ?? {};
+    if (!Object.values(selectedIds).some(Boolean)) return;
+
+    const currentElements = api.getSceneElements();
+    let changed = false;
+    const updated = currentElements.map((el) => {
+      if (
+        selectedIds[el.id] &&
+        !el.isDeleted &&
+        (el.customData as Record<string, unknown> | undefined)?.isSticky
+      ) {
+        let elRoundness = el.roundness;
+        let elRoughness = el.roughness;
+        if (partial.radius !== undefined) {
+          elRoundness = partial.radius > 0 ? { type: 3 as const, value: partial.radius } : null;
+        }
+        if (partial.roughness !== undefined) {
+          elRoughness = partial.roughness;
+        }
+        if (
+          JSON.stringify(elRoundness) !== JSON.stringify(el.roundness) ||
+          elRoughness !== el.roughness
+        ) {
+          changed = true;
+          return {
+            ...el,
+            roundness: elRoundness,
+            roughness: elRoughness,
+            version: el.version + 1,
+            versionNonce: Math.floor(Math.random() * 2e9),
+          };
+        }
+      }
+      return el;
+    });
+
+    if (changed) {
+      const restored = restoreElements(updated, null);
+      api.updateScene({
+        elements: restored as unknown as OrderedExcalidrawElement[],
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
+    }
+  }, []);
+
+  const handleAddTag = useCallback((elementIds: string[], tag: string) => {
+    const api = apiRef.current;
+    if (!api) return;
+    const current = api.getSceneElements();
+    const idSet = new Set(elementIds);
+    let changed = false;
+    const next = current.map((el) => {
+      if (idSet.has(el.id)) {
+        changed = true;
+        const updatedEl = addTagToElement(el, tag);
+        if ((el.customData as any)?.taskId && docRef.current) {
+          const tId = (el.customData as any).taskId;
+          const currentTask = getTask(docRef.current, tId);
+          if (currentTask && !currentTask.labels.includes(tag)) {
+            updateTask(
+              docRef.current,
+              tId,
+              { labels: [...currentTask.labels, tag] },
+              { id: currentIdentity.name, name: currentIdentity.name },
+            );
+          }
+        }
+        return updatedEl;
+      }
+      return el;
+    });
+    if (changed) {
+      soundEngine.play("vote");
+      const restored = restoreElements(next, null);
+      api.updateScene({
+        elements: restored as unknown as OrderedExcalidrawElement[],
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
+    }
+  }, [currentIdentity.name]);
+
+  const handleRemoveTag = useCallback((elementIds: string[], tag: string) => {
+    const api = apiRef.current;
+    if (!api) return;
+    const current = api.getSceneElements();
+    const idSet = new Set(elementIds);
+    let changed = false;
+    const next = current.map((el) => {
+      if (idSet.has(el.id)) {
+        changed = true;
+        const updatedEl = removeTagFromElement(el, tag);
+        if ((el.customData as any)?.taskId && docRef.current) {
+          const tId = (el.customData as any).taskId;
+          const currentTask = getTask(docRef.current, tId);
+          if (currentTask && currentTask.labels.includes(tag)) {
+            updateTask(
+              docRef.current,
+              tId,
+              { labels: currentTask.labels.filter((l) => l !== tag) },
+              { id: currentIdentity.name, name: currentIdentity.name },
+            );
+          }
+        }
+        return updatedEl;
+      }
+      return el;
+    });
+    if (changed) {
+      soundEngine.play("delete");
+      const restored = restoreElements(next, null);
+      api.updateScene({
+        elements: restored as unknown as OrderedExcalidrawElement[],
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
+    }
+  }, [currentIdentity.name]);
+
+  const handleApplyCluster = useCallback(
+    (updatedElements: ExcalidrawElement[], newFrames: ExcalidrawElement[] = []) => {
+      const api = apiRef.current;
+      if (!api) return;
+      soundEngine.play("cluster");
+      const current = api.getSceneElements();
+      const updatedMap = new Map<string, ExcalidrawElement>();
+      for (const el of updatedElements) {
+        updatedMap.set(el.id, el);
+      }
+      const merged = current.map((el) => updatedMap.get(el.id) ?? el);
+      // Child elements must come before their parent frames in scene ordering
+      const allNext = [...merged, ...newFrames];
+      const restored = restoreElements(allNext, null);
+      api.updateScene({
+        elements: restored as unknown as OrderedExcalidrawElement[],
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    applyBoardThemeToDom(boardTheme, currentViewBackground);
+    soundEngine.setActiveThemePreset(boardTheme.preset);
+  }, [boardTheme, currentViewBackground]);
+
+  useEffect(() => {
+    let lastHoveredElement: Element | null = null;
+
+    const onPointerOver = (e: PointerEvent) => {
+      try {
+        const rawTarget = e.target;
+        if (!rawTarget || !(rawTarget instanceof Element)) return;
+        const matched = rawTarget.closest(
+          "button, .vgui-btn, .topbar-btn, .sidebar-trigger, .theme-preset-card, .caulk-radius-chip, .element-chip, .caulk-menu-item, .chip-btn, .soundboard-card, .task-card-pill, .kanban-card"
+        );
+        if (!matched) {
+          lastHoveredElement = null;
+          return;
+        }
+        if (matched !== lastHoveredElement) {
+          lastHoveredElement = matched;
+          soundEngine.play("hover");
+        }
+      } catch {
+        /* Ignore detached DOM or cross-origin event errors */
+      }
+    };
+
+    const onPointerOut = (e: PointerEvent) => {
+      try {
+        const related = e.relatedTarget;
+        if (lastHoveredElement) {
+          if (!related || !(related instanceof Element) || !lastHoveredElement.contains(related)) {
+            lastHoveredElement = null;
+          }
+        }
+      } catch {
+        /* Ignore */
+      }
+    };
+
+    window.addEventListener("pointerover", onPointerOver, { passive: true });
+    window.addEventListener("pointerout", onPointerOut, { passive: true });
+    return () => {
+      window.removeEventListener("pointerover", onPointerOver);
+      window.removeEventListener("pointerout", onPointerOut);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      resetBoardThemeOnDom();
+    };
   }, []);
 
   const onChange = useCallback(
@@ -715,9 +1505,66 @@ export function BoardScreen({ session, onClose }: Props) {
 
       // Background changes touch no element, so this runs before the scene fingerprint early return.
       const background = appState.viewBackgroundColor;
-      if (background && background !== viewBackgroundRef.current) {
+      if (
+        background &&
+        background !== "transparent" &&
+        background !== viewBackgroundRef.current &&
+        !canvasBgConfigRef.current?.ref
+      ) {
         viewBackgroundRef.current = background;
+        setCurrentViewBackground(background);
         bridgeRef.current?.setViewBackground(background);
+      }
+
+      // Update selected roundable elements for per-object radius changer whenever selection changes
+      const selectedIds = appState.selectedElementIds ?? {};
+      const hasSelectedIds = Object.values(selectedIds).some(Boolean);
+      const isSelectionTool = appState.activeTool?.type === "selection";
+      const isInteracting = Boolean(
+        appState.editingTextElement ||
+        appState.resizingElement ||
+        appState.selectionElement
+      );
+
+      if (appState.activeTool?.type && appState.activeTool.type !== currentActiveToolRef.current) {
+        currentActiveToolRef.current = appState.activeTool.type;
+        setCurrentActiveTool(appState.activeTool.type);
+      }
+
+      if (!hasSelectedIds || !isSelectionTool || isInteracting) {
+        if (lastRoundableSigRef.current !== "") {
+          lastRoundableSigRef.current = "";
+          setSelectedRoundableElements([]);
+        }
+      } else {
+        const roundable = (elements as readonly ExcalidrawElement[]).filter(
+          (el) =>
+            selectedIds[el.id] &&
+            !el.isDeleted &&
+            (el.type === "rectangle" || el.type === "diamond" || el.type === "frame")
+        );
+        const roundableSig = roundable
+          .map((el) => `${el.id}:${el.version}:${el.roundness?.type}:${el.roundness?.value}`)
+          .join(",");
+        if (roundableSig !== lastRoundableSigRef.current) {
+          lastRoundableSigRef.current = roundableSig;
+          setSelectedRoundableElements(roundable);
+        }
+
+        // Auto-detect if user changed sloppiness (roughness) on a selected sticky note
+        const selectedSticky = roundable.find(
+          (el) => (el.customData as Record<string, unknown> | undefined)?.isSticky
+        );
+        if (selectedSticky && typeof selectedSticky.roughness === "number") {
+          if (selectedSticky.roughness !== stickyDefaultsRef.current.roughness) {
+            const nextRoughness = selectedSticky.roughness;
+            setStickyDefaults(() => {
+              const next = saveStickyDefaults({ roughness: nextRoughness });
+              stickyDefaultsRef.current = next;
+              return next;
+            });
+          }
+        }
       }
 
       // Collaborator-only updates re-emit the same scene. Skip the per-element work when nothing
@@ -734,6 +1581,7 @@ export function BoardScreen({ session, onClose }: Props) {
 
       // Preserve font color inside container/sticky notes when stroke/border color is changed
       let hasFontCorrection = false;
+
       const normalizedElements = elements.map((rawEl) => {
         const el = sanitizeElement(rawEl);
         if (el.type === "text" && el.containerId) {
@@ -764,10 +1612,16 @@ export function BoardScreen({ session, onClose }: Props) {
             };
           }
         }
+
         return el;
       });
 
-      if (hasFontCorrection && apiRef.current) {
+      if (
+        hasFontCorrection &&
+        !pointerDownRef.current &&
+        !appState.newElement &&
+        apiRef.current
+      ) {
         const restored = restoreElements(normalizedElements, null);
         apiRef.current.updateScene({
           elements: restored as unknown as OrderedExcalidrawElement[],
@@ -777,6 +1631,7 @@ export function BoardScreen({ session, onClose }: Props) {
 
       bridgeRef.current?.applyLocal(normalizedElements as readonly ExcalidrawElement[], files);
       appliedIdsRef.current = new Set(normalizedElements.map((el) => el.id));
+      activityRecorderRef.current?.onLocalElementsChange(normalizedElements as readonly ExcalidrawElement[]);
 
       syncLiveView(appState);
     },
@@ -803,6 +1658,12 @@ export function BoardScreen({ session, onClose }: Props) {
     const step = cascadeRef.current % 6;
     cascadeRef.current += 1;
 
+    const currentDefaults = stickyDefaultsRef.current;
+    const stickyRoundness =
+      currentDefaults.radius > 0
+        ? { type: 3 as const, value: currentDefaults.radius }
+        : null;
+
     const created = convertToExcalidrawElements(
       [
         {
@@ -814,6 +1675,8 @@ export function BoardScreen({ session, onClose }: Props) {
           backgroundColor: color,
           fillStyle: "solid",
           strokeColor: "transparent",
+          roughness: currentDefaults.roughness,
+          roundness: stickyRoundness,
           customData: { isSticky: true },
           label: {
             text: "New note",
@@ -849,6 +1712,7 @@ export function BoardScreen({ session, onClose }: Props) {
       },
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
+    soundEngine.play("create");
   }, [isAllowed]);
 
   // Narrow (mobile) layout check, matching Excalidraw's bottom-toolbar breakpoint.
@@ -942,6 +1806,63 @@ export function BoardScreen({ session, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [addSticky]);
 
+  // F activates the Frame tool (drag-to-draw a frame) like Miro / Figma
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "f" || e.repeat) return;
+      if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])"))
+      ) {
+        return;
+      }
+      const api = apiRef.current;
+      if (!api) return;
+      const s = api.getAppState();
+      if (s.editingTextElement) return;
+      e.preventDefault();
+      if (s.activeTool?.type === "frame") {
+        api.setActiveTool({ type: "selection" });
+      } else {
+        api.setActiveTool({ type: "frame" });
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // C toggles pin placement for Comments (when not editing text).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setPlacingComment(false);
+        setPingMode(false);
+        return;
+      }
+      if (e.key.toLowerCase() !== "c" || e.repeat) return;
+      if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])"))
+      ) {
+        return;
+      }
+      const api = apiRef.current;
+      if (!api) return;
+      if (api.getAppState().editingTextElement) return;
+      e.preventDefault();
+      setShowComments(true);
+      setPlacingComment((v) => !v);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const openMermaid = useCallback(() => {
     const api = apiRef.current;
     if (!api) return;
@@ -978,17 +1899,17 @@ export function BoardScreen({ session, onClose }: Props) {
         width,
         height,
         angle: 0,
-        strokeColor: "#3B4438",
-        backgroundColor: "#1B221B",
+        strokeColor: "transparent",
+        backgroundColor: "#3E4637",
         fillStyle: "solid",
-        strokeWidth: 1,
+        strokeWidth: 0,
         strokeStyle: "solid",
         roughness: 0,
         opacity: 100,
         groupIds: [],
         frameId: null,
         index: null,
-        roundness: { type: 3 },
+        roundness: null,
         seed: Math.floor(Math.random() * 2147483647),
         version: 1,
         versionNonce: Math.floor(Math.random() * 2147483647),
@@ -1016,127 +1937,663 @@ export function BoardScreen({ session, onClose }: Props) {
     [],
   );
 
-  const renderEmbeddable = useCallback((element: any) => {
-    try {
-      const link = element.link?.trim() || "";
-      if (!link) return null;
-      if (parseAssetRef(link)) return <AssetVideo store={assetStore} reference={link} />;
-
-      // YouTube (standard, shorts, embed, youtu.be)
-      const ytMatch = link.match(
-        /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/,
-      );
-      if (ytMatch?.[1]) {
-        return (
-          <iframe
-            src={`https://www.youtube-nocookie.com/embed/${ytMatch[1]}`}
-            style={{ width: "100%", height: "100%", border: 0, borderRadius: 8 }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            title="YouTube Video"
-          />
-        );
+  const handleUpdateCardCustomData = useCallback(
+    (elementId: string, customData: Record<string, unknown>) => {
+      const api = apiRef.current;
+      if (!api) return;
+      const currentElements = api.getSceneElements();
+      let changed = false;
+      const updated = currentElements.map((el) => {
+        if (el.id === elementId && !el.isDeleted) {
+          changed = true;
+          return {
+            ...el,
+            customData: {
+              ...(el.customData as Record<string, unknown> | undefined),
+              ...customData,
+            },
+            version: el.version + 1,
+            versionNonce: Math.floor(Math.random() * 2e9),
+          };
+        }
+        return el;
+      });
+      if (changed) {
+        const restored = restoreElements(updated, null);
+        api.updateScene({
+          elements: restored as unknown as OrderedExcalidrawElement[],
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
+        bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
       }
+    },
+    [],
+  );
 
-      // Vimeo
-      const vimeoMatch = link.match(/vimeo\.com\/(?:video\/)?(\d+)/);
-      if (vimeoMatch?.[1]) {
-        return (
-          <iframe
-            src={`https://player.vimeo.com/video/${vimeoMatch[1]}`}
-            style={{ width: "100%", height: "100%", border: 0, borderRadius: 8 }}
-            allow="autoplay; fullscreen; picture-in-picture"
-            allowFullScreen
-            title="Vimeo Video"
-          />
-        );
-      }
+  const addIssueCard = useCallback(
+    (issue: IssueDetail, at?: { x: number; y: number }) => {
+      if (!isAllowed) return;
+      const api = apiRef.current;
+      if (!api) return;
+      const appState = api.getAppState();
+      const rect = containerRef.current?.getBoundingClientRect();
+      const center =
+        at ??
+        (rect
+          ? viewportCoordsToSceneCoords(
+              { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 },
+              appState,
+            )
+          : { x: 0, y: 0 });
 
-      // Loom
-      const loomMatch = link.match(/loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/);
-      if (loomMatch?.[1]) {
-        return (
-          <iframe
-            src={`https://www.loom.com/embed/${loomMatch[1]}`}
-            style={{ width: "100%", height: "100%", border: 0, borderRadius: 8 }}
-            allowFullScreen
-            title="Loom Video"
-          />
-        );
-      }
+      const step = cascadeRef.current % 6;
+      cascadeRef.current += 1;
 
-      // Google Drive
-      const gdriveMatch = link.match(/drive\.google\.com\/file\/d\/([^/]+)/);
-      if (gdriveMatch?.[1]) {
-        return (
-          <iframe
-            src={`https://drive.google.com/file/d/${gdriveMatch[1]}/preview`}
-            style={{ width: "100%", height: "100%", border: 0, borderRadius: 8 }}
-            allowFullScreen
-            title="Google Drive Video"
-          />
-        );
-      }
+      const cardWidth = 320;
+      const cardHeight = 180;
+      const x = center.x - cardWidth / 2 + step * 24;
+      const y = center.y - cardHeight / 2 + step * 24;
 
-      // Direct Video file or Data URL (mp4, webm, ogg, mov, data:video)
-      if (
-        link.startsWith("data:video/") ||
-        /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(link)
-      ) {
-        return (
-          <div
-            style={{
-              width: "100%",
-              height: "100%",
-              background: "#000000",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 8,
-              overflow: "hidden",
-            }}
-          >
-            <video
-              src={link}
-              controls
-              playsInline
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
-            />
-          </div>
-        );
-      }
+      const elementId = `issue-${issue.number}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const embedEl: ExcalidrawElement = sanitizeElement({
+        id: elementId,
+        type: "embeddable",
+        x,
+        y,
+        width: cardWidth,
+        height: cardHeight,
+        angle: 0,
+        strokeColor: "transparent",
+        backgroundColor: "#2b3327",
+        fillStyle: "solid",
+        strokeWidth: 0,
+        strokeStyle: "solid",
+        roughness: 0,
+        opacity: 100,
+        groupIds: [],
+        frameId: null,
+        index: null,
+        roundness: { type: 3, value: 6 },
+        seed: Math.floor(Math.random() * 2147483647),
+        version: 1,
+        versionNonce: Math.floor(Math.random() * 2147483647),
+        isDeleted: false,
+        boundElements: null,
+        updated: Date.now(),
+        link: issue.htmlUrl,
+        locked: false,
+        customData: {
+          isIssueCard: true,
+          issueNumber: issue.number,
+          issueTitle: issue.title,
+          issueState: issue.state,
+          issueLabels: issue.labels,
+          issueAuthor: issue.author,
+          issueAuthorAvatar: issue.authorAvatarUrl,
+          issueAssignees: issue.assignees,
+          issueComments: issue.commentsCount || 0,
+          issueHtmlUrl: issue.htmlUrl,
+          repoOwner: issue.owner || session.owner,
+          repoName: issue.repo || session.repo,
+        },
+      });
 
-      // Generic fallback web embed
-      return (
-        <iframe
-          src={link}
-          style={{ width: "100%", height: "100%", border: 0, borderRadius: 8 }}
-          allowFullScreen
-          title="Embedded Content"
-        />
-      );
-    } catch (err) {
-      console.error("renderEmbeddable error:", err);
-      return (
-        <div
-          style={{
-            width: "100%",
-            height: "100%",
-            background: "#1B221B",
-            color: "#E6D6AC",
-            padding: 12,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 8,
-            fontSize: 12,
-          }}
-        >
-          Unable to preview video
-        </div>
-      );
+      const current = (api.getSceneElements() || []).map(sanitizeElement);
+      const nextElements = restoreElements([...current, embedEl], null);
+      api.updateScene({
+        elements: nextElements as unknown as OrderedExcalidrawElement[],
+        appState: {
+          selectedElementIds: { [embedEl.id]: true },
+        },
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+
+      bridgeRef.current?.applyLocal(nextElements as readonly ExcalidrawElement[]);
+      soundEngine.play("create");
+      setToastMessage(`✓ Added Issue #${issue.number} card to board!`);
+    },
+    [isAllowed, session.owner, session.repo],
+  );
+
+  const handleJumpToCard = useCallback((cardElementId: string) => {
+    const api = apiRef.current;
+    if (!api) return;
+    const elements = api.getSceneElements();
+    const target = elements.find((el) => el.id === cardElementId);
+    if (target) {
+      api.scrollToContent(target, { animate: true, duration: 400 });
+      setTaskHubOpen(false);
+      setSelectedTaskForDetails(null);
     }
-  }, [assetStore]);
+  }, []);
+
+  const handleAddCardToCanvas = useCallback(
+    (task: TaskRecord) => {
+      const api = apiRef.current;
+      const doc = docRef.current;
+      if (!api || !doc) return;
+      const appState = api.getAppState();
+      const rect = containerRef.current?.getBoundingClientRect();
+      const center = rect
+        ? viewportCoordsToSceneCoords(
+            { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 },
+            appState,
+          )
+        : { x: 100, y: 100 };
+
+      const cardWidth = 300;
+      const cardHeight = 180;
+      const cardId = `task-card-${task.id}-${Date.now()}`;
+      const cardElement: ExcalidrawElement = sanitizeElement({
+        id: cardId,
+        type: "embeddable",
+        x: center.x - cardWidth / 2,
+        y: center.y - cardHeight / 2,
+        width: cardWidth,
+        height: cardHeight,
+        angle: 0,
+        strokeColor: "transparent",
+        backgroundColor: "#2b3327",
+        fillStyle: "solid",
+        strokeWidth: 0,
+        strokeStyle: "solid",
+        roughness: 0,
+        opacity: 100,
+        groupIds: [],
+        frameId: null,
+        index: null,
+        roundness: { type: 3, value: 8 },
+        seed: Math.floor(Math.random() * 2147483647),
+        version: 1,
+        versionNonce: Math.floor(Math.random() * 2147483647),
+        isDeleted: false,
+        boundElements: null,
+        updated: Date.now(),
+        link: `https://caulk.task/${task.key}`,
+        locked: false,
+        customData: {
+          isTaskCard: true,
+          taskId: task.id,
+          taskKey: task.key,
+        },
+      });
+      const elements = api.getSceneElements();
+      const nextElements = [...elements, cardElement];
+
+      api.updateScene({
+        elements: nextElements as unknown as OrderedExcalidrawElement[],
+        appState: {
+          selectedElementIds: { [cardElement.id]: true },
+        },
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+
+      bridgeRef.current?.applyLocal(nextElements as readonly ExcalidrawElement[]);
+      updateTask(
+        doc,
+        task.id,
+        { canvasCardElementId: cardElement.id },
+        { id: currentIdentity.name, name: currentIdentity.name },
+      );
+      soundEngine.play("create");
+      setToastMessage(`📍 Placed task card ${task.key} on board!`);
+    },
+    [currentIdentity.name],
+  );
+
+  const convertSelectedToTask = useCallback(() => {
+    const api = apiRef.current;
+    const doc = docRef.current;
+    if (!api || !doc) return;
+    const elements = api.getSceneElements();
+    const appState = api.getAppState();
+    const selected = elements.filter((el) => appState.selectedElementIds[el.id] && !el.isDeleted);
+    if (selected.length === 0) {
+      setToastMessage("Select a sticky note or shape to convert to a task.");
+      return;
+    }
+
+    const target = selected[0];
+    const task = convertElementToTask(doc, target, {
+      id: currentIdentity.name,
+      name: currentIdentity.name,
+    });
+
+    const updated = elements.map((el) => {
+      if (el.id === target.id) {
+        return {
+          ...el,
+          customData: {
+            ...((el.customData as Record<string, unknown> | undefined) || {}),
+            taskId: task.id,
+            taskKey: task.key,
+          },
+          version: el.version + 1,
+          versionNonce: Math.floor(Math.random() * 2e9),
+        };
+      }
+      return el;
+    });
+
+    const restored = restoreElements(updated, null);
+    api.updateScene({
+      elements: restored as unknown as OrderedExcalidrawElement[],
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
+    soundEngine.play("create");
+    setToastMessage(`✓ Converted to Task ${task.key}!`);
+    setSelectedTaskForDetails(task);
+  }, [currentIdentity.name]);
+
+  const handleAddStickyForTask = useCallback(
+    (task: TaskRecord) => {
+      const api = apiRef.current;
+      const doc = docRef.current;
+      if (!api || !doc) return;
+      const appState = api.getAppState();
+      const rect = containerRef.current?.getBoundingClientRect();
+      const center = rect
+        ? viewportCoordsToSceneCoords(
+            { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 },
+            appState,
+          )
+        : { x: 100, y: 100 };
+
+      const stickyText = `${task.key}: ${task.title}${task.description ? "\n" + task.description : ""}`;
+      const stickyWidth = 220;
+      const stickyHeight = 160;
+
+      const bgColor =
+        task.priority === "critical"
+          ? "#ffd2cf"
+          : task.priority === "high"
+          ? "#ffe4be"
+          : task.priority === "low"
+          ? "#d9ead3"
+          : "#fff275";
+
+      const created = convertToExcalidrawElements(
+        [
+          {
+            type: "rectangle",
+            x: center.x - stickyWidth / 2,
+            y: center.y - stickyHeight / 2,
+            width: stickyWidth,
+            height: stickyHeight,
+            backgroundColor: bgColor,
+            fillStyle: "solid",
+            strokeColor: "transparent",
+            roughness: 0,
+            roundness: { type: 3, value: 4 },
+            customData: {
+              isSticky: true,
+              taskId: task.id,
+              taskKey: task.key,
+              tags: task.labels || [],
+            },
+            label: {
+              text: stickyText,
+              fontSize: 16,
+              fontFamily: 2,
+              textAlign: "center",
+              verticalAlign: "middle",
+              strokeColor: "#1e1e1e",
+            },
+          },
+        ],
+        { regenerateIds: true },
+      );
+
+      const current = (api.getSceneElements() || []).map(sanitizeElement);
+      const restored = restoreElements([...current, ...created.map(sanitizeElement)], null);
+
+      api.updateScene({
+        elements: restored as unknown as OrderedExcalidrawElement[],
+        appState: {
+          selectedElementIds: { [created[0].id]: true },
+        },
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
+
+      updateTask(
+        doc,
+        task.id,
+        {
+          linkedElementIds: [...(task.linkedElementIds || []), created[0].id],
+        },
+        { id: currentIdentity.name, name: currentIdentity.name },
+      );
+
+      soundEngine.play("create");
+      setToastMessage(`📝 Added sticky note for ${task.key} to board!`);
+    },
+    [currentIdentity.name],
+  );
+
+  const handlePlaceSubtasksOnCanvas = useCallback(
+    (parentTask: TaskRecord, subtasksToPlace: TaskRecord[]) => {
+      const api = apiRef.current;
+      const doc = docRef.current;
+      if (!api || !doc || subtasksToPlace.length === 0) return;
+      const elements = api.getSceneElements();
+      const parentEl = elements.find(
+        (el) => el.id === parentTask.canvasCardElementId || (el.customData as any)?.taskId === parentTask.id,
+      );
+
+      const startX = parentEl ? parentEl.x : 200;
+      const startY = parentEl ? parentEl.y + parentEl.height + 80 : 300;
+      const cardWidth = 260;
+      const cardHeight = 130;
+      const gap = 30;
+
+      const newElements: ExcalidrawElement[] = [];
+
+      subtasksToPlace.forEach((st, idx) => {
+        const cardX = startX + idx * (cardWidth + gap);
+        const cardY = startY;
+        const cardId = `subtask-card-${st.id}-${Date.now()}-${idx}`;
+
+        const cardElement: ExcalidrawElement = sanitizeElement({
+          id: cardId,
+          type: "embeddable",
+          x: cardX,
+          y: cardY,
+          width: cardWidth,
+          height: cardHeight,
+          angle: 0,
+          strokeColor: "transparent",
+          backgroundColor: "#222a20",
+          fillStyle: "solid",
+          strokeWidth: 0,
+          strokeStyle: "solid",
+          roughness: 0,
+          opacity: 100,
+          groupIds: [],
+          frameId: null,
+          index: null,
+          roundness: { type: 3, value: 6 },
+          seed: Math.floor(Math.random() * 2e9),
+          version: 1,
+          versionNonce: Math.floor(Math.random() * 2e9),
+          isDeleted: false,
+          boundElements: null,
+          updated: Date.now(),
+          link: `https://caulk.task/${st.key}`,
+          locked: false,
+          customData: {
+            isTaskCard: true,
+            taskId: st.id,
+            taskKey: st.key,
+            parentId: parentTask.id,
+            tags: st.labels || [],
+          },
+        });
+
+        newElements.push(cardElement);
+
+        if (parentEl) {
+          const pCenterX = parentEl.x + parentEl.width / 2;
+          const pBottomY = parentEl.y + parentEl.height;
+          const childCenterX = cardX + cardWidth / 2;
+          const childTopY = cardY;
+
+          const dx = childCenterX - pCenterX;
+          const dy = childTopY - pBottomY;
+
+          const arrowElement: ExcalidrawElement = sanitizeElement({
+            id: `arrow-subtask-${parentTask.id}-${st.id}-${Date.now()}`,
+            type: "arrow",
+            x: pCenterX,
+            y: pBottomY,
+            width: Math.abs(dx),
+            height: Math.abs(dy),
+            angle: 0,
+            strokeColor: "#3182ce",
+            backgroundColor: "transparent",
+            fillStyle: "solid",
+            strokeWidth: 1.5,
+            strokeStyle: "dashed",
+            roughness: 0,
+            opacity: 85,
+            groupIds: [],
+            frameId: null,
+            index: null,
+            roundness: { type: 2 },
+            seed: Math.floor(Math.random() * 2e9),
+            version: 1,
+            versionNonce: Math.floor(Math.random() * 2e9),
+            isDeleted: false,
+            boundElements: null,
+            updated: Date.now(),
+            link: null,
+            locked: false,
+            points: [[0, 0], [dx, dy]],
+            startBinding: null,
+            endBinding: null,
+            lastCommittedPoint: null,
+            startArrowhead: null,
+            endArrowhead: "arrow",
+            elbowed: false,
+          });
+
+          newElements.push(arrowElement);
+        }
+
+        updateTask(
+          doc,
+          st.id,
+          { canvasCardElementId: cardId },
+          { id: currentIdentity.name, name: currentIdentity.name },
+        );
+      });
+
+      const nextAll = [...elements, ...newElements];
+      const restored = restoreElements(nextAll, null);
+      api.updateScene({
+        elements: restored as unknown as OrderedExcalidrawElement[],
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
+
+      soundEngine.play("create");
+      setToastMessage(`🌿 Placed ${subtasksToPlace.length} connected subtasks on board!`);
+    },
+    [currentIdentity.name],
+  );
+
+  const handleUnlinkTaskFromElement = useCallback(
+    (elementId: string) => {
+      const api = apiRef.current;
+      const doc = docRef.current;
+      if (!api || !doc) return;
+      const elements = api.getSceneElements();
+      let unlinkedTaskKey = "";
+      let targetTaskId = "";
+      const nextElements = elements.map((el) => {
+        if (el.id === elementId) {
+          unlinkedTaskKey = (el.customData as any)?.taskKey || "";
+          targetTaskId = (el.customData as any)?.taskId || "";
+          const nextCustomData = { ...((el.customData as Record<string, unknown> | undefined) || {}) };
+          delete nextCustomData.taskId;
+          delete nextCustomData.taskKey;
+          delete nextCustomData.isTaskCard;
+          return {
+            ...el,
+            customData: nextCustomData,
+            version: el.version + 1,
+            versionNonce: Math.floor(Math.random() * 2e9),
+          };
+        }
+        return el;
+      });
+
+      const restored = restoreElements(nextElements, null);
+      api.updateScene({
+        elements: restored as unknown as OrderedExcalidrawElement[],
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
+
+      if (targetTaskId) {
+        const task = getTask(doc, targetTaskId);
+        if (task) {
+          updateTask(
+            doc,
+            targetTaskId,
+            {
+              linkedElementIds: (task.linkedElementIds || []).filter((id) => id !== elementId),
+              canvasCardElementId: task.canvasCardElementId === elementId ? undefined : task.canvasCardElementId,
+            },
+            { id: currentIdentity.name, name: currentIdentity.name },
+          );
+        }
+      }
+      soundEngine.play("delete");
+      setToastMessage(`✓ Unlinked task ${unlinkedTaskKey || ""} from sticky note.`);
+    },
+    [currentIdentity.name],
+  );
+
+  const handleSetMemberRole = useCallback(
+    (name: string, role: string) => {
+      if (docRef.current) {
+        setMemberRole(docRef.current, name, role, {
+          id: currentIdentity.name,
+          name: currentIdentity.name,
+        });
+      }
+    },
+    [currentIdentity.name],
+  );
+
+  const handleAddMember = useCallback(
+    (member: {
+      name: string;
+      role?: string;
+      avatarUrl?: string;
+      isRepoCollaborator?: boolean;
+      repoRole?: string;
+    }) => {
+      if (docRef.current) {
+        addMember(docRef.current, member);
+      }
+    },
+    [],
+  );
+
+  const handleRemoveMember = useCallback((name: string) => {
+    if (docRef.current) {
+      removeMember(docRef.current, name);
+    }
+  }, []);
+
+  const handleSyncRepoCollaborators = useCallback(async () => {
+    if (!session.owner || !session.repo) return 0;
+    const tokenProvider = session.token ? () => Promise.resolve(session.token) : getFreshToken;
+    const collabs = await fetchRepoCollaborators(tokenProvider, session.owner, session.repo);
+    if (collabs.length > 0) {
+      setRepoCollaborators(collabs);
+      if (docRef.current) {
+        syncRepoCollaborators(docRef.current, collabs);
+      }
+    }
+    return collabs.length;
+  }, [session.owner, session.repo, session.token, getFreshToken]);
+
+  const handleAddCustomRole = useCallback(
+    (role: { name: string; color?: string; icon?: string; description?: string }) => {
+      if (docRef.current) {
+        addCustomRole(docRef.current, role);
+      }
+    },
+    [],
+  );
+
+  const handleDeleteCustomRole = useCallback(
+    (roleId: string) => {
+      if (docRef.current) {
+        deleteCustomRole(docRef.current, roleId);
+      }
+    },
+    [],
+  );
+
+  const handleCreateSubtask = useCallback(
+    (parentId: string, title: string) => {
+      if (docRef.current) {
+        createSubtask(
+          docRef.current,
+          parentId,
+          { title },
+          { id: currentIdentity.name, name: currentIdentity.name },
+        );
+      }
+    },
+    [currentIdentity.name],
+  );
+
+  const renderEmbeddable = useCallback(
+    (element: any) => {
+      const link = element.link?.trim() || "";
+      if (element.customData?.isTaskCard || element.customData?.taskId) {
+        const taskId = element.customData.taskId as string;
+        const task = tasks.find((t) => t.id === taskId);
+        return (
+          <WhiteboardTaskCard
+            element={element}
+            task={task}
+            allTasks={tasks}
+            onUpdateTask={(updates) => {
+              if (docRef.current) {
+                updateTask(docRef.current, taskId, updates, {
+                  id: currentIdentity.name,
+                  name: currentIdentity.name,
+                });
+              }
+            }}
+            onUpdateSubtaskStatus={(subtaskId, status) => {
+              if (docRef.current) {
+                updateTask(docRef.current, subtaskId, { status }, {
+                  id: currentIdentity.name,
+                  name: currentIdentity.name,
+                });
+              }
+            }}
+            onCreateSubtask={(parentId, title) => {
+              handleCreateSubtask(parentId, title);
+            }}
+            onPlaceSubtasksOnCanvas={handlePlaceSubtasksOnCanvas}
+            onOpenDetails={(t) => setSelectedTaskForDetails(t)}
+          />
+        );
+      }
+      if (element.customData?.isIssueCard || isGitHubIssueLink(link)) {
+        return (
+          <GitHubIssueCard
+            element={element}
+            token={getFreshToken}
+            defaultOwner={session.owner}
+            defaultRepo={session.repo}
+            onUpdateElement={handleUpdateCardCustomData}
+          />
+        );
+      }
+      if (!link) return null;
+      return <VideoEmbedFrame link={link} assetStore={assetStore} />;
+    },
+    [
+      assetStore,
+      currentIdentity.name,
+      handleCreateSubtask,
+      handlePlaceSubtasksOnCanvas,
+      handleUpdateCardCustomData,
+      session.owner,
+      session.repo,
+      tasks,
+    ],
+  );
 
   // Auto-dismiss toast notifications
   useEffect(() => {
@@ -1159,6 +2616,7 @@ export function BoardScreen({ session, onClose }: Props) {
       if (left === 0 && !timerChimedRef.current) {
         timerChimedRef.current = true;
         playMeetingChime();
+        soundEngine.play("alert");
         setToastMessage(
           `⏱️ Meeting timer finished! (${Math.round(timer.durationSeconds / 60)} min)`,
         );
@@ -1171,6 +2629,7 @@ export function BoardScreen({ session, onClose }: Props) {
 
   const startMeetingTimer = useCallback(
     (minutes: number) => {
+      soundEngine.play("click");
       const durationSeconds = Math.round(minutes * 60);
       bridgeRef.current?.setTimer({
         running: true,
@@ -1186,6 +2645,7 @@ export function BoardScreen({ session, onClose }: Props) {
   );
 
   const stopMeetingTimer = useCallback(() => {
+    soundEngine.play("click");
     bridgeRef.current?.setTimer(null);
     setTimerPickerOpen(false);
     setToastMessage("⏱️ Timer stopped.");
@@ -1243,7 +2703,7 @@ export function BoardScreen({ session, onClose }: Props) {
     if (!api) return;
     const elements = api.getSceneElements();
     const appState = api.getAppState();
-    const selected = elements.filter((el) => appState.selectedElementIds[el.id]);
+    const selected = elements.filter((el) => appState.selectedElementIds[el.id] && !el.isDeleted);
 
     let x = 0;
     let y = 0;
@@ -1278,39 +2738,148 @@ export function BoardScreen({ session, onClose }: Props) {
     }
 
     const frameCount = elements.filter(
-      (el) => (el.customData as Record<string, unknown> | undefined)?.isFrame,
+      (el) => (el.type === "frame" || (el.customData as Record<string, unknown> | undefined)?.isFrame) && !el.isDeleted,
     ).length;
     const frameTitle = `Frame ${frameCount + 1}`;
+    const frameId = `frame-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    // Identify elements that should be bound as frame children:
+    // Either explicitly selected non-frame elements, or any existing elements completely inside the frame bounds.
+    const targetChildren =
+      selected.length > 0
+        ? selected.filter((el) => el.type !== "frame" && el.type !== "magicframe")
+        : elements.filter(
+            (el) =>
+              el.type !== "frame" &&
+              el.type !== "magicframe" &&
+              !el.isDeleted &&
+              el.x >= x &&
+              el.y >= y &&
+              el.x + el.width <= x + width &&
+              el.y + el.height <= y + height,
+          );
+
+    const childIds = new Set(targetChildren.map((c) => c.id));
+    for (const c of targetChildren) {
+      if (c.boundElements) {
+        for (const b of c.boundElements) {
+          if (b.type === "text") childIds.add(b.id);
+        }
+      }
+    }
 
     const created = convertToExcalidrawElements([
       {
-        type: "rectangle",
+        id: frameId,
+        type: "frame",
+        name: frameTitle,
+        children: Array.from(childIds),
         x,
         y,
         width,
         height,
         backgroundColor: "transparent",
         strokeColor: "#C59C3A",
-        strokeStyle: "dashed",
         strokeWidth: 2,
-        roughness: 0,
+        strokeStyle: "solid",
+        roundness: { type: 3, value: 16 },
         customData: { isFrame: true, frameTitle },
-        label: {
-          text: frameTitle,
-          fontSize: 20,
-          fontFamily: 2,
-          textAlign: "left",
-          verticalAlign: "top",
-          strokeColor: "#E6D6AC",
-        },
       },
     ]);
+    const frameElement = {
+      ...created[0],
+      backgroundColor: "transparent",
+      strokeColor: "#C59C3A",
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      roundness: { type: 3 as const, value: 16 },
+      customData: { isFrame: true, frameTitle },
+    };
+
+    // Excalidraw frame invariant: child elements must precede the parent frame in scene order
+    const otherElements: ExcalidrawElement[] = [];
+    const childrenToFrame: ExcalidrawElement[] = [];
+
+    for (const el of elements) {
+      if (childIds.has(el.id)) {
+        childrenToFrame.push({
+          ...el,
+          frameId: frameElement.id,
+          version: el.version + 1,
+          versionNonce: Math.floor(Math.random() * 1000000000),
+          updated: Date.now(),
+        });
+      } else {
+        otherElements.push(el);
+      }
+    }
+
+    const nextElements = [...otherElements, ...childrenToFrame, frameElement];
 
     api.updateScene({
-      elements: [...elements, ...created] as unknown as OrderedExcalidrawElement[],
+      elements: nextElements as unknown as OrderedExcalidrawElement[],
+      appState: {
+        selectedElementIds: { [frameElement.id]: true },
+      },
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
-    setToastMessage(`🖼️ Added "${frameTitle}"`);
+    setToastMessage(
+      `🖼️ Added "${frameTitle}"${childrenToFrame.length > 0 ? ` (${childrenToFrame.length} items bound)` : ""}`,
+    );
+  }, []);
+
+  // When an arrow key is pressed to nudge a frame, keep unselected child elements inside the frame locked to it
+  useEffect(() => {
+    const onFrameNudgeKeyDown = (e: KeyboardEvent) => {
+      if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
+      const api = apiRef.current;
+      if (!api) return;
+      const appState = api.getAppState();
+      if (appState.editingTextElement || appState.openDialog || appState.openMenu) return;
+
+      const elements = api.getSceneElements();
+      const selectedFrames = elements.filter(
+        (el) => appState.selectedElementIds[el.id] && el.type === "frame" && !el.isDeleted,
+      );
+      if (selectedFrames.length === 0) return;
+
+      const frameIds = new Set(selectedFrames.map((f) => f.id));
+      const childElements = elements.filter(
+        (el) =>
+          el.frameId &&
+          frameIds.has(el.frameId) &&
+          !appState.selectedElementIds[el.id] &&
+          !el.isDeleted,
+      );
+      if (childElements.length === 0) return;
+
+      const step = e.shiftKey ? 10 : 1;
+      const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+      const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+
+      const childIds = new Set(childElements.map((c) => c.id));
+      const updated = elements.map((el) => {
+        if (childIds.has(el.id)) {
+          return {
+            ...el,
+            x: el.x + dx,
+            y: el.y + dy,
+            version: el.version + 1,
+            versionNonce: Math.floor(Math.random() * 1000000000),
+            updated: Date.now(),
+          };
+        }
+        return el;
+      });
+
+      api.updateScene({
+        elements: updated as unknown as OrderedExcalidrawElement[],
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    };
+
+    window.addEventListener("keydown", onFrameNudgeKeyDown);
+    return () => window.removeEventListener("keydown", onFrameNudgeKeyDown);
   }, []);
 
   // Presentation Mode
@@ -1319,7 +2888,7 @@ export function BoardScreen({ session, onClose }: Props) {
     if (!api) return;
     const elements = api.getSceneElements();
     const frames = elements
-      .filter((el) => (el.customData as Record<string, unknown> | undefined)?.isFrame)
+      .filter((el) => (el.type === "frame" || (el.customData as Record<string, unknown> | undefined)?.isFrame) && !el.isDeleted)
       .sort((a, b) => (a.y !== b.y ? a.y - b.y : a.x - b.x));
 
     if (frames.length === 0) {
@@ -1412,35 +2981,29 @@ export function BoardScreen({ session, onClose }: Props) {
         issueTitle,
         issueBody,
       );
-      setToastMessage(`✓ Created Issue #${issue.number}: "${issue.title}" in GitHub!`);
-
-      if (targetElement) {
-        const updatedText = `${targetText}\n\n#${issue.number} ${issue.htmlUrl}`;
-        const updatedElements = elements.map((el) => {
-          if (el.id === targetElement?.id) {
-            return {
-              ...el,
-              text: updatedText,
-              originalText: updatedText,
-            };
-          }
-          return el;
-        });
-        api.updateScene({
-          elements: updatedElements as unknown as OrderedExcalidrawElement[],
-          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-        });
-      }
+      const detail = await fetchGitHubIssue(
+        getFreshToken,
+        session.owner,
+        session.repo,
+        issue.number,
+      );
+      // Spawn the Issue Card right next to the selected note (do NOT override sticky!)
+      const at = targetElement
+        ? { x: targetElement.x + targetElement.width + 30, y: targetElement.y }
+        : undefined;
+      addIssueCard(detail, at);
+      setToastMessage(`✓ Created Issue #${issue.number} and placed card beside note!`);
     } catch (err) {
       setToastMessage(err instanceof Error ? err.message : "Failed to create issue.");
     } finally {
       setCreatingIssue(false);
     }
-  }, [creatingIssue, session, storageLabel]);
+  }, [creatingIssue, session, storageLabel, addIssueCard]);
 
   // Stamp / Reaction
   const stampReaction = useCallback(
     (emoji: string) => {
+      soundEngine.play("click");
       const api = apiRef.current;
       if (!api) return;
       const elements = api.getSceneElements();
@@ -1523,6 +3086,15 @@ export function BoardScreen({ session, onClose }: Props) {
     try {
       const restored = await store.read(snapshot.path);
       bridge.replaceAll(restored.elements, restored.meta);
+      if (docRef.current) {
+        recordActivity(docRef.current, {
+          userName: currentIdentity.name,
+          action: "restore",
+          targetType: "board",
+          title: "Restored board snapshot",
+          detail: snapshot.name,
+        });
+      }
       historyOpenRef.current = false;
       setHistoryOpen(false);
     } catch (err) {
@@ -1531,6 +3103,35 @@ export function BoardScreen({ session, onClose }: Props) {
       setHistoryBusy(false);
     }
   }, []);
+
+  const handleJumpToElement = useCallback(
+    (point?: { x: number; y: number }, elementId?: string) => {
+      const api = apiRef.current;
+      if (!api) return;
+
+      if (elementId) {
+        const elements = api.getSceneElements();
+        const target = elements.find((el) => el.id === elementId && !el.isDeleted);
+        if (target) {
+          api.scrollToContent(target, { animate: true, duration: 400 });
+          return;
+        }
+      }
+
+      if (point) {
+        const appState = api.getAppState();
+        const targetScrollX = appState.width / 2 - point.x * appState.zoom.value;
+        const targetScrollY = appState.height / 2 - point.y * appState.zoom.value;
+        api.updateScene({
+          appState: {
+            scrollX: targetScrollX,
+            scrollY: targetScrollY,
+          },
+        });
+      }
+    },
+    [],
+  );
 
   const copyShareLink = useCallback(() => {
     const origin = window.location.origin + window.location.pathname;
@@ -1630,6 +3231,69 @@ export function BoardScreen({ session, onClose }: Props) {
     </div>
   );
 
+  const stickySettingsBar = (
+    <div className="sticky-defaults-bar">
+      <div className="sticky-defaults-section">
+        <span className="sticky-defaults-label">Edges</span>
+        <div className="sticky-defaults-chips">
+          <button
+            type="button"
+            className={`sticky-default-chip ${stickyDefaults.radius === 0 ? "active" : ""}`}
+            onClick={() => handleUpdateStickyDefault({ radius: 0 })}
+            title="Sharp corners (0px radius)"
+          >
+            Sharp (0px)
+          </button>
+          <button
+            type="button"
+            className={`sticky-default-chip ${stickyDefaults.radius === 8 ? "active" : ""}`}
+            onClick={() => handleUpdateStickyDefault({ radius: 8 })}
+            title="Slightly rounded (8px radius)"
+          >
+            Round (8px)
+          </button>
+          <button
+            type="button"
+            className={`sticky-default-chip ${stickyDefaults.radius === 16 ? "active" : ""}`}
+            onClick={() => handleUpdateStickyDefault({ radius: 16 })}
+            title="Rounded (16px radius)"
+          >
+            Round (16px)
+          </button>
+        </div>
+      </div>
+      <div className="sticky-defaults-section">
+        <span className="sticky-defaults-label">Sloppiness</span>
+        <div className="sticky-defaults-chips">
+          <button
+            type="button"
+            className={`sticky-default-chip ${stickyDefaults.roughness === 0 ? "active" : ""}`}
+            onClick={() => handleUpdateStickyDefault({ roughness: 0 })}
+            title="Architect style (0 sloppiness / crisp lines)"
+          >
+            0 Neat
+          </button>
+          <button
+            type="button"
+            className={`sticky-default-chip ${stickyDefaults.roughness === 1 ? "active" : ""}`}
+            onClick={() => handleUpdateStickyDefault({ roughness: 1 })}
+            title="Artist style (1 sloppiness)"
+          >
+            1 Artist
+          </button>
+          <button
+            type="button"
+            className={`sticky-default-chip ${stickyDefaults.roughness === 2 ? "active" : ""}`}
+            onClick={() => handleUpdateStickyDefault({ roughness: 2 })}
+            title="Cartoonist style (2 sloppiness / hand-drawn)"
+          >
+            2 Cartoon
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const syncDot =
     status.kind === "error" || status.kind === "locked"
       ? "err"
@@ -1651,6 +3315,23 @@ export function BoardScreen({ session, onClose }: Props) {
             ? "Unlocking…"
             : "Saved";
 
+  const isAnyModalOpen =
+    taskHubOpen ||
+    soundboardOpen ||
+    Boolean(selectedTaskForDetails) ||
+    themePickerOpen ||
+    backgroundPickerOpen ||
+    clusterModalOpen ||
+    videoModalOpen ||
+    startVotingOpen ||
+    votingResultsOpen ||
+    templateGalleryOpen ||
+    passwordModalOpen ||
+    issuesDrawerOpen ||
+    historyOpen ||
+    timerPickerOpen ||
+    status.kind === "locked";
+
   return (
     <div
       className="board-layout"
@@ -1662,6 +3343,17 @@ export function BoardScreen({ session, onClose }: Props) {
     >
       <header className="vgui-topbar">
         <div className="topbar-left">
+          <button
+            type="button"
+            className="topbar-btn"
+            style={{ padding: "2px 7px", fontSize: 11, display: "flex", alignItems: "center", gap: 4, marginRight: 4 }}
+            onClick={onClose}
+            title="Return to Home Dashboard & Boards"
+            aria-label="Boards Dashboard"
+          >
+            <span>🏠</span>
+            <span style={{ fontWeight: 600 }}>Boards</span>
+          </button>
           <span className="vgui-lambda">λ</span>
           <span className="topbar-title" title={storageLabel}>
             {label}
@@ -1773,189 +3465,214 @@ export function BoardScreen({ session, onClose }: Props) {
               </span>
             ))}
           </div>
+
+          <button
+            type="button"
+            className={`topbar-btn ${taskHubOpen ? "active" : ""}`}
+            style={{ padding: "3px 8px", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}
+            onClick={() => setTaskHubOpen((open) => !open)}
+            title="Open Project & Task Management Hub"
+            aria-label="Tasks & Progress"
+          >
+            <span>📋</span>
+            <span style={{ fontWeight: 600 }}>Tasks</span>
+            {tasks.length > 0 && (
+              <span
+                style={{
+                  fontSize: 10,
+                  padding: "0 5px",
+                  borderRadius: 8,
+                  background: "var(--vgui-accent, #3182ce)",
+                  color: "#ffffff",
+                  fontWeight: 700,
+                }}
+              >
+                {tasks.filter((t) => t.status !== "done").length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className={`topbar-btn ${issuesDrawerOpen ? "active" : ""}`}
+            style={{ padding: "3px 8px", fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}
+            onClick={() => setIssuesDrawerOpen((open) => !open)}
+            title="Browse & insert GitHub Issue Cards"
+            aria-label="GitHub Issues"
+          >
+            <span>🐙</span>
+            <span style={{ fontWeight: 600 }}>Issues</span>
+          </button>
+
+          <button
+            type="button"
+            className={`topbar-btn ${soundboardOpen ? "active" : ""}`}
+            style={{ padding: "3px 8px", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}
+            onClick={() => setSoundboardOpen((open) => !open)}
+            title="Open Board Soundboard (Custom Sounds, Clipping & Hotkeys)"
+            aria-label="Soundboard"
+          >
+            <span>🔊</span>
+            <span style={{ fontWeight: 600 }}>Soundboard</span>
+            {soundboardClips.length > 0 && (
+              <span
+                style={{
+                  fontSize: 10,
+                  padding: "0 5px",
+                  borderRadius: 8,
+                  background: "var(--vgui-accent, #3182ce)",
+                  color: "#ffffff",
+                  fontWeight: 700,
+                }}
+              >
+                {soundboardClips.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className="topbar-btn"
+            style={{ padding: "3px 7px", fontSize: 13, minWidth: 32 }}
+            onClick={toggleMuteSound}
+            title={soundEnabled ? "Mute retro sound effects" : "Unmute retro sound effects"}
+            aria-label="Toggle retro sound effects"
+          >
+            {soundEnabled ? "🔊" : "🔇"}
+          </button>
         </div>
       </header>
 
-      {/* Timer Picker Popover */}
-      {timerPickerOpen && (
-        <div className="topbar-popover">
-          <div className="topbar-popover-title">Meeting Timer</div>
-          <div className="topbar-popover-row">
-            <button
-              type="button"
-              className="btn ghost"
-              style={{ padding: "4px 8px" }}
-              onClick={() => startMeetingTimer(1)}
-            >
-              1m
-            </button>
-            <button
-              type="button"
-              className="btn ghost"
-              style={{ padding: "4px 8px" }}
-              onClick={() => startMeetingTimer(3)}
-            >
-              3m
-            </button>
-            <button
-              type="button"
-              className="btn ghost"
-              style={{ padding: "4px 8px" }}
-              onClick={() => startMeetingTimer(5)}
-            >
-              5m
-            </button>
-            <button
-              type="button"
-              className="btn ghost"
-              style={{ padding: "4px 8px" }}
-              onClick={() => startMeetingTimer(10)}
-            >
-              10m
-            </button>
-          </div>
-          {timer?.running && (
+      {status.kind === "error" &&
+        (status.message.toLowerCase().includes("401") ||
+          status.message.toLowerCase().includes("rejected") ||
+          status.message.toLowerCase().includes("expired") ||
+          status.message.toLowerCase().includes("bad credentials")) && (
+          <div className="auth-expired-banner">
+            <span>⚠️ GitHub authentication expired or rejected. You must log in again to sync changes.</span>
             <button
               type="button"
               className="btn primary"
-              style={{ width: "100%", marginTop: 4, background: "#883333" }}
-              onClick={stopMeetingTimer}
+              style={{ padding: "3px 10px", fontSize: 11 }}
+              onClick={onClose}
             >
-              Stop Timer
+              🔑 Re-login to GitHub
             </button>
-          )}
-        </div>
-      )}
-
-      {/* Emoji Reaction Stamp Popover */}
-      {reactionPickerOpen && (
-        <div className="topbar-popover">
-          <div className="topbar-popover-title">Stamp Reaction</div>
-          <div className="topbar-popover-row">
-            {["👍", "🔥", "💡", "🚀", "❤️"].map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                className="btn ghost"
-                style={{ padding: "4px 8px", fontSize: 18 }}
-                onClick={() => stampReaction(emoji)}
-                title={`Stamp ${emoji}`}
-              >
-                {emoji}
-              </button>
-            ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Miro-Style Presentation Mode Bar */}
-      {isPresenting && (
-        <div className="presenter-bar">
-          <button
-            type="button"
-            className="btn ghost"
-            disabled={slideIndex <= 0}
-            onClick={() => goToSlide(slideIndex - 1)}
-          >
-            ◀ Prev
-          </button>
-          <div className="presenter-title">
-            Slide {slideIndex + 1} of {presentationFrames.length}
-            <div style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 400 }}>
-              {(presentationFrames[slideIndex]?.customData as Record<string, unknown> | undefined)
-                ?.frameTitle as string || `Frame ${slideIndex + 1}`}
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn ghost"
-            disabled={slideIndex >= presentationFrames.length - 1}
-            onClick={() => goToSlide(slideIndex + 1)}
-          >
-            Next ▶
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            style={{ marginLeft: 8 }}
-            onClick={() => setIsPresenting(false)}
-          >
-            ✕ Exit
-          </button>
-        </div>
-      )}
-
-      {/* Floating Notification Toast */}
-      {toastMessage && (
-        <div className="toast-popup">
-          <span>{toastMessage}</span>
-          <button
-            type="button"
-            className="btn ghost"
-            style={{ padding: "1px 6px", fontSize: 10 }}
-            onClick={() => setToastMessage(null)}
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {apiReady && !isNarrow && stickyPos
+      {apiReady && !isNarrow && stickyPos && !isAnyModalOpen
         ? createPortal(
             <div
               className="sticky-anchor"
               ref={stickyAnchorRef}
               style={{ left: stickyPos.left, top: stickyPos.top, height: stickyPos.height }}
             >
+              <div style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  className={`sticky-trigger${stickyPanelOpen ? " active" : ""}`}
+                  onClick={() => setStickyPanelOpen((open) => !open)}
+                  title="Sticky note (N)"
+                  aria-label="Sticky note (N)"
+                  aria-expanded={stickyPanelOpen}
+                >
+                  <span className="sticky-trigger-icon" style={{ background: lastStickyColorRef.current }} />
+                </button>
+                {stickyPanelOpen && (
+                  <div
+                    className="sticky-popover"
+                    role="toolbar"
+                    aria-label="Sticky colours and defaults"
+                    onClick={(e) => {
+                      // Picking a colour swatch closes the popover; default style chips and the color wheel keep it open.
+                      if ((e.target as HTMLElement).closest(".swatch")) setStickyPanelOpen(false);
+                    }}
+                  >
+                    {stickySwatches}
+                    {stickySettingsBar}
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
-                className={`sticky-trigger${stickyPanelOpen ? " active" : ""}`}
-                onClick={() => setStickyPanelOpen((open) => !open)}
-                title="Sticky note (N)"
-                aria-label="Sticky note (N)"
-                aria-expanded={stickyPanelOpen}
+                className={`sticky-trigger frame-trigger${currentActiveTool === "frame" ? " active" : ""}`}
+                onClick={() => {
+                  const api = apiRef.current;
+                  if (!api) return;
+                  if (currentActiveTool === "frame") {
+                    api.setActiveTool({ type: "selection" });
+                  } else {
+                    api.setActiveTool({ type: "frame" });
+                  }
+                }}
+                title="Frame (F) - Draw a frame around objects"
+                aria-label="Frame (F)"
               >
-                <span className="sticky-trigger-icon" style={{ background: lastStickyColorRef.current }} />
+                <span className="frame-trigger-icon" style={{ fontSize: 16 }}>🖼️</span>
               </button>
-              {stickyPanelOpen && (
-                <div
-                  className="sticky-popover"
-                  role="toolbar"
-                  aria-label="Sticky colours"
-                  onClick={(e) => {
-                    // Picking a colour closes the popover; the colour wheel input keeps it open.
-                    if ((e.target as HTMLElement).closest("button")) setStickyPanelOpen(false);
-                  }}
-                >
-                  {stickySwatches}
-                </div>
-              )}
             </div>,
-            document.body,
+            containerRef.current ?? document.body,
           )
         : null}
 
-      {apiReady && (isNarrow || !stickyToolbarHost) && (
-        <div className="sticky-mobile">
+      {apiReady && (isNarrow || !stickyToolbarHost) && !isAnyModalOpen && (
+        <div className="sticky-mobile" style={{ display: "flex", gap: 6 }}>
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              className={`sticky-mobile-btn${stickyMobileOpen ? " active" : ""}`}
+              onClick={() => setStickyMobileOpen((open) => !open)}
+              title="Sticky note (N)"
+              aria-label="Sticky note (N)"
+              aria-expanded={stickyMobileOpen}
+            >
+              📝 Sticky
+            </button>
+            {stickyMobileOpen && (
+              <div className="Island sticky-mobile-popover" style={{ "--padding": 1 } as CSSProperties}>
+                {stickySwatches}
+                {stickySettingsBar}
+              </div>
+            )}
+          </div>
           <button
             type="button"
-            className={`sticky-mobile-btn${stickyMobileOpen ? " active" : ""}`}
-            onClick={() => setStickyMobileOpen((open) => !open)}
-            title="Sticky note (N)"
-            aria-label="Sticky note (N)"
-            aria-expanded={stickyMobileOpen}
+            className={`sticky-mobile-btn${currentActiveTool === "frame" ? " active" : ""}`}
+            onClick={() => {
+              const api = apiRef.current;
+              if (!api) return;
+              if (currentActiveTool === "frame") {
+                api.setActiveTool({ type: "selection" });
+              } else {
+                api.setActiveTool({ type: "frame" });
+              }
+            }}
+            title="Frame (F)"
+            aria-label="Frame (F)"
           >
-            📝 Sticky
+            🖼️ Frame
           </button>
-          {stickyMobileOpen && (
-            <div className="Island sticky-mobile-popover" style={{ "--padding": 1 } as CSSProperties}>
-              {stickySwatches}
-            </div>
-          )}
         </div>
       )}
 
-      <div className="board">
+      <div
+        className="board"
+        style={{
+          backgroundColor: viewBackgroundRef.current,
+        }}
+      >
+        {canvasBgUrl && (
+          <div
+            className="board-canvas-bg"
+            style={{
+              backgroundImage: `url(${canvasBgUrl})`,
+              backgroundRepeat: canvasBgConfig?.tile ? "repeat" : "no-repeat",
+              backgroundSize: canvasBgConfig?.tile ? "auto" : "cover",
+              backgroundPosition: "center",
+            }}
+          />
+        )}
         <Excalidraw
           excalidrawAPI={(api) => {
             apiRef.current = api;
@@ -1982,60 +3699,489 @@ export function BoardScreen({ session, onClose }: Props) {
           UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false } }}
           validateEmbeddable={true}
           renderEmbeddable={renderEmbeddable}
-          renderTopRightUI={(_isMobile, appState) => (
-            <>
-              <button
-                type="button"
-                className={`sidebar-trigger${videoModalOpen ? " active" : ""}`}
-                title="Embed YouTube, Vimeo, Loom, or local video file onto the board"
-                onClick={() => setVideoModalOpen(true)}
-              >
-                <span>🎬</span>
-                <span>Video</span>
-              </button>
-              <button
-                type="button"
-                className={`sidebar-trigger${appState.openSidebar?.name === "ai" ? " active" : ""}`}
-                title="AI Assistant: draw diagrams, analyze board, brainstorm stickies, auto-cluster"
-                onClick={() => apiRef.current?.toggleSidebar({ name: "ai" })}
-              >
-                <span>🤖</span>
-                <span>AI</span>
-              </button>
-            </>
-          )}
+          renderTopRightUI={(_isMobile, appState) => {
+            const activeBadgeCount =
+              unreadCommentsCount +
+              (voting.session?.status === "active" ? 1 : 0) +
+              (presenting ? 1 : 0);
+            const hasLiveTool =
+              placingComment ||
+              pingMode ||
+              presenting ||
+              voting.session?.status === "active" ||
+              Boolean(timer?.running) ||
+              appState.openSidebar?.name === "comments" ||
+              appState.openSidebar?.name === "ai";
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  type="button"
+                  className={`sidebar-trigger${showTags ? " active" : ""}`}
+                  title={showTags ? "Hide sticky tags" : "Show sticky tags"}
+                  onClick={toggleShowTags}
+                  style={{ fontSize: 12, padding: "0 8px", height: 36 }}
+                >
+                  <span>🏷️</span>
+                  <span>{showTags ? "Tags: ON" : "Tags: OFF"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`sidebar-trigger${taskHubOpen ? " active" : ""}`}
+                  title="Open Project & Task Hub (Kanban, Sprints, Team, Analytics)"
+                  onClick={() => setTaskHubOpen(true)}
+                  style={{ fontSize: 12, padding: "0 8px", height: 36 }}
+                >
+                  <span>📋</span>
+                  <span>Tasks</span>
+                  {tasks.length > 0 && (
+                    <span className="comment-top-badge" style={{ background: "var(--vgui-accent, #3182ce)" }}>
+                      {tasks.length}
+                    </span>
+                  )}
+                </button>
+
+                <div className="caulk-tools-anchor" ref={toolsMenuRef}>
+                  <button
+                    type="button"
+                    className={`sidebar-trigger caulk-tools-trigger${toolsMenuOpen || hasLiveTool ? " active" : ""}`}
+                    aria-haspopup="menu"
+                    aria-expanded={toolsMenuOpen}
+                    title="Caulk tools & collaboration settings"
+                    onClick={() => setToolsMenuOpen((open) => !open)}
+                  >
+                    <span>🧰</span>
+                    <span>Tools</span>
+                  {activeBadgeCount > 0 && (
+                    <span className="comment-top-badge">{activeBadgeCount}</span>
+                  )}
+                  <span style={{ fontSize: 10, opacity: 0.8 }}>{toolsMenuOpen ? "▲" : "▼"}</span>
+                </button>
+
+                {toolsMenuOpen && (
+                  <div className="Island caulk-tools-menu" role="menu" aria-label="Caulk tools menu">
+                    <div className="caulk-menu-section">
+                      <div className="caulk-menu-heading">Collaborate</div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`caulk-menu-item${placingComment ? " active" : ""}`}
+                        onClick={() => {
+                          setShowComments(true);
+                          setPlacingComment((v) => !v);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>💬+ Place comment pin</span>
+                        <kbd>C</kbd>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`caulk-menu-item${appState.openSidebar?.name === "comments" ? " active" : ""}`}
+                        onClick={() => {
+                          apiRef.current?.toggleSidebar({ name: "comments" });
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>💬 Comments panel</span>
+                        {unreadCommentsCount > 0 && (
+                          <span className="caulk-menu-pill">{unreadCommentsCount} new</span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => setShowComments((v) => !v)}
+                      >
+                        <span>👁️ Comment pins</span>
+                        <span className="caulk-menu-pill">{showComments ? "Shown" : "Hidden"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`caulk-menu-item${voting.session?.status === "active" ? " active" : ""}`}
+                        onClick={() => {
+                          if (voting.session?.status === "ended") setVotingResultsOpen(true);
+                          else setStartVotingOpen(true);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>
+                          🗳️{" "}
+                          {voting.session?.status === "active"
+                            ? "Voting (active)…"
+                            : voting.session?.status === "ended"
+                              ? "Voting results"
+                              : "Start dot voting…"}
+                        </span>
+                      </button>
+                      <div className="caulk-menu-inline-row" aria-label="Stamp reaction">
+                        <span className="caulk-menu-inline-label">Stamp</span>
+                        {["👍", "🔥", "💡", "🚀", "❤️"].map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            className="caulk-menu-chip"
+                            title={`Stamp ${emoji} on board`}
+                            onClick={() => {
+                              stampReaction(emoji);
+                              setToolsMenuOpen(false);
+                            }}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="caulk-menu-sep" />
+
+                    <div className="caulk-menu-section">
+                      <div className="caulk-menu-heading">Present & Attention</div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          bringEveryoneToMe();
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>📣 Bring everyone to me</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`caulk-menu-item${presenting ? " active" : ""}`}
+                        onClick={() => {
+                          setPresenting((v) => !v);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>📡 Presenter mode</span>
+                        <span className="caulk-menu-pill">{presenting ? "ON" : "OFF"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`caulk-menu-item${pingMode ? " active" : ""}`}
+                        onClick={() => {
+                          setPingMode((v) => !v);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>📍 {pingMode ? "Cancel ping" : "Ping attention"}</span>
+                        <kbd>Alt+Click</kbd>
+                      </button>
+                      <div className="caulk-menu-inline-row" aria-label="Meeting timer">
+                        <span className="caulk-menu-inline-label">⏱️ Timer</span>
+                        {[1, 3, 5, 10].map((mins) => (
+                          <button
+                            key={mins}
+                            type="button"
+                            className="caulk-menu-chip"
+                            onClick={() => {
+                              startMeetingTimer(mins);
+                              setToolsMenuOpen(false);
+                            }}
+                          >
+                            {mins}m
+                          </button>
+                        ))}
+                        {timer?.running && (
+                          <button
+                            type="button"
+                            className="caulk-menu-chip danger"
+                            onClick={() => {
+                              stopMeetingTimer();
+                              setToolsMenuOpen(false);
+                            }}
+                          >
+                            Stop
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="caulk-menu-sep" />
+
+                    <div className="caulk-menu-section">
+                      <div className="caulk-menu-heading">Create & Board</div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          setTaskHubOpen(true);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>📋 Project & Task Hub…</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          setSoundboardOpen(true);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🔊 Soundboard & Audio Clips…</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          convertSelectedToTask();
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>✓ Convert selected to Task</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          setTemplateGalleryOpen(true);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>📐 Templates…</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          setVideoModalOpen(true);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🎬 Insert video…</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          openMermaid();
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>📊 Mermaid diagram</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`caulk-menu-item${appState.openSidebar?.name === "ai" ? " active" : ""}`}
+                        onClick={() => {
+                          apiRef.current?.toggleSidebar({ name: "ai" });
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🤖 AI assistant</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`caulk-menu-item${currentActiveTool === "frame" ? " active" : ""}`}
+                        onClick={() => {
+                          const api = apiRef.current;
+                          if (api) {
+                            if (currentActiveTool === "frame") {
+                              api.setActiveTool({ type: "selection" });
+                            } else {
+                              api.setActiveTool({ type: "frame" });
+                            }
+                          }
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🖼️ Draw frame (F)</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          addFrame();
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>📦 Frame selection</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          setClusterModalOpen(true);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🏷️ Cluster & organize stickies…</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`caulk-menu-item${showTags ? " active" : ""}`}
+                        onClick={() => {
+                          toggleShowTags();
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🏷️ {showTags ? "Hide sticky tags" : "Show sticky tags"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          startPresentation();
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🎞️ Present frames</span>
+                      </button>
+                    </div>
+
+                    <div className="caulk-menu-sep" />
+
+                    <div className="caulk-menu-section">
+                      <div className="caulk-menu-heading">Settings & Sync</div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          setBackgroundPickerOpen(true);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🎨 Board background…</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          setThemePickerOpen(true);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🎭 Theme &amp; UI colors…</span>
+                        <span className="caulk-menu-pill">
+                          {(BOARD_THEME_PRESETS[boardTheme.preset] ?? BOARD_THEME_PRESETS.vgui).badge}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          setHistory(!historyOpen);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🕒 Board history</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          copyShareLink();
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🔗 Copy invite link</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        onClick={() => {
+                          setIssuesDrawerOpen(true);
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🐙 GitHub Issues (Browse &amp; Insert)</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="caulk-menu-item"
+                        disabled={creatingIssue}
+                        onClick={() => {
+                          if (!creatingIssue) void convertSelectedToIssue();
+                          setToolsMenuOpen(false);
+                        }}
+                      >
+                        <span>🐙 Create Issue Card from Note</span>
+                      </button>
+                      <div className="caulk-menu-inline-row">
+                        <button
+                          type="button"
+                          className="caulk-menu-chip"
+                          onClick={() => {
+                            void engineRef.current?.saveNow();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          💾 Save
+                        </button>
+                        <button
+                          type="button"
+                          className="caulk-menu-chip"
+                          onClick={() => {
+                            void engineRef.current?.pullNow();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          ⬇️ Pull
+                        </button>
+                        {isRepoAdmin && (
+                          <button
+                            type="button"
+                            className="caulk-menu-chip"
+                            onClick={() => {
+                              setPasswordModalOpen(true);
+                              setToolsMenuOpen(false);
+                            }}
+                          >
+                            🔐 Key
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="caulk-menu-chip"
+                          onClick={() => {
+                            setToolsMenuOpen(false);
+                            onClose();
+                          }}
+                        >
+                          🏠 Boards
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }}
         >
           <MainMenu>
-            <MainMenu.Group title="Caulk">
-              <MainMenu.Item onSelect={() => setVideoModalOpen(true)}>Insert video</MainMenu.Item>
-              <MainMenu.Item onSelect={() => setTimerPickerOpen(!timerPickerOpen)}>
-                {timer?.running ? "Meeting timer (running)" : "Meeting timer"}
-              </MainMenu.Item>
-              <MainMenu.Item onSelect={() => setHistory(!historyOpen)}>Board history</MainMenu.Item>
+            <MainMenu.Group title="Board">
+              <MainMenu.Item onSelect={() => setIssuesDrawerOpen(true)}>🐙 GitHub Issues…</MainMenu.Item>
               <MainMenu.Item onSelect={() => setBackgroundPickerOpen(true)}>Board background…</MainMenu.Item>
-              {isRepoAdmin && (
-                <MainMenu.Item onSelect={() => setPasswordModalOpen(true)}>Board password…</MainMenu.Item>
-              )}
-              <MainMenu.Item onSelect={() => void engineRef.current?.saveNow()}>Save now</MainMenu.Item>
-              <MainMenu.Item onSelect={() => void engineRef.current?.pullNow()}>Pull from GitHub</MainMenu.Item>
-              <MainMenu.Item onSelect={addFrame}>Frame selection</MainMenu.Item>
-              <MainMenu.Item onSelect={() => apiRef.current?.toggleSidebar({ name: "ai" })}>
-                AI assistant
-              </MainMenu.Item>
-              <MainMenu.Item onSelect={openMermaid}>Mermaid diagram</MainMenu.Item>
-              <MainMenu.Item onSelect={startPresentation}>Present frames</MainMenu.Item>
-              <MainMenu.Item onSelect={() => setReactionPickerOpen(!reactionPickerOpen)}>
-                Stamp reaction
-              </MainMenu.Item>
+              <MainMenu.Item onSelect={() => setThemePickerOpen(true)}>Theme &amp; UI colors…</MainMenu.Item>
               <MainMenu.Item onSelect={() => setStickyPanelOpen(!stickyPanelOpen)}>Sticky palette</MainMenu.Item>
-              <MainMenu.Item onSelect={copyShareLink}>Copy invite link</MainMenu.Item>
-              <MainMenu.Item
-                onSelect={() => {
-                  if (!creatingIssue) void convertSelectedToIssue();
-                }}
-              >
-                Convert note to issue
-              </MainMenu.Item>
               <MainMenu.Item onSelect={onClose}>Switch board / log out</MainMenu.Item>
             </MainMenu.Group>
             <MainMenu.DefaultItems.ClearCanvas />
@@ -2045,6 +4191,29 @@ export function BoardScreen({ session, onClose }: Props) {
             <MainMenu.Separator />
             <MainMenu.DefaultItems.Help />
           </MainMenu>
+          <Sidebar
+            name="comments"
+            className="ai-sidebar"
+            docked={false}
+          >
+            <Sidebar.Header>Comments</Sidebar.Header>
+            <CommentsSidebar
+              threads={commentThreads}
+              currentAuthor={currentIdentity.name}
+              activeThreadId={activeCommentId}
+              seenMap={seenCommentsMap}
+              apiRef={apiRef}
+              onSelectThread={(id) => {
+                setShowComments(true);
+                setActiveCommentId(id);
+              }}
+              onStartAdding={() => {
+                setShowComments(true);
+                setPlacingComment(true);
+              }}
+            />
+          </Sidebar>
+
           <Sidebar
             name="ai"
             className="ai-sidebar"
@@ -2066,9 +4235,358 @@ export function BoardScreen({ session, onClose }: Props) {
             />
           </Sidebar>
         </Excalidraw>
+        <CommentOverlay
+          doc={docRef.current}
+          apiRef={apiRef}
+          apiReady={apiReady}
+          threads={commentThreads}
+          currentAuthor={currentIdentity.name}
+          peerNames={commentPeerNames}
+          visible={showComments}
+          placingMode={placingComment}
+          onDonePlacing={() => setPlacingComment(false)}
+          activeThreadId={activeCommentId}
+          onSelectThread={setActiveCommentId}
+          seenMap={seenCommentsMap}
+          onMarkSeen={markCommentSeen}
+        />
+        <VotingOverlay
+          doc={docRef.current}
+          apiRef={apiRef}
+          apiReady={apiReady}
+          currentAuthor={currentIdentity.name}
+          reactions={elementReactions}
+          voting={voting}
+          activeVoters={activeVoters}
+          onOpenStartVoting={() => setStartVotingOpen(true)}
+          onOpenResults={() => setVotingResultsOpen(true)}
+        />
+        <PresenceOverlay
+          apiRef={apiRef}
+          apiReady={apiReady}
+          liveSessionRef={liveSessionRef}
+          peers={liveStatus.peers}
+          currentAuthor={currentIdentity.name}
+          myColor={liveSessionRef.current?.userColor.stroke ?? "#c4b550"}
+          followingPeerId={followingPeerId}
+          presenting={presenting}
+          pingMode={pingMode}
+          onCancelPingMode={() => setPingMode(false)}
+          onFollowPeer={handleFollowPeer}
+          broughtByBanner={broughtByBanner}
+          onStopPresenting={() => setPresenting(false)}
+          onRateLimitToast={setToastMessage}
+        />
+        <ElementRadiusControl
+          containerRef={containerRef}
+          selectedElements={selectedRoundableElements}
+          appState={apiRef.current?.getAppState() ?? null}
+          onChangeRadius={handleSetElementRadius}
+        />
+        <TagsOverlay
+          apiRef={apiRef}
+          apiReady={apiReady}
+          activeTagFilter={activeTagFilter}
+          showTags={showTags}
+          onSelectTagFilter={setActiveTagFilter}
+          onAddTag={(id, tag) => handleAddTag([id], tag)}
+          onRemoveTag={(id, tag) => handleRemoveTag([id], tag)}
+          onUnlinkTask={handleUnlinkTaskFromElement}
+        />
+        <TagSidebarSection
+          containerRef={containerRef}
+          selectedElements={selectedRoundableElements}
+          allElements={apiRef.current?.getSceneElements() ?? []}
+          appState={apiRef.current?.getAppState() ?? null}
+          onAddTag={handleAddTag}
+          onRemoveTag={handleRemoveTag}
+          onUnlinkTask={handleUnlinkTaskFromElement}
+        />
+
+        {/* Bottom-left notification bar above Excalidraw zoom & undo/redo controls */}
+        <div
+          className={`caulk-notif-stack${
+            placingComment ||
+            pingMode ||
+            presenting ||
+            Boolean(followingPeerId && broughtByBanner) ||
+            voting.session?.status === "active" ||
+            voting.session?.status === "ended"
+              ? " raised"
+              : ""
+          }`}
+        >
+          {timerPickerOpen && (
+            <div className="topbar-popover">
+              <div className="topbar-popover-title">Meeting Timer</div>
+              <div className="topbar-popover-row">
+                {[1, 3, 5, 10].map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    className="btn ghost"
+                    style={{ padding: "4px 8px" }}
+                    onClick={() => startMeetingTimer(mins)}
+                  >
+                    {mins}m
+                  </button>
+                ))}
+              </div>
+              {timer?.running && (
+                <button
+                  type="button"
+                  className="btn primary"
+                  style={{ width: "100%", marginTop: 4, background: "#883333" }}
+                  onClick={stopMeetingTimer}
+                >
+                  Stop Timer
+                </button>
+              )}
+            </div>
+          )}
+
+          {reactionPickerOpen && (
+            <div className="topbar-popover">
+              <div className="topbar-popover-title">Stamp Reaction</div>
+              <div className="topbar-popover-row">
+                {["👍", "🔥", "💡", "🚀", "❤️"].map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className="btn ghost"
+                    style={{ padding: "4px 8px", fontSize: 18 }}
+                    onClick={() => stampReaction(emoji)}
+                    title={`Stamp ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isPresenting && (
+            <div className="presenter-bar">
+              <button
+                type="button"
+                className="btn ghost"
+                disabled={slideIndex <= 0}
+                onClick={() => goToSlide(slideIndex - 1)}
+              >
+                ◀ Prev
+              </button>
+              <div className="presenter-title">
+                Slide {slideIndex + 1} of {presentationFrames.length}
+                <div style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 400 }}>
+                  {(presentationFrames[slideIndex] as any)?.name ||
+                    (presentationFrames[slideIndex]?.customData as Record<string, unknown> | undefined)
+                      ?.frameTitle as string ||
+                    `Frame ${slideIndex + 1}`}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn ghost"
+                disabled={slideIndex >= presentationFrames.length - 1}
+                onClick={() => goToSlide(slideIndex + 1)}
+              >
+                Next ▶
+              </button>
+              <button
+                type="button"
+                className="btn primary"
+                style={{ marginLeft: 8 }}
+                onClick={() => setIsPresenting(false)}
+              >
+                ✕ Exit
+              </button>
+            </div>
+          )}
+
+          {toastMessage && (
+            <div className="toast-popup">
+              <span>{toastMessage}</span>
+              <button
+                type="button"
+                className="btn ghost"
+                style={{ padding: "1px 6px", fontSize: 10 }}
+                onClick={() => setToastMessage(null)}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {digest && <DigestBanner digest={digest} onDismiss={() => setDigest(null)} />}
+        </div>
       </div>
 
-      {digest && <DigestBanner digest={digest} onDismiss={() => setDigest(null)} />}
+      <IssuesDrawer
+        open={issuesDrawerOpen}
+        token={getFreshToken}
+        owner={session.owner}
+        repo={session.repo}
+        onClose={() => setIssuesDrawerOpen(false)}
+        onInsertIssueCard={(issue) => {
+          addIssueCard(issue);
+        }}
+      />
+
+      {taskHubOpen && (
+        <TaskHubModal
+          tasks={tasks}
+          sprints={sprints}
+          milestones={milestones}
+          collaborators={Array.from(collaborators.values()).map((c) => c.username).filter(Boolean) as string[]}
+          repoCollaborators={repoCollaborators}
+          members={members}
+          customRoles={customRoles}
+          currentUserName={currentIdentity.name}
+          onClose={() => setTaskHubOpen(false)}
+          onCreateTask={(partial, options) => {
+            if (docRef.current) {
+              const created = createTask(docRef.current, partial, {
+                id: currentIdentity.name,
+                name: currentIdentity.name,
+              });
+              if (options?.createSticky) {
+                handleAddStickyForTask(created);
+              }
+            }
+          }}
+          onUpdateTask={(taskId, updates) => {
+            if (docRef.current) {
+              updateTask(docRef.current, taskId, updates, {
+                id: currentIdentity.name,
+                name: currentIdentity.name,
+              });
+              if (updates.labels && apiRef.current) {
+                const elements = apiRef.current.getSceneElements();
+                let changed = false;
+                const next = elements.map((el) => {
+                  if ((el.customData as any)?.taskId === taskId) {
+                    changed = true;
+                    return {
+                      ...el,
+                      customData: {
+                        ...((el.customData as Record<string, unknown> | undefined) || {}),
+                        tags: updates.labels,
+                      },
+                      version: el.version + 1,
+                      versionNonce: Math.floor(Math.random() * 2e9),
+                    };
+                  }
+                  return el;
+                });
+                if (changed) {
+                  const restored = restoreElements(next, null);
+                  apiRef.current.updateScene({ elements: restored as unknown as OrderedExcalidrawElement[] });
+                  bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
+                }
+              }
+            }
+          }}
+          onCreateSubtask={handleCreateSubtask}
+          onSetMemberRole={handleSetMemberRole}
+          onAddMember={handleAddMember}
+          onRemoveMember={handleRemoveMember}
+          onSyncRepoCollaborators={handleSyncRepoCollaborators}
+          onAddCustomRole={handleAddCustomRole}
+          onDeleteCustomRole={handleDeleteCustomRole}
+          onCreateSprint={(partial) => {
+            if (docRef.current) createSprint(docRef.current, partial);
+          }}
+          onUpdateSprint={(sprintId, updates) => {
+            if (docRef.current) updateSprint(docRef.current, sprintId, updates);
+          }}
+          onDeleteSprint={(sprintId) => {
+            if (docRef.current) deleteSprint(docRef.current, sprintId);
+          }}
+          onCreateMilestone={(partial) => {
+            if (docRef.current) createMilestone(docRef.current, partial);
+          }}
+          onUpdateMilestone={(milestoneId, updates) => {
+            if (docRef.current) updateMilestone(docRef.current, milestoneId, updates);
+          }}
+          onDeleteMilestone={(milestoneId) => {
+            if (docRef.current) deleteMilestone(docRef.current, milestoneId);
+          }}
+          onSelectTaskDetails={(t) => setSelectedTaskForDetails(t)}
+          onAddCardToCanvas={handleAddCardToCanvas}
+          onAddStickyForTask={handleAddStickyForTask}
+          onJumpToCard={handleJumpToCard}
+        />
+      )}
+
+      {selectedTaskForDetails && (
+        <TaskDetailsModal
+          task={selectedTaskForDetails}
+          allTasks={tasks}
+          sprints={sprints}
+          milestones={milestones}
+          customRoles={customRoles}
+          members={members}
+          collaborators={Array.from(collaborators.values()).map((c) => c.username).filter(Boolean) as string[]}
+          repoCollaborators={repoCollaborators}
+          currentUserName={currentIdentity.name}
+          onCreateTask={(partial) => {
+            if (docRef.current) {
+              return createTask(docRef.current, partial, {
+                id: currentIdentity.name,
+                name: currentIdentity.name,
+              });
+            }
+          }}
+          onUpdateTask={(taskId, updates) => {
+            if (docRef.current) {
+              const updated = updateTask(docRef.current, taskId, updates, {
+                id: currentIdentity.name,
+                name: currentIdentity.name,
+              });
+              if (updated && selectedTaskForDetails.id === taskId) {
+                setSelectedTaskForDetails(updated);
+              }
+              if (updates.labels && apiRef.current) {
+                const elements = apiRef.current.getSceneElements();
+                let changed = false;
+                const next = elements.map((el) => {
+                  if ((el.customData as any)?.taskId === taskId) {
+                    changed = true;
+                    return {
+                      ...el,
+                      customData: {
+                        ...((el.customData as Record<string, unknown> | undefined) || {}),
+                        tags: updates.labels,
+                      },
+                      version: el.version + 1,
+                      versionNonce: Math.floor(Math.random() * 2e9),
+                    };
+                  }
+                  return el;
+                });
+                if (changed) {
+                  const restored = restoreElements(next, null);
+                  apiRef.current.updateScene({ elements: restored as unknown as OrderedExcalidrawElement[] });
+                  bridgeRef.current?.applyLocal(restored as readonly ExcalidrawElement[]);
+                }
+              }
+            }
+          }}
+          onDeleteTask={(taskId) => {
+            if (docRef.current) {
+              deleteTask(docRef.current, taskId);
+              if (selectedTaskForDetails.id === taskId) {
+                setSelectedTaskForDetails(null);
+              }
+            }
+          }}
+          onClose={() => setSelectedTaskForDetails(null)}
+          onJumpToCard={handleJumpToCard}
+          onAddStickyForTask={handleAddStickyForTask}
+          onAddCardToCanvas={handleAddCardToCanvas}
+          onUnlinkElement={handleUnlinkTaskFromElement}
+        />
+      )}
 
       <VideoModal
         open={videoModalOpen}
@@ -2080,6 +4598,8 @@ export function BoardScreen({ session, onClose }: Props) {
       <HistoryPanel
         open={historyOpen}
         snapshots={snapshots}
+        activityEntries={activityEntries}
+        collaborators={Array.from(collaborators.values()).map((c) => c.username).filter(Boolean) as string[]}
         loading={historyLoading}
         busy={historyBusy}
         error={historyError}
@@ -2087,6 +4607,7 @@ export function BoardScreen({ session, onClose }: Props) {
         onRefresh={() => void refreshHistory()}
         onSnapshotNow={() => void snapshotNow()}
         onRestore={(snapshot) => void restoreSnapshot(snapshot)}
+        onJumpToElement={handleJumpToElement}
       />
 
       {/* Opaque until the board opened with our key, so cached content never shows on a locked board. */}
@@ -2099,8 +4620,59 @@ export function BoardScreen({ session, onClose }: Props) {
       {backgroundPickerOpen && (
         <BackgroundPicker
           initialColor={viewBackgroundRef.current}
-          onChange={applyBoardBackground}
+          bgImage={canvasBgConfig}
+          assetStore={assetStore}
+          onChangeColor={applyBoardBackground}
+          onChangeBgImage={applyCanvasBackgroundImage}
           onClose={() => setBackgroundPickerOpen(false)}
+        />
+      )}
+      {themePickerOpen && (
+        <ThemePickerModal
+          theme={boardTheme}
+          currentCanvasBackground={currentViewBackground}
+          onChange={applyBoardTheme}
+          onApplyCanvasBackground={applyBoardBackground}
+          onClose={() => setThemePickerOpen(false)}
+        />
+      )}
+      <StartVotingModal
+        open={startVotingOpen}
+        doc={docRef.current}
+        apiRef={apiRef}
+        currentAuthor={currentIdentity.name}
+        onStartMeetingTimer={startMeetingTimer}
+        onClose={() => setStartVotingOpen(false)}
+      />
+      <VotingResultsModal
+        open={votingResultsOpen}
+        voting={voting}
+        apiRef={apiRef}
+        onCopyToast={setToastMessage}
+        onClose={() => setVotingResultsOpen(false)}
+      />
+      <TemplateGalleryModal
+        open={templateGalleryOpen}
+        repoConfig={templateRepoConfig}
+        selectedElements={(() => {
+          const api = apiRef.current;
+          if (!api) return [];
+          const sel = api.getAppState().selectedElementIds;
+          return api
+            .getSceneElements()
+            .filter((el) => sel[el.id] && !el.isDeleted) as unknown as TemplateElement[];
+        })()}
+        onSelectTemplate={insertTemplateFromGallery}
+        onClose={() => setTemplateGalleryOpen(false)}
+        onToast={setToastMessage}
+      />
+      {clusterModalOpen && (
+        <ClusterModal
+          allElements={apiRef.current?.getSceneElements() ?? []}
+          selectedElementIds={apiRef.current?.getAppState().selectedElementIds ?? {}}
+          onApply={handleApplyCluster}
+          onClose={() => setClusterModalOpen(false)}
+          onToast={setToastMessage}
         />
       )}
       {passwordModalOpen && (
@@ -2115,15 +4687,54 @@ export function BoardScreen({ session, onClose }: Props) {
         />
       )}
 
+      {soundboardOpen && (
+        <SoundboardModal
+          clips={soundboardClips}
+          currentUserName={currentIdentity.name}
+          onClose={() => setSoundboardOpen(false)}
+          onAddClip={(clip) => {
+            if (docRef.current) {
+              addSoundboardClip(docRef.current, clip);
+            }
+          }}
+          onUpdateClip={(id, updates) => {
+            if (docRef.current) {
+              updateSoundboardClip(docRef.current, id, updates);
+            }
+          }}
+          onDeleteClip={(id) => {
+            if (docRef.current) {
+              deleteSoundboardClip(docRef.current, id);
+            }
+          }}
+          onTriggerClip={(clip) => {
+            if (docRef.current) {
+              triggerSoundboardClip(docRef.current, clip, currentIdentity.name);
+            }
+          }}
+        />
+      )}
+
+      {soundboardBroadcastToast && (
+        <div className="soundboard-broadcast-toast">
+          <span style={{ fontSize: 18 }}>{soundboardBroadcastToast.icon}</span>
+          <span>
+            <strong>{soundboardBroadcastToast.user}</strong> played <em>{soundboardBroadcastToast.name}</em>
+          </span>
+        </div>
+      )}
+
       <StatusBar
         status={status}
         liveStatus={liveStatus}
         lastPollAt={engineRef.current?.lastPolledAt ?? 0}
         remoteEdits={remoteEdits}
+        pendingUploads={pendingUploads}
         rateLimit={rateLimit}
         label={storageLabel}
         busy={busy}
         historyOpen={historyOpen}
+        activityCount={activityEntries.length}
         onHistory={() => setHistory(!historyOpen)}
         onSaveNow={() => void engineRef.current?.saveNow()}
         onPullNow={() => void engineRef.current?.pullNow()}

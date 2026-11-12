@@ -1,0 +1,240 @@
+.home-page {
+  min-height: 100vh;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: var(--vgui-bg, #2e3429);
+}
+
+.home-shell {
+  width: min(1040px, 96vw);
+  background: var(--vgui-bg-dark, #3e4637);
+  color: var(--vgui-text, #e6e8e3);
+  border: 2px solid;
+  border-color: var(--vgui-border-light, #8c9684) var(--vgui-border-dark, #252b20)
+    var(--vgui-border-dark, #252b20) var(--vgui-border-light, #8c9684);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+}
+
+.home-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.home-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.home-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.home-search {
+  flex: 1;
+  min-width: 180px;
+  max-width: 300px;
+  padding: 6px 10px;
+  background: #222921;
+  color: #e6e8e3;
+  border: 1px solid #8c9684;
+  font-size: 13px;
+}
+
+.home-select {
+  padding: 6px 8px;
+  background: #222921;
+  color: #e6e8e3;
+  border: 1px solid #8c9684;
+  font-size: 13px;
+}
+
+.home-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #c4b550;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.recent-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.recent-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #2b3429;
+  color: #e6e8e3;
+  border: 1px solid rgba(140, 150, 132, 0.5);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.recent-pill:hover {
+  border-color: #c4b550;
+}
+
+.boards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.board-card {
+  display: flex;
+  flex-direction: column;
+  background: #283026;
+  border: 1px solid rgba(140, 150, 132, 0.45);
+  overflow: hidden;
+  transition: border-color 120ms ease;
+}
+
+.board-card:hover {
+  border-color: #c4b550;
+}
+
+.board-thumb-btn {
+  border: none;
+  padding: 0;
+  margin: 0;
+  height: 130px;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+}
+
+.board-thumb-btn svg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.board-thumb-placeholder {
+  color: #6b7267;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.board-lock-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 6px;
+  background: rgba(27, 34, 27, 0.88);
+  color: #fff3b0;
+  border: 1px solid #c4b550;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.board-card-body {
+  padding: 10px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.board-card-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff3b0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.board-card-meta {
+  font-size: 11px;
+  opacity: 0.78;
+}
+
+.board-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.board-card-btn {
+  padding: 3px 7px;
+  background: #354032;
+  color: #e6e8e3;
+  border: 1px solid rgba(140, 150, 132, 0.5);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.board-card-btn.open {
+  background: #c4b550;
+  color: #1b221b;
+  border-color: #e6d6ac;
+  font-weight: 700;
+}
+
+.board-card-btn.danger:hover {
+  border-color: #e57373;
+  color: #ffb3b3;
+}
+
+.home-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1002;
+}
+
+.home-dialog {
+  width: min(420px, 92vw);
+  padding: 16px;
+  background: var(--vgui-bg-dark, #3e4637);
+  color: var(--vgui-text, #e6e8e3);
+  border: 2px solid;
+  border-color: var(--vgui-border-light, #8c9684) var(--vgui-border-dark, #252b20)
+    var(--vgui-border-dark, #252b20) var(--vgui-border-light, #8c9684);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.home-dialog h4 {
+  margin: 0;
+  color: #c4b550;
+  font-size: 14px;
+}

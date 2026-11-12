@@ -1,0 +1,1193 @@
+/* ==========================================================================
+   Caulk Tasks & Project Management - Authentic Board Theme Styles
+   Adapts seamlessly to Steam VGUI, Win95, Windows XP, Frutiger Glacier/Aero,
+   Vaporwave, DOS TUI, Mac OS 9, and all custom themes.
+   ========================================================================== */
+
+/* ---------- Modal Shell & Sizing ---------- */
+.task-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.task-hub-window {
+  width: 1180px;
+  max-width: 96vw;
+  height: 88vh;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--theme-font, inherit);
+  border-radius: var(--theme-radius, 0px);
+}
+
+.task-details-window {
+  width: 780px;
+  max-width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--theme-font, inherit);
+  border-radius: var(--theme-radius, 0px);
+}
+
+/* Badge in titlebar */
+.task-count-pill {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: var(--theme-radius-sm, 2px);
+  background: var(--vgui-base, rgba(0, 0, 0, 0.25));
+  border: 1px solid var(--vgui-border, rgba(255, 255, 255, 0.2));
+  color: var(--vgui-accent, #c59c3a);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- Top Switcher & Action Bars ---------- */
+.task-view-bar {
+  padding: 6px 12px;
+  background: var(--vgui-bg);
+  border-bottom: 1px solid var(--vgui-border);
+  box-shadow: inset 0 -1px 0 var(--vgui-dark);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-tab-strip {
+  display: flex;
+  gap: 4px;
+}
+
+.task-tab-btn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: var(--theme-radius-sm, 0px);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  background: var(--vgui-bg);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  transition: background 0.1s ease;
+}
+
+.task-tab-btn:hover:not(.active) {
+  background: var(--vgui-hover);
+}
+
+.task-tab-btn.active {
+  background: var(--vgui-selected-bg);
+  color: var(--vgui-selected-fg);
+  border-color: var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-dark), inset -1px -1px 0 var(--vgui-light);
+  font-weight: 700;
+}
+
+.task-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Form Inputs, Selects & Textareas */
+.task-input,
+.task-select,
+.task-textarea {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  background: var(--vgui-base);
+  color: var(--vgui-text, var(--ink));
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  border-radius: var(--theme-radius-sm, 0px);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+  outline: none;
+}
+
+.task-input:focus,
+.task-select:focus,
+.task-textarea:focus {
+  border-color: var(--vgui-accent);
+  box-shadow: inset 1px 1px 0 var(--vgui-dark), 0 0 0 1px var(--vgui-accent);
+}
+
+.task-input::placeholder,
+.task-textarea::placeholder {
+  color: var(--vgui-muted, var(--ink-soft));
+  opacity: 0.75;
+}
+
+/* Quick Add Bar */
+.task-quick-add-bar {
+  padding: 6px 12px;
+  background: var(--vgui-bg);
+  border-bottom: 1px solid var(--vgui-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Modal Inner Body Container */
+.task-modal-body {
+  padding: 12px;
+  flex: 1;
+  overflow: auto;
+  background: var(--vgui-bg);
+  color: var(--ink);
+  font-family: var(--theme-font, inherit);
+}
+
+/* ---------- Kanban View ---------- */
+.task-kanban-board {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(210px, 1fr));
+  gap: 10px;
+  height: 100%;
+  align-items: stretch;
+}
+
+.task-kanban-column {
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  border-radius: var(--theme-radius-sm, 0px);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.task-kanban-column-header {
+  padding: 7px 10px;
+  background: var(--vgui-bg);
+  border-bottom: 1px solid var(--vgui-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  user-select: none;
+  box-shadow: inset 0 -2px 0 var(--status-color, var(--vgui-accent));
+}
+
+.task-kanban-count-pill {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: var(--vgui-base);
+  color: var(--ink);
+  border: 1px solid var(--vgui-dark);
+  border-radius: var(--theme-radius-sm, 2px);
+  font-weight: 700;
+}
+
+.task-kanban-cards-list {
+  padding: 8px;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-kanban-card {
+  padding: 8px 10px;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  border-radius: var(--theme-radius-sm, 0px);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 2px 4px rgba(0, 0, 0, 0.16);
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.task-kanban-card:hover {
+  background: var(--vgui-hover);
+  border-color: var(--vgui-accent);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 3px 8px rgba(0, 0, 0, 0.28);
+}
+
+.task-kanban-card:active {
+  cursor: grabbing;
+}
+
+.task-card-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+
+.task-card-key {
+  font-weight: 700;
+  color: var(--vgui-accent, #c59c3a);
+  letter-spacing: 0.02em;
+}
+
+.task-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.task-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.task-chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--theme-radius-sm, 2px);
+  background: var(--vgui-base);
+  color: var(--ink);
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+}
+
+/* Action button inside card */
+.task-card-action-btn {
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: var(--vgui-base);
+  border: 1px dashed var(--vgui-dark);
+  border-radius: var(--theme-radius-sm, 2px);
+  color: var(--ink-soft);
+  cursor: pointer;
+  text-align: center;
+}
+
+.task-card-action-btn:hover {
+  background: var(--vgui-selected-bg);
+  color: var(--vgui-selected-fg);
+  border-style: solid;
+  border-color: var(--vgui-accent);
+}
+
+/* ---------- List View (Table) ---------- */
+.task-table-wrapper {
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  border-radius: var(--theme-radius-sm, 0px);
+  box-shadow: inset 1px 1px 0 var(--vgui-border);
+  overflow: auto;
+}
+
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+  color: var(--ink);
+}
+
+.task-table th {
+  padding: 8px 10px;
+  background: var(--vgui-bg);
+  color: var(--ink);
+  font-weight: 700;
+  border-bottom: 1px solid var(--vgui-border);
+  box-shadow: inset 0 -1px 0 var(--vgui-dark);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.task-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--vgui-dark);
+  white-space: nowrap;
+}
+
+.task-table tr:hover td {
+  background: var(--vgui-hover);
+  cursor: pointer;
+}
+
+/* Status Badges */
+.task-status-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--theme-radius-sm, 2px);
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+/* ---------- Timeline / Gantt View ---------- */
+.task-timeline-container {
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  border-radius: var(--theme-radius-sm, 0px);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-timeline-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task-timeline-ruler {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--vgui-border);
+}
+
+.task-timeline-ruler-track {
+  flex: 1;
+  height: 20px;
+  position: relative;
+}
+
+.task-timeline-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--vgui-muted);
+  white-space: nowrap;
+}
+
+.task-timeline-tick::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  width: 1px;
+  height: 4px;
+  background: var(--vgui-border);
+}
+
+.task-timeline-today-marker {
+  position: absolute;
+  top: -2px;
+  transform: translateX(-50%);
+  background: var(--vgui-accent, #c59c3a);
+  color: #000;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 2px;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.task-timeline-today-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--vgui-accent, #c59c3a);
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.task-timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.task-timeline-row:hover .task-timeline-label {
+  color: var(--vgui-accent);
+}
+
+.task-timeline-label {
+  width: 160px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-timeline-track {
+  flex: 1;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-dark);
+  height: 24px;
+  border-radius: var(--theme-radius-sm, 2px);
+  position: relative;
+  overflow: hidden;
+}
+
+.task-timeline-bar {
+  position: absolute;
+  height: 100%;
+  border-radius: var(--theme-radius-sm, 2px);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.4), inset -1px -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* ---------- Calendar View ---------- */
+.task-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.task-calendar-cell {
+  height: 84px;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-border);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark);
+  border-radius: var(--theme-radius-sm, 0px);
+  padding: 4px 6px;
+  font-size: 11px;
+  overflow-y: auto;
+}
+
+.task-calendar-day-num {
+  font-weight: 700;
+  color: var(--vgui-muted, var(--ink-soft));
+  margin-bottom: 2px;
+}
+
+.task-calendar-pill {
+  margin-top: 2px;
+  padding: 2px 4px;
+  background: var(--vgui-selected-bg);
+  color: var(--vgui-selected-fg);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: var(--theme-radius-sm, 2px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* ---------- Dashboard / Analytics ---------- */
+.task-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.task-metric-card {
+  padding: 12px 14px;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  border-radius: var(--theme-radius-sm, 0px);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark);
+  display: flex;
+  flex-direction: column;
+}
+
+.task-metric-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--vgui-muted, var(--ink-soft));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.task-metric-value {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 4px 0 2px;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.task-progress-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  border-radius: var(--theme-radius-sm, 0px);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.task-progress-bar-fill {
+  height: 100%;
+  background: var(--vgui-selected-bg);
+  transition: width 0.2s ease;
+}
+
+/* ---------- Details Modal Form Sections ---------- */
+.task-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-form-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--vgui-muted, var(--ink-soft));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.task-comment-box {
+  padding: 6px 10px;
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  border-radius: var(--theme-radius-sm, 0px);
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.task-comment-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--vgui-muted, var(--ink-soft));
+  margin-bottom: 4px;
+}
+
+.task-subtask-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  border-bottom-color: var(--vgui-light);
+  border-right-color: var(--vgui-light);
+  border-radius: var(--theme-radius-sm, 0px);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.task-subtask-item label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+/* ---------- Whiteboard Canvas TaskCard ---------- */
+.caulk-task-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-bg);
+  border-right-color: var(--vgui-border);
+  border-bottom-color: var(--vgui-border);
+  border-left: 4px solid var(--status-color, var(--vgui-accent));
+  border-radius: var(--theme-radius-sm, 4px);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 4px 12px rgba(0, 0, 0, 0.28);
+  font-family: var(--theme-font, inherit);
+  color: var(--ink);
+  user-select: none;
+  overflow: hidden;
+  position: relative;
+}
+
+.caulk-task-card-header {
+  padding: 6px 8px;
+  background: var(--vgui-base);
+  border-bottom: 1px solid var(--vgui-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.caulk-task-card-body {
+  padding: 8px 10px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.caulk-task-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.3;
+  margin: 0;
+  cursor: pointer;
+  word-break: break-word;
+}
+
+.caulk-task-card-title:hover {
+  color: var(--vgui-accent);
+}
+
+.caulk-task-card-footer {
+  padding: 6px 8px;
+  border-top: 1px solid var(--vgui-border);
+  box-shadow: inset 0 1px 0 var(--vgui-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--vgui-muted, var(--ink-soft));
+}
+
+.caulk-task-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 2px;
+  background: var(--vgui-bg);
+  border: 1px solid var(--vgui-border);
+  border-radius: var(--theme-radius-sm, 0px);
+  box-shadow: inset 1px 1px 0 var(--vgui-light), inset -1px -1px 0 var(--vgui-dark), 0 6px 16px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  min-width: 120px;
+  overflow: hidden;
+}
+
+.caulk-task-dropdown-item {
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 11px;
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.caulk-task-dropdown-item:hover {
+  background: var(--vgui-selected-bg);
+  color: var(--vgui-selected-fg);
+}
+
+/* ==========================================================================
+   Theme-Specific Overrides for Tasks
+   ========================================================================== */
+
+/* ---------- DOS TUI (VGA Cyan/Blue/Monospace) ---------- */
+html[data-board-theme="dos-tui"] .task-hub-window,
+html[data-board-theme="dos-tui"] .task-details-window,
+html[data-board-theme="dos-tui"] .caulk-task-card {
+  border-radius: 0 !important;
+  font-family: var(--theme-font) !important;
+  box-shadow: 4px 4px 0 #000000 !important;
+}
+
+html[data-board-theme="dos-tui"] .task-kanban-column,
+html[data-board-theme="dos-tui"] .task-table-wrapper,
+html[data-board-theme="dos-tui"] .task-timeline-container,
+html[data-board-theme="dos-tui"] .task-input,
+html[data-board-theme="dos-tui"] .task-select,
+html[data-board-theme="dos-tui"] .task-textarea {
+  border-radius: 0 !important;
+  border: 1px solid #ffffff !important;
+  background: #000033 !important;
+  color: #ffffff !important;
+}
+
+html[data-board-theme="dos-tui"] .task-tab-btn {
+  border-radius: 0 !important;
+  box-shadow: 2px 2px 0 #000000 !important;
+}
+
+html[data-board-theme="dos-tui"] .task-tab-btn.active {
+  background: #ffff55 !important;
+  color: #000000 !important;
+  font-weight: bold !important;
+}
+
+/* ---------- Win95 / Win98 Classic ---------- */
+html[data-board-theme="win95"] .task-hub-window,
+html[data-board-theme="win95"] .task-details-window,
+html[data-board-theme="win95"] .caulk-task-card {
+  border-radius: 0 !important;
+  background: #c0c0c0 !important;
+  color: #000000 !important;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080 !important;
+}
+
+html[data-board-theme="win95"] .task-input,
+html[data-board-theme="win95"] .task-select,
+html[data-board-theme="win95"] .task-textarea,
+html[data-board-theme="win95"] .task-table-wrapper,
+html[data-board-theme="win95"] .task-kanban-column {
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  color: #000000 !important;
+  box-shadow: inset 1px 1px 0 #808080, inset -1px -1px 0 #dfdfdf !important;
+}
+
+html[data-board-theme="win95"] .task-tab-btn {
+  border-radius: 0 !important;
+  background: #c0c0c0 !important;
+  color: #000000 !important;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080 !important;
+}
+
+html[data-board-theme="win95"] .task-tab-btn.active {
+  background: #000080 !important;
+  color: #ffffff !important;
+  box-shadow: inset 1px 1px 0 #808080 !important;
+}
+
+html[data-board-theme="win95"] .task-kanban-card {
+  background: #c0c0c0 !important;
+  color: #000000 !important;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #808080 !important;
+}
+
+html[data-board-theme="win95"] .task-card-title {
+  color: #000000 !important;
+}
+
+/* ---------- Windows XP (Luna) ---------- */
+html[data-board-theme="windows-xp"] .task-hub-window,
+html[data-board-theme="windows-xp"] .task-details-window {
+  border-radius: var(--theme-radius) !important;
+  border: 1px solid #0055ea !important;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #d0ccb8, 0 8px 24px rgba(0, 40, 110, 0.3) !important;
+}
+
+html[data-board-theme="windows-xp"] .task-tab-btn {
+  background: linear-gradient(180deg, #ffffff 0%, #ece9d8 50%, #d8d4c2 100%) !important;
+  border: 1px solid #003c74 !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="windows-xp"] .task-tab-btn.active {
+  background: linear-gradient(180deg, #ffaf38 0%, #ff8e00 100%) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-color: #9e4c00 !important;
+}
+
+html[data-board-theme="windows-xp"] .task-kanban-column,
+html[data-board-theme="windows-xp"] .task-table-wrapper {
+  background: #ffffff !important;
+  border: 1px solid #7f9db9 !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="windows-xp"] .task-kanban-card {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e0 !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="windows-xp"] .task-card-title {
+  color: #000000 !important;
+}
+
+/* ---------- Frutiger Glacier / Aero (Glass Acrylic) ---------- */
+html[data-board-theme="frutiger-glacier"] .task-hub-window,
+html[data-board-theme="frutiger-glacier"] .task-details-window,
+html[data-board-theme="frutiger-aero"] .task-hub-window,
+html[data-board-theme="frutiger-aero"] .task-details-window {
+  background: linear-gradient(
+    135deg,
+    rgba(245, 252, 255, 0.52) 0%,
+    rgba(200, 238, 255, 0.32) 48%,
+    rgba(160, 222, 255, 0.38) 100%
+  ) !important;
+  backdrop-filter: blur(28px) saturate(200%) brightness(108%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) brightness(108%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.98) !important;
+  box-shadow:
+    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3),
+    0 14px 40px rgba(10, 50, 90, 0.25) !important;
+  color: #072844 !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .task-card-title,
+html[data-board-theme="frutiger-aero"] .task-card-title {
+  color: #072844 !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .task-kanban-column,
+html[data-board-theme="frutiger-aero"] .task-kanban-column {
+  background: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+}
+
+html[data-board-theme="frutiger-glacier"] .task-kanban-card,
+html[data-board-theme="frutiger-aero"] .task-kanban-card {
+  background: rgba(255, 255, 255, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 2px 8px rgba(0, 100, 180, 0.12) !important;
+}
+
+/* ---------- Vaporwave (Neon Magenta / Cyan Grids) ---------- */
+html[data-board-theme="vaporwave"] .task-hub-window,
+html[data-board-theme="vaporwave"] .task-details-window {
+  border: 2px solid #ff71ce !important;
+  box-shadow: 0 0 20px rgba(255, 113, 206, 0.4), inset 0 0 10px rgba(1, 205, 254, 0.2) !important;
+}
+
+html[data-board-theme="vaporwave"] .task-kanban-column {
+  background: #1b0a33 !important;
+  border: 1px solid #ff71ce !important;
+}
+
+html[data-board-theme="vaporwave"] .task-kanban-card {
+  background: #2c124d !important;
+  border: 1px solid #01cdfe !important;
+  box-shadow: 0 0 8px rgba(1, 205, 254, 0.2) !important;
+}
+
+html[data-board-theme="vaporwave"] .task-card-title {
+  color: #01cdfe !important;
+}
+
+/* ==========================================================================
+   Sprints & Backlog Management Styles
+   ========================================================================== */
+.task-sprint-container {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  min-width: 900px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+@media (max-width: 800px) {
+  .task-sprint-container {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+}
+
+.task-backlog-panel {
+  background: var(--vgui-base, #1b221a);
+  border: 1px solid var(--vgui-border, #455243);
+  border-radius: var(--theme-radius-sm, 2px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 320px;
+}
+
+.task-backlog-header {
+  padding: 10px 12px;
+  font-weight: 700;
+  font-size: 13px;
+  background: var(--vgui-header, #283326);
+  border-bottom: 1px solid var(--vgui-border, #455243);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task-backlog-list {
+  padding: 10px;
+  overflow-y: auto;
+  overflow-x: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.task-sprints-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  overflow-x: auto;
+  min-width: 540px;
+  padding-right: 4px;
+}
+
+.task-sprint-card {
+  background: var(--vgui-base, #1b221a);
+  border: 1px solid var(--vgui-border, #455243);
+  border-radius: var(--theme-radius-sm, 2px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 500px;
+}
+
+.task-sprint-card-header {
+  padding: 10px 14px;
+  background: var(--vgui-header, #283326);
+  border-bottom: 1px solid var(--vgui-border, #455243);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: max-content;
+}
+
+.task-sprint-card-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-sprint-badge {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.task-sprint-badge.planning {
+  background: #4a5568;
+  color: #fff;
+}
+.task-sprint-badge.active {
+  background: var(--ok, #38a169);
+  color: #fff;
+}
+.task-sprint-badge.completed {
+  background: #2b6cb0;
+  color: #fff;
+}
+
+/* ==========================================================================
+   Milestones Tracking Styles
+   ========================================================================== */
+.task-milestones-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.task-milestone-card {
+  background: var(--vgui-base, #1b221a);
+  border: 1px solid var(--vgui-border, #455243);
+  border-radius: var(--theme-radius-sm, 2px);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-milestone-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.task-milestone-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vgui-text, #e2e8f0);
+}
+
+/* ==========================================================================
+   Team & Roles Workload Management Styles
+   ========================================================================== */
+.task-team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 16px;
+  min-width: 680px;
+  overflow-x: auto;
+}
+
+.task-member-card {
+  background: var(--vgui-base, #1b221a);
+  border: 1px solid var(--vgui-border, #455243);
+  border-radius: var(--theme-radius-sm, 2px);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-member-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.task-member-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.task-member-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--vgui-accent, #3182ce);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.task-role-badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-weight: 600;
+  background: var(--vgui-bg, #283326);
+  border: 1px solid var(--vgui-border, #455243);
+  color: var(--vgui-accent, #68d391);
+}
+
+.task-workload-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+.task-workload-badge.light {
+  background: #2b6cb0;
+  color: #fff;
+}
+.task-workload-badge.optimal {
+  background: var(--ok, #38a169);
+  color: #fff;
+}
+.task-workload-badge.heavy {
+  background: var(--err, #e53e3e);
+  color: #fff;
+}
+
+/* ==========================================================================
+   Horizontal & Vertical High-Visibility Retro Scrollbars
+   ========================================================================== */
+.task-modal-body,
+.task-sprint-container,
+.task-sprints-panel,
+.task-backlog-list,
+.task-kanban-board,
+.task-timeline-container,
+.task-team-grid,
+.task-milestones-grid,
+.task-table-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: var(--vgui-accent, #48bb78) var(--vgui-base, #1b221a);
+}
+
+.task-modal-body::-webkit-scrollbar,
+.task-sprint-container::-webkit-scrollbar,
+.task-sprints-panel::-webkit-scrollbar,
+.task-backlog-list::-webkit-scrollbar,
+.task-kanban-board::-webkit-scrollbar,
+.task-timeline-container::-webkit-scrollbar,
+.task-team-grid::-webkit-scrollbar,
+.task-milestones-grid::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.task-modal-body::-webkit-scrollbar-track,
+.task-sprint-container::-webkit-scrollbar-track,
+.task-sprints-panel::-webkit-scrollbar-track,
+.task-backlog-list::-webkit-scrollbar-track,
+.task-kanban-board::-webkit-scrollbar-track,
+.task-team-grid::-webkit-scrollbar-track,
+.task-milestones-grid::-webkit-scrollbar-track {
+  background: var(--vgui-base, #151a14);
+  border: 1px solid var(--vgui-border, #455243);
+}
+
+.task-modal-body::-webkit-scrollbar-thumb,
+.task-sprint-container::-webkit-scrollbar-thumb,
+.task-sprints-panel::-webkit-scrollbar-thumb,
+.task-backlog-list::-webkit-scrollbar-thumb,
+.task-kanban-board::-webkit-scrollbar-thumb,
+.task-team-grid::-webkit-scrollbar-thumb,
+.task-milestones-grid::-webkit-scrollbar-thumb {
+  background: var(--vgui-accent, #48bb78);
+  border: 2px solid var(--vgui-base, #151a14);
+  border-radius: 4px;
+}
+
+.task-modal-body::-webkit-scrollbar-thumb:hover,
+.task-sprint-container::-webkit-scrollbar-thumb:hover,
+.task-sprints-panel::-webkit-scrollbar-thumb:hover,
+.task-kanban-board::-webkit-scrollbar-thumb:hover,
+.task-team-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--vgui-highlight, #68d391);
+}

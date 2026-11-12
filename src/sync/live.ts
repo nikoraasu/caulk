@@ -57,6 +57,19 @@ export function colorForIdentity(id: string): CollaboratorColor {
   return COLLABORATOR_COLORS[hash % COLLABORATOR_COLORS.length];
 }
 
+export type PeerSummon = {
+  id: string;
+  at: number;
+  viewport: { scrollX: number; scrollY: number; zoom: number };
+};
+
+export type PeerPing = {
+  id: string;
+  x: number;
+  y: number;
+  at: number;
+};
+
 export type PeerUser = {
   clientId: number;
   id: string;
@@ -64,6 +77,10 @@ export type PeerUser = {
   color: CollaboratorColor;
   viewport?: { scrollX: number; scrollY: number; zoom: number };
   pointer?: { x: number; y: number };
+  votingSessionId?: string | null;
+  presenting?: boolean;
+  summon?: PeerSummon | null;
+  ping?: PeerPing | null;
 };
 
 export type LiveStatus = {
@@ -72,7 +89,23 @@ export type LiveStatus = {
   webrtcPeersCount: number;
   bcPeersCount: number;
   peers: PeerUser[];
+  clientId: number;
+  peerClientIds: number[];
 };
+
+/**
+ * Only one client per connected live room should commit snapshots to GitHub so
+ * collaborators don't race into 409 conflicts. The peer with the lowest Yjs
+ * awareness clientID wins; offline/solo clients always act as saver.
+ */
+export function isElectedSaver(
+  connected: boolean,
+  ownClientId: number,
+  peerClientIds: readonly number[],
+): boolean {
+  if (!connected || peerClientIds.length === 0) return true;
+  return peerClientIds.every((id) => ownClientId <= id);
+}
 
 export type LiveSessionOptions = {
   doc: Y.Doc;
@@ -155,6 +188,10 @@ function peersSignature(peers: PeerUser[]): string {
         p.color.stroke,
         p.color.background,
         p.viewport ? `${p.viewport.scrollX},${p.viewport.scrollY},${p.viewport.zoom}` : "",
+        p.votingSessionId ?? "",
+        p.presenting ? "1" : "0",
+        p.summon?.id ?? "",
+        p.ping?.id ?? "",
       ].join("|"),
     )
     .join(";");
@@ -278,6 +315,14 @@ export class LiveSession {
     return this.awarenessStore;
   }
 
+  get clientId(): number {
+    return this.awarenessStore.clientID;
+  }
+
+  get peerClientIds(): number[] {
+    return this.peers.map((p) => p.clientId);
+  }
+
   updateIdentity(identity: Identity): void {
     if (this.disposed) return;
     this.currentIdentity = identity;
@@ -319,6 +364,26 @@ export class LiveSession {
   updateViewport(viewport: { scrollX: number; scrollY: number; zoom: number }): void {
     if (this.disposed) return;
     this.awarenessStore.setLocalStateField("viewport", viewport);
+  }
+
+  updateVotingSession(votingSessionId: string | null): void {
+    if (this.disposed) return;
+    this.awarenessStore.setLocalStateField("votingSessionId", votingSessionId);
+  }
+
+  updatePresenting(presenting: boolean): void {
+    if (this.disposed) return;
+    this.awarenessStore.setLocalStateField("presenting", presenting);
+  }
+
+  triggerSummon(summon: PeerSummon | null): void {
+    if (this.disposed) return;
+    this.awarenessStore.setLocalStateField("summon", summon);
+  }
+
+  triggerPing(ping: PeerPing | null): void {
+    if (this.disposed) return;
+    this.awarenessStore.setLocalStateField("ping", ping);
   }
 
   /** Derives the room key, then announces ourselves and starts polling. */
@@ -719,6 +784,11 @@ export class LiveSession {
         color,
         viewport: state.viewport as { scrollX: number; scrollY: number; zoom: number } | undefined,
         pointer: state.pointer as { x: number; y: number } | undefined,
+        votingSessionId:
+          typeof state.votingSessionId === "string" ? state.votingSessionId : null,
+        presenting: Boolean(state.presenting),
+        summon: (state.summon as PeerSummon | null | undefined) ?? null,
+        ping: (state.ping as PeerPing | null | undefined) ?? null,
       });
 
       collaborators.set(String(clientId) as unknown as SocketId, {
@@ -792,6 +862,8 @@ export class LiveSession {
       webrtcPeersCount: 0,
       bcPeersCount: 0,
       peers: this.peers,
+      clientId: this.awarenessStore.clientID,
+      peerClientIds: this.peers.map((p) => p.clientId),
     });
   }
 

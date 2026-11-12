@@ -12,7 +12,9 @@
 
 import type { BinaryFileData, DataURL } from "@excalidraw/excalidraw/types";
 import type { AssetFileRef, SceneBridge } from "../crdt/scene";
+import { WrongPassphraseError } from "../crypto/envelope";
 import { bytesToDataURL, dataURLToBytes, type AssetStore } from "../storage/assets";
+import { GitHubError } from "../storage/github";
 import { listPending, putPending, removePending } from "../storage/pendingUploads";
 
 const RETRY_MS = 15_000;
@@ -26,6 +28,7 @@ export class ImageAssetSync {
   private readonly boardKey: string;
   private readonly addFiles: (files: BinaryFileData[]) => void;
   private readonly onError?: (message: string) => void;
+  private readonly onPendingChange?: (count: number) => void;
 
   /** Queued or uploading. Keeps repeated onChange calls from re-uploading. */
   private readonly inFlight = new Set<string>();
@@ -33,12 +36,17 @@ export class ImageAssetSync {
   private readonly resolved = new Set<string>();
   /** Refs being downloaded right now. */
   private readonly resolving = new Set<string>();
+  /** Refs that cannot be decrypted with the current passphrase; never auto-retried. */
+  private readonly permanentlyFailed = new Set<string>();
+  /** Per-ref earliest retry timestamp (ms) so `.finally()` never causes a 0ms retry loop. */
+  private readonly retryAfter = new Map<string, number>();
   private queue: BinaryFileData[] = [];
   private draining = false;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private downloadRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private downloadFailures = 0;
   private activeDownloads = 0;
+  private lastEmittedPending = 0;
   private disposed = false;
 
   constructor(opts: {
@@ -47,12 +55,14 @@ export class ImageAssetSync {
     boardKey: string;
     addFiles: (files: BinaryFileData[]) => void;
     onError?: (message: string) => void;
+    onPendingChange?: (count: number) => void;
   }) {
     this.bridge = opts.bridge;
     this.store = opts.store;
     this.boardKey = opts.boardKey;
     this.addFiles = opts.addFiles;
     this.onError = opts.onError;
+    this.onPendingChange = opts.onPendingChange;
   }
 
   start(): void {
@@ -69,9 +79,16 @@ export class ImageAssetSync {
   /** Download any asset ref we don't have yet and hand the image to Excalidraw. */
   resolveRefs(): void {
     if (this.disposed) return;
+    const now = Date.now();
     for (const ref of this.bridge.getFileRefs()) {
       if (this.activeDownloads >= MAX_DOWNLOADS) return;
-      if (this.resolved.has(ref.id) || this.inFlight.has(ref.id) || this.resolving.has(ref.id)) {
+      if (
+        this.resolved.has(ref.id) ||
+        this.inFlight.has(ref.id) ||
+        this.resolving.has(ref.id) ||
+        this.permanentlyFailed.has(ref.id) ||
+        now < (this.retryAfter.get(ref.id) ?? 0)
+      ) {
         continue;
       }
       this.resolving.add(ref.id);
@@ -85,9 +102,10 @@ export class ImageAssetSync {
   }
 
   /** Failed downloads are retried with backoff, so a photo never stays a placeholder. */
-  private scheduleDownloadRetry(): void {
+  private scheduleDownloadRetry(delayMs?: number): void {
     if (this.downloadRetryTimer || this.disposed) return;
-    const delay = DOWNLOAD_RETRY_MS[Math.min(this.downloadFailures, DOWNLOAD_RETRY_MS.length - 1)];
+    const delay =
+      delayMs ?? DOWNLOAD_RETRY_MS[Math.min(this.downloadFailures, DOWNLOAD_RETRY_MS.length - 1)];
     this.downloadFailures += 1;
     this.downloadRetryTimer = setTimeout(() => {
       this.downloadRetryTimer = null;
@@ -103,6 +121,18 @@ export class ImageAssetSync {
     this.retryTimer = null;
     if (this.downloadRetryTimer) clearTimeout(this.downloadRetryTimer);
     this.downloadRetryTimer = null;
+    if (this.lastEmittedPending !== 0) {
+      this.lastEmittedPending = 0;
+      this.onPendingChange?.(0);
+    }
+  }
+
+  private emitPending(): void {
+    if (this.disposed) return;
+    const count = this.inFlight.size;
+    if (count === this.lastEmittedPending) return;
+    this.lastEmittedPending = count;
+    this.onPendingChange?.(count);
   }
 
   private async download(ref: AssetFileRef): Promise<void> {
@@ -120,10 +150,19 @@ export class ImageAssetSync {
         },
       ]);
     } catch (err) {
-      // Not marked resolved: retried with backoff.
       console.warn("[caulk] image download failed", ref.id, err);
       if (this.downloadFailures === 0) this.onError?.(errorMessage(err, "This file could not be loaded."));
-      this.scheduleDownloadRetry();
+      if (err instanceof WrongPassphraseError) {
+        // Decryption failed with the active key; retrying will only burn API quota.
+        this.permanentlyFailed.add(ref.id);
+        return;
+      }
+      const delay =
+        err instanceof GitHubError && (err.status === 403 || err.status === 429)
+          ? 60_000
+          : DOWNLOAD_RETRY_MS[Math.min(this.downloadFailures, DOWNLOAD_RETRY_MS.length - 1)];
+      this.retryAfter.set(ref.id, Date.now() + delay);
+      this.scheduleDownloadRetry(delay);
     }
   }
 
@@ -135,6 +174,7 @@ export class ImageAssetSync {
     );
     if (fresh.length === 0) return;
     for (const f of fresh) this.inFlight.add(f.id);
+    this.emitPending();
     await Promise.all(fresh.map((f) => putPending(this.boardKey, f)));
     this.queue.push(...fresh);
     void this.drain();
@@ -147,6 +187,7 @@ export class ImageAssetSync {
     const fresh = pending.filter((f) => !this.inFlight.has(f.id) && !this.resolved.has(f.id));
     if (fresh.length === 0) return;
     for (const f of fresh) this.inFlight.add(f.id);
+    this.emitPending();
     this.addFiles(fresh);
     this.queue.push(...fresh);
     void this.drain();
@@ -195,6 +236,7 @@ export class ImageAssetSync {
     await removePending(this.boardKey, file.id);
     this.inFlight.delete(file.id);
     this.resolved.add(file.id);
+    this.emitPending();
   }
 
   private scheduleRetry(): void {

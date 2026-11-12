@@ -14,6 +14,12 @@ import type { RateLimit, ReadResult, StorageAdapter, WriteResult } from "./types
 const API = "https://api.github.com";
 const API_VERSION = "2022-11-28";
 
+/**
+ * Remember if GitHub (or a proxy/CORS policy) rejects `application/vnd.github.raw`
+ * on `/git/blobs`, so we skip that extra failing round-trip on subsequent blobs.
+ */
+let skipRawBlob = false;
+
 export class GitHubError extends Error {
   constructor(
     public readonly status: number,
@@ -147,11 +153,7 @@ export class GitHubAdapter implements StorageAdapter {
       throw new GitHubError(401, "GitHub rejected the token (401). Check that it is valid and not expired.");
     }
     if (res.status === 403 || res.status === 429) {
-      throw new GitHubError(
-        res.status,
-        `GitHub refused the request (${res.status}): ${detail}. ` +
-          "Usually a rate limit or the token missing Contents read/write permission.",
-      );
+      throw new GitHubError(res.status, formatRateLimitOrForbidden(res, detail));
     }
     throw new GitHubError(res.status, `GitHub error ${res.status}: ${detail}`);
   }
@@ -178,61 +180,15 @@ export class GitHubAdapter implements StorageAdapter {
     if (body.type && body.type !== "file") {
       throw new GitHubError(422, `"${this.cfg.path}" exists but is a ${body.type}, not a file.`);
     }
-    let blobError: unknown;
     if (body.encoding === "none" || (!body.content && (body.size ?? 0) > 0)) {
       if (body.sha) {
-        // GitHub Contents API does not inline content for files > 1 MB.
-        // Retrieve via the Git Blobs API which supports files up to 100 MB.
-        const blobUrl = `${this.apiBase}/repos/${encodeURIComponent(this.cfg.owner)}/${encodeURIComponent(
-          this.cfg.repo,
-        )}/git/blobs/${encodeURIComponent(body.sha)}`;
-
-        // Attempt 1: Fetch raw binary directly using application/vnd.github.raw
-        try {
-          const blobRes = await this.send(blobUrl, {
-            headers: this.headers({ Accept: "application/vnd.github.raw" }),
-            cache: "no-store",
-          });
-          this.noteRateLimit(blobRes);
-          if (blobRes.ok) {
-            const buffer = await blobRes.arrayBuffer();
-            return {
-              status: "ok",
-              bytes: new Uint8Array(buffer),
-              sha: body.sha,
-              etag: res.headers.get("etag") ?? undefined,
-            };
-          }
-        } catch (err) {
-          blobError = err; // try JSON fallback below
-        }
-
-        // Attempt 2: Fetch via JSON (content base64 encoded)
-        try {
-          const jsonBlobRes = await this.send(blobUrl, {
-            headers: this.headers({ Accept: "application/vnd.github+json" }),
-            cache: "no-store",
-          });
-          this.noteRateLimit(jsonBlobRes);
-          if (jsonBlobRes.ok) {
-            const blobJson = (await jsonBlobRes.json()) as { content?: string };
-            if (blobJson.content) {
-              return {
-                status: "ok",
-                bytes: base64ToBytes(blobJson.content),
-                sha: body.sha,
-                etag: res.headers.get("etag") ?? undefined,
-              };
-            }
-          }
-        } catch (err) {
-          blobError = err;
-        }
+        return {
+          status: "ok",
+          bytes: await this.readBlobBytes(body.sha, body.size),
+          sha: body.sha,
+          etag: res.headers.get("etag") ?? undefined,
+        };
       }
-
-      // A login problem is not a size problem: surface it as is.
-      if (blobError instanceof Error && !(blobError instanceof TypeError)) throw blobError;
-
       throw new GitHubError(
         413,
         `This board file is larger than 1 MB (${(((body.size ?? 0) / (1024 * 1024)) || 1).toFixed(1)} MB) ` +
@@ -246,6 +202,78 @@ export class GitHubAdapter implements StorageAdapter {
       sha: body.sha,
       etag: res.headers.get("etag") ?? undefined,
     };
+  }
+
+  /** Fetch a git blob's raw bytes directly via its blob SHA (supports up to 100 MB in 1 API call). */
+  async readBlob(blobSha: string): Promise<Uint8Array> {
+    return this.readBlobBytes(blobSha);
+  }
+
+  private async readBlobBytes(blobSha: string, sizeHint?: number): Promise<Uint8Array> {
+    // Retrieve via the Git Blobs API which supports files up to 100 MB.
+    const blobUrl = `${this.apiBase}/repos/${encodeURIComponent(this.cfg.owner)}/${encodeURIComponent(
+      this.cfg.repo,
+    )}/git/blobs/${encodeURIComponent(blobSha)}`;
+
+    let blobError: unknown;
+    let triedRaw = false;
+
+    // Attempt 1: Fetch raw binary directly using application/vnd.github.raw
+    if (!skipRawBlob) {
+      triedRaw = true;
+      try {
+        const blobRes = await this.send(blobUrl, {
+          headers: this.headers({ Accept: "application/vnd.github.raw" }),
+          cache: "no-store",
+        });
+        this.noteRateLimit(blobRes);
+        if (blobRes.ok) {
+          const buffer = await blobRes.arrayBuffer();
+          return new Uint8Array(buffer);
+        }
+        // Auth, rate-limit, and missing-blob responses won't succeed on JSON either; fail fast.
+        if (
+          blobRes.status === 401 ||
+          blobRes.status === 403 ||
+          blobRes.status === 404 ||
+          blobRes.status === 429
+        ) {
+          await this.fail(blobRes);
+        }
+      } catch (err) {
+        if (err instanceof GitHubError) throw err;
+        blobError = err; // try JSON fallback below
+      }
+    }
+
+    // Attempt 2: Fetch via JSON (content base64 encoded)
+    try {
+      const jsonBlobRes = await this.send(blobUrl, {
+        headers: this.headers({ Accept: "application/vnd.github+json" }),
+        cache: "no-store",
+      });
+      this.noteRateLimit(jsonBlobRes);
+      if (jsonBlobRes.ok) {
+        const blobJson = (await jsonBlobRes.json()) as { content?: string };
+        if (blobJson.content) {
+          if (triedRaw) skipRawBlob = true;
+          return base64ToBytes(blobJson.content);
+        }
+      } else {
+        await this.fail(jsonBlobRes);
+      }
+    } catch (err) {
+      blobError = err;
+    }
+
+    // A login, rate-limit, or HTTP error is not a size problem: surface it as is.
+    if (blobError instanceof Error && !(blobError instanceof TypeError)) throw blobError;
+
+    throw new GitHubError(
+      413,
+      `This board file is larger than 1 MB (${(((sizeHint ?? 0) / (1024 * 1024)) || 1).toFixed(1)} MB) ` +
+        "and could not be retrieved from the Git Blobs API.",
+    );
   }
 
   async write(bytes: Uint8Array, prevSha: string | undefined, message: string): Promise<WriteResult> {
@@ -382,6 +410,52 @@ export class GitHubAdapter implements StorageAdapter {
 }
 
 /** Cheap sanity check used by the setup screen. */
+function formatRateLimitOrForbidden(res: Response, detail?: string): string {
+  const remaining = res.headers.get("x-ratelimit-remaining");
+  const resetRaw = Number(res.headers.get("x-ratelimit-reset"));
+  const retryAfter = Number(res.headers.get("retry-after"));
+  const isRateLimited =
+    res.status === 429 ||
+    remaining === "0" ||
+    /rate limit/i.test(detail || "") ||
+    Number.isFinite(retryAfter);
+
+  if (isRateLimited) {
+    let resetHint = "";
+    if (Number.isFinite(resetRaw) && resetRaw > 0) {
+      const resetMs = resetRaw * 1000;
+      const mins = Math.max(1, Math.ceil((resetMs - Date.now()) / 60_000));
+      const hhmm = new Date(resetMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      resetHint = ` Resets at ${hhmm} (~${mins}m).`;
+    } else if (Number.isFinite(retryAfter) && retryAfter > 0) {
+      const mins = Math.max(1, Math.ceil(retryAfter / 60));
+      resetHint = ` Retry in ~${mins}m.`;
+    }
+    return `GitHub API rate limit reached (${res.status}).${resetHint} Cached/recent boards still work offline & with Live Relay.`;
+  }
+
+  return `GitHub refused the request (${res.status})${detail ? `: ${detail}` : ""}. Usually a rate limit or missing permission.`;
+}
+
+async function throwIfAuthOrRateLimit(res: Response, fallbackMsg: string): Promise<void> {
+  if (res.status === 401) {
+    throw new GitHubError(401, "GitHub rejected the token (401).");
+  }
+  if (res.status === 403 || res.status === 429) {
+    let detail = "";
+    try {
+      const body = (await res.clone().json()) as { message?: string };
+      detail = body?.message || "";
+    } catch {
+      /* ignore */
+    }
+    throw new GitHubError(res.status, formatRateLimitOrForbidden(res, detail));
+  }
+  if (!res.ok) {
+    throw new GitHubError(res.status, `${fallbackMsg} (${res.status}).`);
+  }
+}
+
 export async function inspectRepo(
   token: string,
   owner: string,
@@ -397,10 +471,7 @@ export async function inspectRepo(
   if (res.status === 404) {
     throw new GitHubError(404, `Repo ${owner}/${repo} not found, or this token cannot see it.`);
   }
-  if (!res.ok) {
-    if (res.status === 401) throw new GitHubError(401, "GitHub rejected the token (401).");
-    throw new GitHubError(res.status, `GitHub error ${res.status} while checking the repo.`);
-  }
+  await throwIfAuthOrRateLimit(res, "GitHub error while checking the repo");
   const body = (await res.json()) as {
     private?: boolean;
     default_branch?: string;
@@ -424,6 +495,127 @@ export type GitHubUser = {
   avatarUrl: string;
 };
 
+export interface RepoCollaborator {
+  login: string;
+  name?: string;
+  avatarUrl?: string;
+  role?: string;
+  permissions?: { admin?: boolean; push?: boolean; pull?: boolean };
+}
+
+export async function fetchRepoCollaborators(
+  token?: string | (() => Promise<string>) | null,
+  owner?: string,
+  repo?: string,
+  apiBase: string = API,
+): Promise<RepoCollaborator[]> {
+  if (!owner || !repo) return [];
+  const base = (apiBase || API).replace(/\/$/, "");
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": API_VERSION,
+  };
+
+  const results: RepoCollaborator[] = [];
+  const seen = new Set<string>();
+
+  // Helper to add user
+  const addUser = (u: {
+    login: string;
+    avatar_url?: string;
+    permissions?: { admin?: boolean; push?: boolean; pull?: boolean };
+    role_name?: string;
+  }, fallbackRole?: string) => {
+    if (!u.login || seen.has(u.login.toLowerCase())) return;
+    seen.add(u.login.toLowerCase());
+    results.push({
+      login: u.login,
+      avatarUrl: u.avatar_url || `https://github.com/${u.login}.png`,
+      role:
+        u.role_name ||
+        (u.login.toLowerCase() === owner.toLowerCase()
+          ? "Owner"
+          : u.permissions?.admin
+          ? "Admin"
+          : u.permissions?.push
+          ? "Collaborator"
+          : fallbackRole || "Reader"),
+      permissions: u.permissions,
+    });
+  };
+
+  // 1. Attempt to fetch /collaborators with token if provided
+  if (token) {
+    try {
+      const res = await withAuth(token, (t) =>
+        fetch(`${base}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/collaborators?per_page=100`, {
+          headers: { ...headers, Authorization: `Bearer ${t}` },
+        }),
+      );
+      if (res.ok) {
+        const data = (await res.json()) as Array<{
+          login: string;
+          avatar_url?: string;
+          permissions?: { admin?: boolean; push?: boolean; pull?: boolean };
+          role_name?: string;
+        }>;
+        if (Array.isArray(data)) {
+          for (const u of data) addUser(u);
+        }
+      }
+    } catch {
+      /* ignore and try contributors */
+    }
+  }
+
+  // 2. If collaborators endpoint was inaccessible or returned empty, fetch /contributors (with token if available)
+  if (results.length === 0 && token) {
+    try {
+      const res = await withAuth(token, (t) =>
+        fetch(`${base}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contributors?per_page=100`, {
+          headers: { ...headers, Authorization: `Bearer ${t}` },
+        }),
+      );
+      if (res.ok) {
+        const data = (await res.json()) as Array<{ login: string; avatar_url?: string }>;
+        if (Array.isArray(data)) {
+          for (const u of data) addUser(u, "Contributor");
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // 3. Fallback: try fetching /contributors unauthenticated (works for public repositories)
+  if (results.length === 0) {
+    try {
+      const res = await fetch(`${base}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contributors?per_page=100`, {
+        headers,
+      });
+      if (res.ok) {
+        const data = (await res.json()) as Array<{ login: string; avatar_url?: string }>;
+        if (Array.isArray(data)) {
+          for (const u of data) addUser(u, "Contributor");
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // 4. Always ensure repo owner is present in the list
+  if (owner && !seen.has(owner.toLowerCase())) {
+    results.unshift({
+      login: owner,
+      avatarUrl: `https://github.com/${owner}.png`,
+      role: "Owner",
+    });
+  }
+
+  return results;
+}
+
 export async function fetchCurrentUser(token: string): Promise<GitHubUser> {
   const res = await fetch(`${API}/user`, {
     headers: {
@@ -432,10 +624,7 @@ export async function fetchCurrentUser(token: string): Promise<GitHubUser> {
       "X-GitHub-Api-Version": API_VERSION,
     },
   });
-  if (!res.ok) {
-    if (res.status === 401) throw new GitHubError(401, "GitHub rejected the token (401).");
-    throw new GitHubError(res.status, `Failed to load GitHub user (${res.status}).`);
-  }
+  await throwIfAuthOrRateLimit(res, "Failed to load GitHub user");
   const body = (await res.json()) as { login: string; name?: string; avatar_url?: string };
   return {
     login: body.login,
@@ -487,6 +676,9 @@ async function fetchAppRepos(token: string): Promise<GitHubRepoItem[]> {
 
   for (let page = 1; ; page++) {
     const res = await fetch(`${API}/user/installations?per_page=100&page=${page}`, { headers });
+    if (res.status === 401 || res.status === 403 || res.status === 429) {
+      await throwIfAuthOrRateLimit(res, "Failed to load installations");
+    }
     if (!res.ok) break;
     const body = (await res.json()) as { installations?: Array<{ id?: number }> };
     const installations = Array.isArray(body.installations) ? body.installations : [];
@@ -498,6 +690,9 @@ async function fetchAppRepos(token: string): Promise<GitHubRepoItem[]> {
           `${API}/user/installations/${installation.id}/repositories?per_page=100&page=${repoPage}`,
           { headers },
         );
+        if (repoRes.status === 401 || repoRes.status === 403 || repoRes.status === 429) {
+          await throwIfAuthOrRateLimit(repoRes, "Failed to load installation repositories");
+        }
         if (!repoRes.ok) break;
         const repoBody = (await repoRes.json()) as { repositories?: RepoJson[] };
         const repos = Array.isArray(repoBody.repositories) ? repoBody.repositories : [];
@@ -525,6 +720,9 @@ export async function fetchUserRepos(token: string, kind: "pat" | "app" = "pat")
       },
     },
   );
+  if (res.status === 401 || res.status === 403 || res.status === 429) {
+    await throwIfAuthOrRateLimit(res, "Failed to load repositories");
+  }
   if (!res.ok) return [];
   const body = (await res.json()) as RepoJson[];
   if (!Array.isArray(body)) return [];

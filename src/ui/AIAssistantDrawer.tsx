@@ -150,6 +150,7 @@ export function AIAssistantDrawer({ onClose, apiRef, onToast }: Props) {
           fillStyle: "solid" as const,
           strokeColor: "transparent",
           roughness: 0,
+          roundness: null,
           customData: { isSticky: true },
           label: {
             text: idea,
@@ -235,39 +236,21 @@ export function AIAssistantDrawer({ onClose, apiRef, onToast }: Props) {
         const count = cluster.stickies.length;
         const rows = Math.ceil(count / 2);
         const frameHeight = Math.max(340, rows * 160 + 80);
+        const frameId = `frame-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-        // Frame rectangle
-        newElements.push({
-          type: "rectangle",
-          x: currentFrameX,
-          y: originY,
-          width: frameWidth,
-          height: frameHeight,
-          backgroundColor: "transparent",
-          strokeColor: "#C59C3A",
-          strokeStyle: "dashed",
-          strokeWidth: 2,
-          roughness: 0,
-          customData: { isFrame: true, frameTitle: cluster.category },
-          label: {
-            text: `🗂️ ${cluster.category}`,
-            fontSize: 20,
-            fontFamily: 2,
-            textAlign: "left",
-            verticalAlign: "top",
-            strokeColor: "#E6D6AC",
-          },
-        });
-
-        // Sticky notes inside this frame
+        // Sticky notes inside this frame (children precede the frame in scene order)
+        const clusterStickyIds: string[] = [];
         cluster.stickies.forEach((text, noteIdx) => {
           const col = noteIdx % 2;
           const row = Math.floor(noteIdx / 2);
           const nx = currentFrameX + padding + col * (noteWidth + 20);
           const ny = originY + 60 + row * (noteHeight + 20);
           const color = STICKY_PALETTE[(clusterIdx + noteIdx) % STICKY_PALETTE.length];
+          const noteId = `sticky-${frameId}-${noteIdx}`;
+          clusterStickyIds.push(noteId);
 
           newElements.push({
+            id: noteId,
             type: "rectangle",
             x: nx,
             y: ny,
@@ -276,6 +259,9 @@ export function AIAssistantDrawer({ onClose, apiRef, onToast }: Props) {
             backgroundColor: color,
             fillStyle: "solid",
             strokeColor: "transparent",
+            roughness: 0,
+            roundness: null,
+            frameId,
             customData: { isSticky: true },
             label: {
               text,
@@ -286,6 +272,19 @@ export function AIAssistantDrawer({ onClose, apiRef, onToast }: Props) {
               strokeColor: "#1e1e1e",
             },
           });
+        });
+
+        // Native frame element
+        newElements.push({
+          id: frameId,
+          type: "frame",
+          name: `🗂️ ${cluster.category}`,
+          children: clusterStickyIds,
+          x: currentFrameX,
+          y: originY,
+          width: frameWidth,
+          height: frameHeight,
+          customData: { isFrame: true, frameTitle: cluster.category },
         });
 
         currentFrameX += frameWidth + 40;

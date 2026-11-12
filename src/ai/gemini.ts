@@ -69,8 +69,8 @@ export function extractBoardContent(elements: readonly ExcalidrawElement[]): str
     if (el.isDeleted) continue;
     const custom = el.customData as Record<string, unknown> | undefined;
 
-    if (custom?.isFrame && custom.frameTitle) {
-      frames.push(`Frame: "${custom.frameTitle}"`);
+    if ((el.type === "frame" && (el as any).name) || (custom?.isFrame && custom.frameTitle)) {
+      frames.push(`Frame: "${(el as any).name || custom?.frameTitle}"`);
     }
 
     if (el.type === "text" && (el as unknown as { text?: string }).text) {

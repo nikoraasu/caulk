@@ -184,6 +184,13 @@ type Client = {
   collaborators: Map<string, Collaborator>;
   /** Every pointer x shown by onCollaboratorsChange, keyed by username. */
   pointerXs: Map<string, number[]>;
+  getLatestPeers: () => Array<{
+    name: string;
+    presenting?: boolean;
+    votingSessionId?: string | null;
+    summon?: { id: string } | null;
+    ping?: { id: string; x: number; y: number } | null;
+  }>;
 };
 
 function createClient(name: string, passphrase: string, room: string, relayUrl: string): Client {
@@ -192,6 +199,7 @@ function createClient(name: string, passphrase: string, room: string, relayUrl: 
   const elements = new Map<string, ExcalidrawElement>();
   const collaborators = new Map<string, Collaborator>();
   const pointerXs = new Map<string, number[]>();
+  let latestPeers: Client["getLatestPeers"] extends () => infer R ? R : never = [];
 
   const bridge = new SceneBridge(doc, identity, (incoming) => {
     for (const el of incoming) elements.set(el.id, el);
@@ -202,6 +210,9 @@ function createClient(name: string, passphrase: string, room: string, relayUrl: 
     passphrase,
     identity,
     relayUrl,
+    onStatusChange: (status) => {
+      latestPeers = status.peers;
+    },
     onCollaboratorsChange: (next) => {
       collaborators.clear();
       next.forEach((c, key) => {
@@ -213,7 +224,7 @@ function createClient(name: string, passphrase: string, room: string, relayUrl: 
       });
     },
   });
-  return { name, bridge, live, elements, collaborators, pointerXs };
+  return { name, bridge, live, elements, collaborators, pointerXs, getLatestPeers: () => latestPeers };
 }
 
 function makeNote(x: number, version = 1): ExcalidrawElement {
@@ -366,6 +377,27 @@ async function main(): Promise<void> {
     (g.live as any).handlePageHide();
     await waitFor(() => !hasCollaborator(b, "Grace"), 1500, "B to drop Grace after pagehide goodbye");
     pass("9: pagehide goodbye removes a peer within 1.5s");
+
+    step("10: summon, presenter, ping, and votingSession awareness propagate");
+    {
+      b.live.updatePresenting(true);
+      b.live.updateVotingSession("vote-1");
+      b.live.triggerSummon({ id: "sum-1", at: Date.now(), viewport: { scrollX: -120, scrollY: -80, zoom: 1.5 } });
+      b.live.triggerPing({ id: "ping-1", x: 320, y: 480, at: Date.now() });
+
+      const cLive = createClient("Carol", PASSPHRASE, room, relayUrl);
+      clients.push(cLive);
+      await waitFor(() => {
+        const peer = cLive.getLatestPeers().find((p) => p.name === "Bob");
+        return Boolean(
+          peer?.presenting &&
+            peer?.votingSessionId === "vote-1" &&
+            peer?.summon?.id === "sum-1" &&
+            peer?.ping?.id === "ping-1",
+        );
+      }, 10_000, "Carol to receive Bob's presenter, summon, ping, and voting awareness");
+      pass("10: summon, presenter, ping, and votingSession awareness propagate");
+    }
 
     console.log("all live collaboration checks passed");
   } catch (err) {
