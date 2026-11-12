@@ -7997,12 +7997,22 @@ Options:
   }
   const filePath = resolveBoardPath(opts);
   const passphrase = getPassphrase(opts);
-  if (!passphrase && existsSync(filePath)) {
-    console.error("Error: Board passphrase required. Provide --passphrase or set CAULK_PASSPHRASE environment variable.");
+  let doc;
+  let salt;
+  try {
+    const loaded = await loadBoard(filePath, passphrase);
+    doc = loaded.doc;
+    salt = loaded.salt;
+  } catch (err) {
+    if (!passphrase) {
+      console.error(
+        "Error: Board decryption failed. This board appears to be password-protected.\nProvide --passphrase <pass> or set the CAULK_PASSPHRASE environment variable."
+      );
+    } else {
+      console.error(`Error: Board decryption failed (${err?.message || "invalid passphrase"}).`);
+    }
     process.exit(1);
   }
-  const effectivePassphrase = passphrase || "default";
-  const { doc, salt } = await loadBoard(filePath, effectivePassphrase);
   switch (command) {
     case "dump": {
       const tasksMap = doc.getMap("tasks");
@@ -8105,7 +8115,7 @@ Options:
         elementsMap.set(stickyId, element);
         orderArray.push([stickyId]);
       }
-      await saveBoard(filePath, doc, effectivePassphrase, salt);
+      await saveBoard(filePath, doc, passphrase, salt);
       console.log(`\u2713 Added task: [${task.key}] "${task.title}" (${task.status.toUpperCase()}) to ${filePath}`);
       break;
     }
@@ -8131,7 +8141,7 @@ Options:
       if (opts.priority) updates.priority = normalizePriority(opts.priority);
       if (opts.assignee) updates.assignees = [opts.assignee];
       updateTask(doc, target.id, updates);
-      await saveBoard(filePath, doc, effectivePassphrase, salt);
+      await saveBoard(filePath, doc, passphrase, salt);
       console.log(`\u2713 Updated task [${target.key || target.id}] "${target.title}" in ${filePath}`);
       break;
     }
@@ -8167,7 +8177,7 @@ Options:
       };
       elementsMap.set(stickyId, element);
       orderArray.push([stickyId]);
-      await saveBoard(filePath, doc, effectivePassphrase, salt);
+      await saveBoard(filePath, doc, passphrase, salt);
       console.log(`\u2713 Added sticky note to ${filePath}: "${opts.text.slice(0, 40)}"`);
       break;
     }
