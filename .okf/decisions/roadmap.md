@@ -31,22 +31,13 @@ Implemented and verified in `dev/theming/`:
 5. **Theme Presets & Wallpaper**: 11 curated retro OS presets with transparent canvas, tiling wallpaper, and dynamic background adaptation.
 6. **Per-Object Corner Radius**: Contextual and sidebar controls adjusting specific roundable elements (0–48px).
 
-# Next Up: Tasks, Jira Tracking & External AI Agents
+# Completed: Tasks, Theming Studio & External Agent Bridge
 
-## 1. Project Management, Tasks & Progress Tracking
-- **Independent Task Entities**: Tasks stored as dedicated records in a Yjs `tasks` Map (not tied exclusively to stickies). Fields: `id`, `title`, `description`, `status` (`backlog`, `todo`, `in_progress`, `review`, `done`), `priority`, `assignees`, `estimate`, `subtasks`, `dueDate`, `jiraRef` / `githubRef`.
-- **Task Cards on Canvas**: Rendered via `renderEmbeddable` with interactive status dropdowns, assignee avatars, subtask checklists, and progress indicators.
-- **Frame-Level Progress Aggregation**: Frames containing task cards automatically compute and display aggregate progress (e.g. "Sprint 1: 5/8 tasks complete — 62%").
-- **Multiple Project Views**: Synchronized side-by-side or modal views (Kanban Board, Task List Table, Timeline/Gantt) reading from the shared Yjs task state.
-- **Jira & Issue Sync**: Modular Jira REST API adapter (analogous to `GitHubAdapter`) supporting issue card import, bi-directional status updates, and webhook callbacks.
+1. **Jira/Linear-Grade Task System**: Stored in CRDT map `doc.getMap("tasks")`, interactive canvas cards with live subtask checkoffs, tree connectors, arrow linking, 2-way sticky tag sync, and multi-views (Kanban, List, Gantt, Calendar, Dashboard, Team Roles).
+2. **Custom Theming Engine & Studio**: 11 authentic OS presets, custom theme spec, 8 style modes (`bevel`, `glass`, `xp`, `metal`, `neon`, `pinstripe`, `tui`, `flat`), dynamic CSS variables, live interactive preview, and JSON export/import.
+3. **Headless Board CLI & AI Agent Bridge (`npx caulk`)**: `bin/caulk.mjs` allows external AI agents (Antigravity, Claude Code, Cursor, Codex, OpenCode, Aider) and CI/CD pipelines to inspect boards (`dump`), manage tasks (`list-tasks`, `add-task`, `update-task`), drop stickies (`add-sticky`), and inspect/switch themes (`get-theme`, `set-theme`) over encrypted or unencrypted `.slate` files directly. Documented in `AGENTS.md`.
 
-## 2. External Claude & Multi-Agent Integration
-- **Board CLI / MCP Server / Headless Agent Bridge**: Allow external AI tools (Claude Desktop, Anthropic API, Gemini, custom scripts) to interact directly with Caulk boards.
-- **Agent Collaborator Identity**: External agents connect with dedicated peer identity (e.g. `claude-pm`, `gemini-researcher`) with avatar and role badges.
-- **Direct Board Manipulation ("Summarize & add to board")**:
-  - Secure Agent API / Webhook: accepts structured prompts or JSON (e.g. `"summarize the enemies and add them to the caulk board"`).
-  - Headless Scene Updater: parses enemy summaries into categorized sticky notes wrapped inside a native frame, calculating clean grid coordinates and committing directly to the board's encrypted Yjs doc or live relay.
-  - Safe Action Scopes: permission boundaries for agent operations (read-only, append-only, or full edit).
+# Next Up: Multi-Agent Presence & Jira Sync
 
 # Hosting for others (agreed, not started)
 

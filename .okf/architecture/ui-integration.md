@@ -4,7 +4,7 @@ title: UI integration with Excalidraw
 description: Which Caulk features live inside Excalidraw's own UI and the gotchas found doing it.
 tags: [ui, excalidraw]
 resource: /src/ui/BoardScreen.tsx
-generated: { by: antigravity/gemini, at: "2026-11-11T16:58:00Z" }
+generated: { by: antigravity/gemini, at: "2026-11-12T22:40:00Z" }
 ---
 
 # Layout
@@ -12,13 +12,20 @@ generated: { by: antigravity/gemini, at: "2026-11-11T16:58:00Z" }
 - **AI assistant**: `<Sidebar name="ai">` child of `<Excalidraw>`, toggled with `api.toggleSidebar`; docked state in localStorage `caulk.ai_docked.v1`. Sidebar children unmount when closed (typed text is lost).
 - **Top-right UI** (`renderTopRightUI`):
   - Root: AI and Video buttons.
-  - `dev/` & `dev/theming/`: unified **Tools** dropdown (`caulk-tools-anchor` / `toolsMenuOpen`) consolidating timers, comments, voting, templates, presentation/summon/attention-ping, frame/AI/Mermaid/stamp, video, board background, and (in `dev/theming/`) **Theme & UI colors…** (`ThemePickerModal`), with active tool badge count.
-- **Main menu** (`<MainMenu>`, group `"Board"` in `dev/` & `dev/theming/`): kept slim — board background, theme & UI colors (`dev/theming/`), sticky palette toggle, switch board/log out, plus Excalidraw defaults (ClearCanvas, SaveAsImage, Export, ChangeCanvasBackground, Help). Duplicate tool actions were moved to Tools.
-- **Notification stack** (`dev/` & `dev/theming/`): `.caulk-notif-stack` anchored bottom-left above Excalidraw's zoom & undo/redo controls (`raised` state offsets when active banners show) for timer popover, ping/present/follow/placing-comment/voting status bars instead of floating over the top toolbar.
+  - Unified **Tools** dropdown (`caulk-tools-anchor` / `toolsMenuOpen`) consolidating timers, comments, voting, templates, presentation/summon/attention-ping, frame/AI/Mermaid/stamp, video, board background, and **Theme & UI colors…** (`ThemePickerModal`), with active tool badge count.
+- **Main menu** (`<MainMenu>`, group `"Board"`): kept slim — board background, theme & UI colors, sticky palette toggle, switch board/log out, plus Excalidraw defaults (ClearCanvas, SaveAsImage, Export, ChangeCanvasBackground, Help). Duplicate tool actions were moved to Tools.
+- **Notification stack**: `.caulk-notif-stack` anchored bottom-left above Excalidraw's zoom & undo/redo controls (`raised` state offsets when active banners show) for timer popover, ping/present/follow/placing-comment/voting status bars instead of floating over the top toolbar.
 - **Stickies**: one button portaled to `document.body`, `position: fixed`, aligned to `.App-toolbar` via ResizeObserver; horizontal colour popover, closed by default. **N** drops a sticky at the mouse. Narrow screens use a fixed "📝 Sticky" button.
 - **Top bar** (`.vgui-topbar`): title, save label, running timer, following indicator, live pill, avatars (click to follow). Excalidraw's own `.UserList` is hidden in CSS to avoid a duplicate peer list.
-- **Video frame** (`dev/` & `dev/theming/`): `VideoEmbedFrame.tsx` wraps video/iframe embeds in theme-styled window chrome (`vgui-video-window`) with custom player controls. Creating the `embeddable` element in `BoardScreen.tsx` (~1294) currently sets `strokeColor: "#343D2F"` and `strokeWidth: 1` (pending removal by default).
-- **Global theming** (`dev/theming/` only): `src/ui/boardTheme.ts` + `src/ui/ThemePickerModal.tsx` drive `html[data-board-theme]` (11 presets: `vgui`, `frutiger-glacier`, `frutiger-aqua`, `frutiger-aero`, `frutiger-dorfic`, `frutiger-metal`, `windows-xp`, `mac-os9`, `win95`, `dos-tui`, `vaporwave`) and live CSS variable overrides (`--vgui-bg`, `--vgui-base`, `--vgui-selected-bg`, `--vgui-fg`, `--theme-font`, `--theme-radius`, `--theme-radius-sm`), with `adaptToBackground` dynamically deriving UI colors from canvas background, synced across peers via Yjs `settings.boardTheme`.
+- **Video frame**: `VideoEmbedFrame.tsx` wraps video/iframe embeds in theme-styled window chrome (`vgui-video-window`) with custom player controls. Creating the `embeddable` element in `BoardScreen.tsx` sets clean borderless framing by default.
+- **Global Theming & Custom Theme Studio**:
+  - **Presets**: 11 authentic OS aesthetics driving `html[data-board-theme]` and style modes (`vgui`, `windows-xp`, `frutiger-aero`, `frutiger-glacier`, `frutiger-aqua`, `frutiger-dorfic`, `frutiger-metal`, `mac-os9`, `win95`, `dos-tui`, `vaporwave`).
+  - **Custom Theme Studio** (`ThemePickerModal.tsx`): Dedicated studio tab allowing users to craft bespoke themes with live mini-window interactive preview (titlebar, buttons, input wells, badges).
+  - **Style Modes** (`data-theme-style-mode`): 8 rendering modes (`bevel`, `glass`, `xp`, `metal`, `neon`, `pinstripe`, `tui`, `flat`) providing authentic glass reflections, bevels, CRT glow, or Luna pills.
+  - **Dynamic CSS Variable Engine**: Drives `--vgui-window-bg`, `--vgui-titlebar-bg`, `--vgui-titlebar-fg`, `--vgui-btn-bg`, `--vgui-btn-fg`, `--vgui-btn-hover-bg`, `--vgui-btn-active-bg`, `--vgui-box-shadow`, `--vgui-backdrop-filter`, `--vgui-border-top`, `--vgui-border-left`, `--vgui-border-right`, `--vgui-border-bottom`, `--theme-font`, `--theme-radius`, and `--theme-radius-sm`.
+  - **Starters & Portability**: 5 curated 1-click starter templates (Cyberpunk Amber CRT, Dracula Night, Nordic Frost, Game Boy 1989, Solarized Dark), plus JSON export and import modal.
+  - **CRDT Sync**: Full `ThemePresetSpec` persists inside `settings.boardTheme` in Yjs, synchronizing custom themes to all peers automatically without local setup.
+  - **CLI Integration**: Fully manageable headlessly via `npx caulk get-theme` and `npx caulk set-theme --preset <id>` or `--theme-file <path>`.
 - **Canvas element rounding & frame styling**: Per-object corner radius changer (`ElementRadiusControl.tsx`). Whenever any roundable shape (rectangle, sticky note, diamond, or frame) is selected, users can adjust its specific radius via the left sidebar panel directly under Excalidraw's "Edges" fieldset (slider 0–44px and quick chips). Native frames support custom stroke colors, background fills, stroke widths, and corner radiuses. Patched Excalidraw dev & prod bundles (`build/excalidrawPalette.ts`) to permit stroke color, background fill, roundness changes, and custom canvas rendering on frames. Changes apply strictly to the selected element(s) with undo/redo and Yjs sync.
 - **Drawing safeguards**: Rectangle tool drawing is protected by ensuring `onChange` never invokes `api.updateScene` during active pointer drags (`pointerDownRef.current`) or while drawing shapes (`appState.newElement`), preventing premature element destruction.
 - **Dedicated Frame tool**: Portaled `🖼️ Frame (F)` tool button floats beside the sticky trigger in the top toolbar. Pressing `F` on the canvas (when not editing text) toggles the frame drawing mode. The Tools dropdown provides both "Draw frame (F)" and "Frame selection".
