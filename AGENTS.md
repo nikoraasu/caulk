@@ -82,6 +82,16 @@ npx caulk add-sticky \
 ```
 - `--color`: `yellow` | `green` | `blue` | `purple` | `pink` | `orange`
 
+### 5. Inspect & Set Board Theme
+```bash
+# Get active theme:
+npx caulk get-theme --board main
+
+# Switch theme:
+npx caulk set-theme --board main --preset frutiger-aero
+npx caulk set-theme --board main --preset windows-xp
+```
+
 ---
 
 ## 🔒 Passphrases & Encryption

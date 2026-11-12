@@ -20,6 +20,13 @@ import { base64ToBytes, randomBytes } from "../lib/bytes";
 import { createTask, updateTask, createSubtask } from "../features/tasks/store";
 import type { TaskRecord } from "../features/tasks/types";
 import { normalizeStatus, normalizePriority } from "../ai/types";
+import {
+  parseBoardTheme,
+  serializeBoardTheme,
+  getThemePreset,
+  sanitizeCustomThemeSpec,
+  type BoardThemeConfig,
+} from "../ui/boardTheme";
 
 export type CLIOptions = {
   command?: string;
@@ -39,6 +46,8 @@ export type CLIOptions = {
   text?: string;
   frame?: string;
   task?: string;
+  preset?: string;
+  themeFile?: string;
   json?: boolean;
 };
 
@@ -83,6 +92,10 @@ export function parseArgs(args: string[]): CLIOptions {
       opts.frame = args[++i];
     } else if (arg === "--task") {
       opts.task = args[++i];
+    } else if (arg === "--preset") {
+      opts.preset = args[++i];
+    } else if (arg === "--theme-file") {
+      opts.themeFile = args[++i];
     } else if (arg === "--sticky") {
       opts.sticky = true;
     } else if (arg === "--json") {
@@ -216,12 +229,16 @@ Commands:
   add-task                        Create a new Jira-grade task on the board
   update-task                     Update status, assignee, or priority of a task
   add-sticky                      Add a sticky note directly to the whiteboard canvas
+  get-theme                       Get the active theme on the board
+  set-theme                       Set the board theme (--preset <name> or --theme-file <path>)
 
 Options:
   --board, -b <name>              Board name (default: "default")
   --file, -f <path>               Direct path to .slate board file
   --dir, -d <path>                Boards directory (default: "./boards")
   --passphrase, -p <pass>         Decryption passphrase (or set CAULK_PASSPHRASE env var)
+  --preset <preset>               Theme preset (vgui, frutiger-aero, windows-xp, mac-os9, win95, dos-tui, etc.)
+  --theme-file <path>             Path to custom theme JSON file
   --title, -t <title>             Task title
   --status, -s <status>           Task status (TODO, IN_PROGRESS, REVIEW, DONE, BACKLOG)
   --priority <priority>           Task priority (LOW, MEDIUM, HIGH, CRITICAL)
@@ -287,11 +304,16 @@ Options:
       const frames = elements.filter(e => e.type === "frame" && !e.isDeleted);
       const stickies = elements.filter(e => e.customData?.isSticky && !e.isDeleted);
 
+      const rawTheme = doc.getMap<string>("settings").get("boardTheme");
+      const themeConfig = parseBoardTheme(rawTheme) ?? { preset: "vgui" };
+      const spec = getThemePreset(themeConfig.preset, themeConfig.customTheme);
+
       if (opts.json) {
-        console.log(JSON.stringify({ file: filePath, tasks, frames, stickies }, null, 2));
+        console.log(JSON.stringify({ file: filePath, theme: themeConfig, tasks, frames, stickies }, null, 2));
       } else {
         console.log(`# Board: ${basename(filePath, ".slate")}`);
-        console.log(`Path: ${filePath}\n`);
+        console.log(`Path: ${filePath}`);
+        console.log(`Theme: ${spec.name} [${spec.badge}] (${spec.styleMode ?? "bevel"})\n`);
         console.log(`## Tasks (${tasks.length})`);
         if (tasks.length === 0) {
           console.log("No tasks recorded.");
@@ -464,6 +486,58 @@ Options:
 
       await saveBoard(filePath, doc, effectivePassphrase, salt);
       console.log(`✓ Added sticky note to ${filePath}: "${opts.text.slice(0, 40)}"`);
+      break;
+    }
+
+    case "get-theme": {
+      const rawTheme = doc.getMap<string>("settings").get("boardTheme");
+      const themeConfig = parseBoardTheme(rawTheme) ?? { preset: "vgui" };
+      const spec = getThemePreset(themeConfig.preset, themeConfig.customTheme);
+      if (opts.json) {
+        console.log(JSON.stringify({ config: themeConfig, spec }, null, 2));
+      } else {
+        console.log(`Board Theme for ${basename(filePath, ".slate")}:`);
+        console.log(`  Preset: ${themeConfig.preset} (${spec.name}) [${spec.badge}]`);
+        console.log(`  Style Mode: ${spec.styleMode ?? "bevel"}`);
+        console.log(`  Font: ${spec.font}`);
+        console.log(
+          `  Colors: surface=${spec.defaultColors.surface}, accent=${spec.defaultColors.accent}, text=${spec.defaultColors.text}`,
+        );
+        if (themeConfig.customTheme) {
+          console.log(`  Custom Theme Spec: "${themeConfig.customTheme.name}"`);
+        }
+      }
+      break;
+    }
+
+    case "set-theme": {
+      if (!opts.preset && !opts.themeFile) {
+        console.error("Error: --preset <name> or --theme-file <path> is required.");
+        process.exit(1);
+      }
+      let themeConfig: BoardThemeConfig = { preset: opts.preset || "custom" };
+      if (opts.themeFile) {
+        const fileContent = readFileSync(resolve(opts.themeFile), "utf-8");
+        const parsed = JSON.parse(fileContent);
+        const sanitized = sanitizeCustomThemeSpec(parsed);
+        if (!sanitized) {
+          console.error("Error: Invalid theme JSON file structure.");
+          process.exit(1);
+        }
+        themeConfig = {
+          preset: "custom",
+          customTheme: sanitized,
+          radius: sanitized.radiusWindow,
+          colors: sanitized.defaultColors,
+        };
+      }
+      const encoded = serializeBoardTheme(themeConfig);
+      doc.transact(() => {
+        doc.getMap<string>("settings").set("boardTheme", encoded);
+      });
+      await saveBoard(filePath, doc, effectivePassphrase, salt);
+      const spec = getThemePreset(themeConfig.preset, themeConfig.customTheme);
+      console.log(`✓ Set board theme to "${spec.name}" (${themeConfig.preset}) on ${filePath}`);
       break;
     }
 

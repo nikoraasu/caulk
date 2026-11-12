@@ -2536,6 +2536,395 @@ code {
   line-height: 1.4;
 }
 
+/* ---------- Theme Studio & Custom Theme Styles ---------- */
+
+.theme-tab-switcher {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.theme-toast-banner {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: var(--vgui-selected-bg);
+  color: var(--vgui-selected-fg);
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--theme-radius-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  animation: soundboardToastSlideIn 0.2s ease;
+}
+
+.theme-studio-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.theme-studio-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--vgui-dark);
+}
+
+.theme-studio-section h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.theme-starters-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.theme-starter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--theme-radius-sm, 4px);
+  border: 1px solid;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.theme-starter-chip:hover {
+  transform: translateY(-1px);
+}
+
+.theme-starter-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.theme-mini-preview-wrap {
+  padding: 12px;
+  background: var(--vgui-canvas, #151a13);
+  border: 1px solid var(--vgui-border);
+  border-radius: var(--theme-radius-sm);
+  display: flex;
+  justify-content: center;
+}
+
+.theme-mini-window {
+  width: min(340px, 100%);
+  border: 1px solid;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.theme-mini-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.theme-mini-title-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-mini-title-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-mini-badge {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.theme-mini-winbtn {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.theme-mini-body {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.theme-mini-toolbar {
+  display: flex;
+  gap: 6px;
+}
+
+.theme-mini-btn {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: default;
+}
+
+.theme-mini-btn.active {
+  font-weight: 700;
+}
+
+.theme-mini-well {
+  padding: 4px 6px;
+  border: 1px solid;
+  font-size: 10px;
+  font-family: inherit;
+}
+
+.theme-meta-inputs-row {
+  display: flex;
+  gap: 10px;
+}
+
+.theme-style-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+@media (max-width: 520px) {
+  .theme-style-mode-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.theme-style-mode-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  background: var(--vgui-base);
+  border: 1px solid var(--vgui-dark);
+  border-radius: var(--theme-radius-sm);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.theme-style-mode-btn:hover {
+  background: var(--vgui-hover);
+}
+
+.theme-style-mode-btn.active {
+  background: var(--vgui-selected-bg);
+  color: var(--vgui-selected-fg);
+  border-color: var(--vgui-accent);
+}
+
+.theme-style-mode-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.theme-style-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.theme-style-mode-title {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.theme-style-mode-desc {
+  font-size: 10px;
+  opacity: 0.85;
+  line-height: 1.3;
+}
+
+.theme-font-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.theme-studio-actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--vgui-dark);
+}
+
+.theme-import-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.theme-import-dialog {
+  width: min(500px, 92vw);
+}
+
+.theme-import-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  padding: 8px;
+  background: var(--vgui-base);
+  color: var(--ink);
+  border: 1px solid var(--vgui-border);
+  border-radius: var(--theme-radius-sm);
+  resize: vertical;
+}
+
+/* ==========================================================================
+   STYLE MODES (Applied to both custom themes and mode-aware widgets)
+   ========================================================================== */
+
+/* Glass Style Mode */
+html[data-theme-style-mode="glass"] .window-frame,
+html[data-theme-style-mode="glass"] .excalidraw .Island,
+html[data-theme-style-mode="glass"] .excalidraw .dropdown-menu,
+html[data-theme-style-mode="glass"] .excalidraw .popover,
+html[data-theme-style-mode="glass"] .excalidraw .Modal,
+html[data-theme-style-mode="glass"] .topbar-popover,
+html[data-theme-style-mode="glass"] .vgui-video-window {
+  background: var(--vgui-window-bg) !important;
+  backdrop-filter: var(--vgui-backdrop-filter) !important;
+  -webkit-backdrop-filter: var(--vgui-backdrop-filter) !important;
+  border: 1px solid var(--vgui-border) !important;
+  border-radius: var(--theme-radius) !important;
+  box-shadow: var(--vgui-box-shadow) !important;
+  color: var(--ink) !important;
+}
+
+html[data-theme-style-mode="glass"] .window-titlebar,
+html[data-theme-style-mode="glass"] .vgui-video-titlebar {
+  background: var(--vgui-titlebar-bg) !important;
+  color: var(--vgui-titlebar-fg) !important;
+  border-bottom: 1px solid var(--vgui-border) !important;
+  border-radius: calc(var(--theme-radius) - 2px) calc(var(--theme-radius) - 2px) 0 0 !important;
+}
+
+html[data-theme-style-mode="glass"] .btn,
+html[data-theme-style-mode="glass"] .topbar-btn,
+html[data-theme-style-mode="glass"] .window-btn,
+html[data-theme-style-mode="glass"] .sticky-toggle-btn,
+html[data-theme-style-mode="glass"] .vgui-video-winbtn,
+html[data-theme-style-mode="glass"] .excalidraw .ToolIcon_type_button,
+html[data-theme-style-mode="glass"] .excalidraw .ToolIcon_type_radio,
+html[data-theme-style-mode="glass"] .excalidraw .ExcButton,
+html[data-theme-style-mode="glass"] .excalidraw .sidebar-trigger {
+  background: var(--vgui-btn-bg) !important;
+  border: 1px solid var(--vgui-btn-border) !important;
+  border-radius: var(--theme-radius-sm) !important;
+  color: var(--ink) !important;
+}
+
+html[data-theme-style-mode="glass"] .btn:hover:not(:disabled),
+html[data-theme-style-mode="glass"] .topbar-btn:hover:not(:disabled),
+html[data-theme-style-mode="glass"] .window-btn:hover:not(:disabled),
+html[data-theme-style-mode="glass"] .sticky-toggle-btn:hover {
+  background: var(--vgui-btn-hover-bg) !important;
+}
+
+html[data-theme-style-mode="glass"] .btn.primary,
+html[data-theme-style-mode="glass"] .topbar-btn.active,
+html[data-theme-style-mode="glass"] .excalidraw .ToolIcon_type_radio[aria-checked="true"],
+html[data-theme-style-mode="glass"] .excalidraw .ToolIcon_type_button[aria-checked="true"],
+html[data-theme-style-mode="glass"] .excalidraw [aria-selected="true"] {
+  background: var(--vgui-btn-primary-bg) !important;
+  color: var(--vgui-btn-primary-fg) !important;
+  border-color: var(--vgui-accent) !important;
+  box-shadow: 0 0 12px var(--vgui-accent-glow) !important;
+}
+
+/* Neon Style Mode */
+html[data-theme-style-mode="neon"] .window-frame,
+html[data-theme-style-mode="neon"] .excalidraw .Island,
+html[data-theme-style-mode="neon"] .excalidraw .dropdown-menu,
+html[data-theme-style-mode="neon"] .excalidraw .popover,
+html[data-theme-style-mode="neon"] .excalidraw .Modal,
+html[data-theme-style-mode="neon"] .vgui-video-window {
+  background: var(--vgui-window-bg) !important;
+  border: 1px solid var(--vgui-border) !important;
+  box-shadow: var(--vgui-box-shadow) !important;
+  color: var(--ink) !important;
+  text-shadow: var(--vgui-text-shadow) !important;
+}
+
+html[data-theme-style-mode="neon"] .window-titlebar {
+  background: var(--vgui-titlebar-bg) !important;
+  color: var(--vgui-titlebar-fg) !important;
+  font-weight: 800;
+  border-bottom: 1px solid var(--vgui-border) !important;
+}
+
+html[data-theme-style-mode="neon"] .btn,
+html[data-theme-style-mode="neon"] .topbar-btn,
+html[data-theme-style-mode="neon"] .window-btn {
+  background: var(--vgui-btn-bg) !important;
+  border: 1px solid var(--vgui-btn-border) !important;
+  color: var(--ink) !important;
+}
+
+html[data-theme-style-mode="neon"] .btn.primary,
+html[data-theme-style-mode="neon"] .topbar-btn.active {
+  background: var(--vgui-btn-primary-bg) !important;
+  color: var(--vgui-btn-primary-fg) !important;
+  box-shadow: 0 0 14px var(--vgui-accent-glow) !important;
+}
+
+/* Luna XP Style Mode */
+html[data-theme-style-mode="xp"] .window-frame {
+  border: 3px solid var(--vgui-border) !important;
+  border-radius: var(--theme-radius) !important;
+  box-shadow: var(--vgui-box-shadow) !important;
+}
+
+html[data-theme-style-mode="xp"] .window-titlebar {
+  background: var(--vgui-titlebar-bg) !important;
+  color: var(--vgui-titlebar-fg) !important;
+  font-weight: 700;
+  border-bottom: 1px solid #002e82 !important;
+}
+
+html[data-theme-style-mode="xp"] .btn,
+html[data-theme-style-mode="xp"] .topbar-btn {
+  background: var(--vgui-btn-bg) !important;
+  border: 1px solid var(--vgui-btn-border) !important;
+  border-radius: 3px !important;
+}
+
+html[data-theme-style-mode="xp"] .btn:hover:not(:disabled) {
+  background: var(--vgui-btn-hover-bg) !important;
+  border-color: #f69522 !important;
+  box-shadow: 0 0 6px rgba(246, 149, 34, 0.5) !important;
+}
+
+html[data-theme-style-mode="xp"] .btn.primary,
+html[data-theme-style-mode="xp"] .topbar-btn.active {
+  background: var(--vgui-btn-primary-bg) !important;
+  color: var(--vgui-btn-primary-fg) !important;
+  border-color: #17601c !important;
+  box-shadow: 0 0 6px rgba(46, 168, 54, 0.6) !important;
+}
+
 /* ==========================================================================
    BOARD THEME PRESETS: GLASS, SKEUOMORPHIC & RETRO CHROME
    ========================================================================== */
@@ -3289,12 +3678,12 @@ html[data-board-theme="windows-xp"] .presence-banner,
 html[data-board-theme="windows-xp"] .voting-banner,
 html[data-board-theme="windows-xp"] .vgui-video-window {
   background: #ece9d8 !important;
-  border: 1px solid #0055ea !important;
+  border: 3px solid #0055ea !important;
   border-radius: var(--theme-radius) !important;
   box-shadow:
     inset 1px 1px 0 #ffffff,
     inset -1px -1px 0 #d0ccb8,
-    0 6px 18px rgba(0, 40, 110, 0.25) !important;
+    0 8px 26px rgba(0, 40, 110, 0.3) !important;
   color: #000000 !important;
 }
 
@@ -3303,14 +3692,14 @@ html[data-board-theme="windows-xp"] .vgui-video-titlebar {
   background: linear-gradient(
     180deg,
     #0058e6 0%,
-    #3a8df8 12%,
-    #0055ea 50%,
+    #3a8df8 10%,
+    #0055ea 48%,
     #0042b5 100%
   ) !important;
   color: #ffffff !important;
   font-weight: 700;
   border-bottom: 1px solid #002e82 !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 #002277 !important;
   border-radius: calc(var(--theme-radius) - 2px) calc(var(--theme-radius) - 2px) 0 0 !important;
 }
 
@@ -3318,12 +3707,12 @@ html[data-board-theme="windows-xp"] .vgui-topbar {
   background: linear-gradient(
     180deg,
     #0058e6 0%,
-    #3a8df8 12%,
-    #0055ea 50%,
+    #3a8df8 10%,
+    #0055ea 48%,
     #0044b7 100%
   ) !important;
   border-bottom: 1px solid #002e82 !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 2px 6px rgba(0, 0, 0, 0.25) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 2px 6px rgba(0, 0, 0, 0.25) !important;
   color: #ffffff !important;
 }
 
@@ -3345,13 +3734,20 @@ html[data-board-theme="windows-xp"] .topbar-title {
   background: #0044b7 !important;
   border: 1px solid #002e82 !important;
   color: #ffffff !important;
+  font-weight: 700;
 }
 
 html[data-board-theme="windows-xp"] .window-btn.close {
-  background: linear-gradient(180deg, #e06045 0%, #c43818 50%, #9e2508 100%) !important;
+  background: linear-gradient(180deg, #ea6344 0%, #c43818 48%, #9e2508 50%, #b82d0e 100%) !important;
   border: 1px solid #ffffff !important;
   color: #ffffff !important;
   border-radius: 3px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+}
+
+html[data-board-theme="windows-xp"] .window-btn.close:hover {
+  background: linear-gradient(180deg, #ff856a 0%, #e04523 48%, #ba2909 50%, #d83a17 100%) !important;
+  box-shadow: inset 0 1px 0 #ffffff, 0 0 8px rgba(255, 80, 50, 0.8) !important;
 }
 
 html[data-board-theme="windows-xp"] .btn,
@@ -3366,15 +3762,31 @@ html[data-board-theme="windows-xp"] .excalidraw .sidebar-trigger {
   background: linear-gradient(
     180deg,
     #ffffff 0%,
-    #ece9d8 50%,
-    #d8d4c2 100%
+    #f4f2e8 40%,
+    #e6e2ce 50%,
+    #ded9c4 100%
   ) !important;
   border: 1px solid #003c74 !important;
-  border-radius: var(--theme-radius-sm) !important;
+  border-radius: var(--theme-radius-sm, 3px) !important;
   color: #000000 !important;
   box-shadow:
     inset 0 1px 0 #ffffff,
     0 1px 2px rgba(0, 0, 0, 0.15) !important;
+}
+
+html[data-board-theme="windows-xp"] .btn:hover:not(:disabled),
+html[data-board-theme="windows-xp"] .topbar-btn:hover:not(:disabled),
+html[data-board-theme="windows-xp"] .window-btn:hover:not(:disabled),
+html[data-board-theme="windows-xp"] .sticky-toggle-btn:hover {
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #fff7e0 40%,
+    #ffe9b0 50%,
+    #ffd975 100%
+  ) !important;
+  border-color: #f69522 !important;
+  box-shadow: inset 0 1px 0 #ffffff, 0 0 6px rgba(246, 149, 34, 0.5) !important;
 }
 
 html[data-board-theme="windows-xp"] .btn.primary,
@@ -3384,15 +3796,16 @@ html[data-board-theme="windows-xp"] .excalidraw .ToolIcon_type_button[aria-check
 html[data-board-theme="windows-xp"] .excalidraw [aria-selected="true"] {
   background: linear-gradient(
     180deg,
-    #49c256 0%,
+    #51cf5e 0%,
+    #38b446 45%,
     #2ea836 50%,
-    #1d7c24 100%
+    #1e8326 100%
   ) !important;
   color: #ffffff !important;
   border-color: #17601c !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    0 0 6px rgba(46, 168, 54, 0.5) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 0 8px rgba(46, 168, 54, 0.6) !important;
 }
 
 /* ---------- Preset 10: Mac OS 9 Platinum (1999 Apple Pinstripes) ---------- */

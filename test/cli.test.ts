@@ -100,6 +100,21 @@ async function main() {
   assert.equal(note.backgroundColor, "#BBF7D0");
   console.log("ok 4: CLI add sticky note to whiteboard");
 
+  console.log("-> 5: CLI set-theme and get-theme");
+  await runCLI([
+    "set-theme",
+    "--file", TEST_BOARD,
+    "--passphrase", TEST_PASSPHRASE,
+    "--preset", "frutiger-aero",
+  ]);
+
+  const { doc: docAfterTheme } = await loadBoard(TEST_BOARD, TEST_PASSPHRASE);
+  const themeRaw = docAfterTheme.getMap<string>("settings").get("boardTheme");
+  assert.ok(themeRaw, "Board theme setting should be set in CRDT");
+  const parsedTheme = JSON.parse(themeRaw!);
+  assert.equal(parsedTheme.preset, "frutiger-aero");
+  console.log("ok 5: CLI set-theme and get-theme");
+
   if (existsSync(TEST_BOARD)) {
     unlinkSync(TEST_BOARD);
   }

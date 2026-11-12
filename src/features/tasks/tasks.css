@@ -813,8 +813,8 @@ html[data-board-theme="win95"] .task-card-title {
 /* ---------- Windows XP (Luna) ---------- */
 html[data-board-theme="windows-xp"] .task-hub-window,
 html[data-board-theme="windows-xp"] .task-details-window {
-  border-radius: var(--theme-radius) !important;
-  border: 1px solid #0055ea !important;
+  border-radius: var(--theme-radius, 8px) !important;
+  border: 3px solid #0055ea !important;
   box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #d0ccb8, 0 8px 24px rgba(0, 40, 110, 0.3) !important;
 }
 
@@ -822,13 +822,15 @@ html[data-board-theme="windows-xp"] .task-tab-btn {
   background: linear-gradient(180deg, #ffffff 0%, #ece9d8 50%, #d8d4c2 100%) !important;
   border: 1px solid #003c74 !important;
   color: #000000 !important;
+  border-radius: 4px 4px 0 0 !important;
 }
 
 html[data-board-theme="windows-xp"] .task-tab-btn.active {
-  background: linear-gradient(180deg, #ffaf38 0%, #ff8e00 100%) !important;
+  background: linear-gradient(180deg, #51cf5e 0%, #38b446 45%, #2ea836 50%, #1e8326 100%) !important;
   color: #ffffff !important;
   font-weight: 700 !important;
-  border-color: #9e4c00 !important;
+  border-color: #17601c !important;
+  box-shadow: 0 0 6px rgba(46, 168, 54, 0.5) !important;
 }
 
 html[data-board-theme="windows-xp"] .task-kanban-column,
@@ -836,12 +838,24 @@ html[data-board-theme="windows-xp"] .task-table-wrapper {
   background: #ffffff !important;
   border: 1px solid #7f9db9 !important;
   color: #000000 !important;
+  border-radius: 3px !important;
+}
+
+html[data-board-theme="windows-xp"] .task-input,
+html[data-board-theme="windows-xp"] .task-select,
+html[data-board-theme="windows-xp"] .task-textarea {
+  background: #ffffff !important;
+  border: 1px solid #7f9db9 !important;
+  color: #000000 !important;
+  border-radius: 2px !important;
 }
 
 html[data-board-theme="windows-xp"] .task-kanban-card {
   background: #ffffff !important;
   border: 1px solid #cbd5e0 !important;
   color: #000000 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  border-radius: 3px !important;
 }
 
 html[data-board-theme="windows-xp"] .task-card-title {
@@ -889,6 +903,129 @@ html[data-board-theme="frutiger-aero"] .task-kanban-card {
   box-shadow: 0 2px 8px rgba(0, 100, 180, 0.12) !important;
 }
 
+/* ---------- Frutiger Aqua (Deep Ocean Bioluminescent Glass) ---------- */
+html[data-board-theme="frutiger-aqua"] .task-hub-window,
+html[data-board-theme="frutiger-aqua"] .task-details-window {
+  background: linear-gradient(
+    180deg,
+    rgba(16, 68, 108, 0.82) 0%,
+    rgba(11, 48, 76, 0.88) 50%,
+    rgba(6, 26, 42, 0.94) 100%
+  ) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(0, 220, 255, 0.6) !important;
+  box-shadow: inset 0 1.5px 1px rgba(180, 245, 255, 0.7), 0 0 24px rgba(0, 212, 255, 0.35) !important;
+  color: #e0f7ff !important;
+}
+
+html[data-board-theme="frutiger-aqua"] .task-kanban-column {
+  background: rgba(6, 37, 60, 0.75) !important;
+  border: 1px solid rgba(0, 212, 255, 0.45) !important;
+}
+
+html[data-board-theme="frutiger-aqua"] .task-kanban-card {
+  background: rgba(14, 58, 92, 0.85) !important;
+  border: 1px solid rgba(0, 212, 255, 0.55) !important;
+  color: #e0f7ff !important;
+  box-shadow: 0 2px 8px rgba(0, 20, 40, 0.5) !important;
+}
+
+html[data-board-theme="frutiger-aqua"] .task-card-title {
+  color: #e0f7ff !important;
+}
+
+/* ---------- Frutiger Dorfic (Pastoral Sunlit Meadows) ---------- */
+html[data-board-theme="frutiger-dorfic"] .task-hub-window,
+html[data-board-theme="frutiger-dorfic"] .task-details-window {
+  background: linear-gradient(180deg, #fdfbf7 0%, #edf4e2 50%, #dce8ca 100%) !important;
+  border: 1px solid rgba(95, 145, 45, 0.45) !important;
+  color: #203014 !important;
+}
+
+html[data-board-theme="frutiger-dorfic"] .task-kanban-column {
+  background: rgba(229, 235, 213, 0.6) !important;
+  border: 1px solid rgba(95, 145, 45, 0.35) !important;
+}
+
+html[data-board-theme="frutiger-dorfic"] .task-kanban-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(95, 145, 45, 0.3) !important;
+  color: #203014 !important;
+  box-shadow: 0 1px 3px rgba(60, 90, 30, 0.12) !important;
+}
+
+html[data-board-theme="frutiger-dorfic"] .task-card-title {
+  color: #203014 !important;
+}
+
+/* ---------- Frutiger Metal (Brushed Titanium Chrome) ---------- */
+html[data-board-theme="frutiger-metal"] .task-hub-window,
+html[data-board-theme="frutiger-metal"] .task-details-window {
+  background: linear-gradient(180deg, #f2f5f7 0%, #cbd5de 45%, #b4bfc9 50%, #c4cfd9 100%) !important;
+  border: 1px solid #7d8995 !important;
+  color: #151c24 !important;
+}
+
+html[data-board-theme="frutiger-metal"] .task-kanban-column {
+  background: #dce2e8 !important;
+  border: 1px solid #9aa6b2 !important;
+}
+
+html[data-board-theme="frutiger-metal"] .task-kanban-card {
+  background: #ffffff !important;
+  border: 1px solid #85919e !important;
+  color: #151c24 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 3px rgba(0, 0, 0, 0.15) !important;
+}
+
+html[data-board-theme="frutiger-metal"] .task-card-title {
+  color: #151c24 !important;
+}
+
+/* ---------- Mac OS 9 Platinum (1999 Apple Pinstripes) ---------- */
+html[data-board-theme="mac-os9"] .task-hub-window,
+html[data-board-theme="mac-os9"] .task-details-window {
+  background: repeating-linear-gradient(
+    180deg,
+    #e8e8e8 0px,
+    #e8e8e8 1px,
+    #d8d8d8 1px,
+    #d8d8d8 2px
+  ) !important;
+  border: 1px solid #777777 !important;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #aaaaaa, 0 6px 20px rgba(0, 0, 0, 0.22) !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="mac-os9"] .task-tab-btn {
+  background: linear-gradient(180deg, #f2f2f2 0%, #dcdcdc 50%, #c4c4c4 100%) !important;
+  border: 1px solid #666666 !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="mac-os9"] .task-tab-btn.active {
+  background: linear-gradient(180deg, #5a7ec4 0%, #3c5898 50%, #284277 100%) !important;
+  color: #ffffff !important;
+  border-color: #1a2f58 !important;
+}
+
+html[data-board-theme="mac-os9"] .task-kanban-column {
+  background: #ffffff !important;
+  border: 1px solid #888888 !important;
+}
+
+html[data-board-theme="mac-os9"] .task-kanban-card {
+  background: #ffffff !important;
+  border: 1px solid #999999 !important;
+  box-shadow: inset 1px 1px 0 #f0f0f0, 0 1px 2px rgba(0, 0, 0, 0.12) !important;
+  color: #000000 !important;
+}
+
+html[data-board-theme="mac-os9"] .task-card-title {
+  color: #000000 !important;
+}
+
 /* ---------- Vaporwave (Neon Magenta / Cyan Grids) ---------- */
 html[data-board-theme="vaporwave"] .task-hub-window,
 html[data-board-theme="vaporwave"] .task-details-window {
@@ -909,6 +1046,44 @@ html[data-board-theme="vaporwave"] .task-kanban-card {
 
 html[data-board-theme="vaporwave"] .task-card-title {
   color: #01cdfe !important;
+}
+
+/* ---------- Generic Fallbacks for Custom Themes (by styleMode) ---------- */
+html[data-theme-style-mode="glass"] .task-hub-window,
+html[data-theme-style-mode="glass"] .task-details-window {
+  background: var(--vgui-window-bg) !important;
+  backdrop-filter: var(--vgui-backdrop-filter) !important;
+  border: 1px solid var(--vgui-border) !important;
+  box-shadow: var(--vgui-box-shadow) !important;
+}
+
+html[data-theme-style-mode="glass"] .task-kanban-column {
+  background: rgba(255, 255, 255, 0.35) !important;
+  border: 1px solid var(--vgui-border) !important;
+}
+
+html[data-theme-style-mode="neon"] .task-hub-window,
+html[data-theme-style-mode="neon"] .task-details-window {
+  border: 2px solid var(--vgui-border) !important;
+  box-shadow: var(--vgui-box-shadow) !important;
+}
+
+html[data-theme-style-mode="neon"] .task-kanban-column {
+  background: var(--vgui-base) !important;
+  border: 1px solid var(--vgui-border) !important;
+}
+
+html[data-theme-style-mode="neon"] .task-kanban-card {
+  background: var(--vgui-bg) !important;
+  border: 1px solid var(--vgui-accent) !important;
+}
+
+html[data-theme-style-mode="tui"] .task-hub-window,
+html[data-theme-style-mode="tui"] .task-details-window,
+html[data-theme-style-mode="tui"] .task-kanban-card {
+  border-radius: 0 !important;
+  font-family: var(--theme-font) !important;
+  box-shadow: 4px 4px 0 #000000 !important;
 }
 
 /* ==========================================================================

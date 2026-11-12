@@ -1380,6 +1380,36 @@ async function main() {
     });
     assert.equal(received.length, 4);
 
+    // Custom theme definition syncs across peers
+    bridgeA.setBoardTheme({
+      preset: "custom",
+      customTheme: {
+        id: "amber-crt",
+        name: "Cyberpunk Amber CRT",
+        badge: "AMBER",
+        tagline: "1980s phosphor amber terminal on obsidian black",
+        font: "monospace",
+        radiusWindow: 0,
+        radiusControl: 0,
+        styleMode: "tui",
+        defaultColors: {
+          surface: "#181005",
+          base: "#0f0a02",
+          accent: "#ffb000",
+          text: "#ffcc44",
+        },
+        suggestedCanvas: "#0a0601",
+        accentHighlight: "#ffe082",
+      },
+    });
+    Y.applyUpdate(themeDocB, Y.encodeStateAsUpdate(themeDocA));
+    const customB = bridgeB.getBoardTheme();
+    assert.equal(customB?.preset, "custom");
+    assert.equal(customB?.customTheme?.name, "Cyberpunk Amber CRT");
+    assert.equal(customB?.customTheme?.styleMode, "tui");
+    assert.equal(customB?.customTheme?.defaultColors.accent, "#ffb000");
+    assert.equal(received.length, 5);
+
     unsub();
     bridgeA.dispose();
     bridgeB.dispose();

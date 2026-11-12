@@ -70,10 +70,10 @@ import {
   type StickyDefaults,
 } from "../features/stickies/stickyDefaults";
 import {
-  BOARD_THEME_PRESETS,
   DEFAULT_BOARD_THEME,
   applyBoardThemeToDom,
   resetBoardThemeOnDom,
+  getThemePreset,
   type BoardThemeConfig,
 } from "./boardTheme";
 import { VGUI_STICKY_PICKS, vguiShade } from "./vguiColors";
@@ -4056,7 +4056,7 @@ export function BoardScreen({ session, onClose }: Props) {
                       >
                         <span>🎭 Theme &amp; UI colors…</span>
                         <span className="caulk-menu-pill">
-                          {(BOARD_THEME_PRESETS[boardTheme.preset] ?? BOARD_THEME_PRESETS.vgui).badge}
+                          {getThemePreset(boardTheme.preset, boardTheme.customTheme).badge}
                         </span>
                       </button>
                       <button

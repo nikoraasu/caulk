@@ -7855,6 +7855,341 @@ function normalizePriority(priority) {
   return "medium";
 }
 
+// src/ui/boardTheme.ts
+var HEX_COLOR = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
+function normalizeThemeHex(input) {
+  if (!input) return null;
+  const m = HEX_COLOR.exec(input.trim());
+  if (!m) return null;
+  const digits = m[1].length === 3 ? m[1].split("").map((c) => c + c).join("") : m[1];
+  return `#${digits.toLowerCase()}`;
+}
+var BOARD_THEME_PRESETS = {
+  vgui: {
+    id: "vgui",
+    name: "Steam VGUI",
+    badge: "VGUI",
+    tagline: "Classic 2003 olive bevel chrome & gold accents",
+    font: '"Tahoma", "MS Sans Serif", "Segoe UI", -apple-system, sans-serif',
+    radiusWindow: 0,
+    radiusControl: 0,
+    styleMode: "bevel",
+    defaultColors: {
+      surface: "#4b5844",
+      base: "#3e4637",
+      accent: "#978730",
+      text: "#ffffff"
+    },
+    accentHighlight: "#c59c3a",
+    suggestedCanvas: "#283125"
+  },
+  "frutiger-glacier": {
+    id: "frutiger-glacier",
+    name: "Frutiger Glacier",
+    badge: "GLACIER",
+    tagline: "Subzero arctic crystalline frost, pure glacial ice & cryo cyan glow",
+    font: '"Segoe UI", "Aptos", -apple-system, sans-serif',
+    radiusWindow: 14,
+    radiusControl: 8,
+    styleMode: "glass",
+    defaultColors: {
+      surface: "#d6edfa",
+      base: "#eff8ff",
+      accent: "#00a2e8",
+      text: "#082138"
+    },
+    accentHighlight: "#38d2ff",
+    suggestedCanvas: "#c8e5f7"
+  },
+  "frutiger-aero": {
+    id: "frutiger-aero",
+    name: "Frutiger Aero",
+    badge: "AERO",
+    tagline: "Glossy translucent sky glass, aqua glow & soft depth",
+    font: '"Segoe UI", "Trebuchet MS", -apple-system, sans-serif',
+    radiusWindow: 12,
+    radiusControl: 6,
+    styleMode: "glass",
+    defaultColors: {
+      surface: "#cde8f8",
+      base: "#ebf7fe",
+      accent: "#0088e8",
+      text: "#0b253a"
+    },
+    accentHighlight: "#00a6ff",
+    suggestedCanvas: "#dff1fc"
+  },
+  "frutiger-aqua": {
+    id: "frutiger-aqua",
+    name: "Frutiger Aqua",
+    badge: "AQUA",
+    tagline: "Deep ocean marine glass, water droplets & luminous bioluminescent blue",
+    font: '"Segoe UI", "Calibri", -apple-system, sans-serif',
+    radiusWindow: 14,
+    radiusControl: 8,
+    styleMode: "glass",
+    defaultColors: {
+      surface: "#0b3b5b",
+      base: "#06253c",
+      accent: "#00d4ff",
+      text: "#e0f7ff"
+    },
+    accentHighlight: "#38e1ff",
+    suggestedCanvas: "#041c2e"
+  },
+  "frutiger-dorfic": {
+    id: "frutiger-dorfic",
+    name: "Frutiger Dorfic",
+    badge: "DORFIC",
+    tagline: "Warm early-2000s pastoral optimism, sunlight meadows & soft clay curves",
+    font: '"Trebuchet MS", "Lucida Grande", "Segoe UI", sans-serif',
+    radiusWindow: 16,
+    radiusControl: 8,
+    styleMode: "glass",
+    defaultColors: {
+      surface: "#e5ebd5",
+      base: "#fbfdf7",
+      accent: "#5a8f29",
+      text: "#203014"
+    },
+    accentHighlight: "#7cb342",
+    suggestedCanvas: "#d3e1bd"
+  },
+  "frutiger-metal": {
+    id: "frutiger-metal",
+    name: "Frutiger Metal",
+    badge: "METAL",
+    tagline: "Brushed titanium aluminum chrome with cryo-blue LED accents",
+    font: '"Segoe UI", "Arial", sans-serif',
+    radiusWindow: 4,
+    radiusControl: 3,
+    styleMode: "metal",
+    defaultColors: {
+      surface: "#b4bec8",
+      base: "#dce2e8",
+      accent: "#0074cc",
+      text: "#151c24"
+    },
+    accentHighlight: "#2aa7ff",
+    suggestedCanvas: "#272e36"
+  },
+  "windows-xp": {
+    id: "windows-xp",
+    name: "Windows XP",
+    badge: "XP",
+    tagline: "Authentic 2001 Luna royal blue titlebars, silver chrome & emerald accents",
+    font: '"Tahoma", "Segoe UI", sans-serif',
+    radiusWindow: 8,
+    radiusControl: 3,
+    styleMode: "xp",
+    defaultColors: {
+      surface: "#ece9d8",
+      base: "#ffffff",
+      accent: "#0058e6",
+      text: "#000000"
+    },
+    accentHighlight: "#2ea836",
+    suggestedCanvas: "#5a7edc"
+  },
+  "mac-os9": {
+    id: "mac-os9",
+    name: "Mac OS 9 Platinum",
+    badge: "OS 9",
+    tagline: "1999 Apple Platinum pinstripes, sapphire highlights & pill buttons",
+    font: '"Charcoal", "Lucida Grande", "Geneva", "Segoe UI", sans-serif',
+    radiusWindow: 5,
+    radiusControl: 4,
+    styleMode: "pinstripe",
+    defaultColors: {
+      surface: "#dcdcdc",
+      base: "#ffffff",
+      accent: "#3c5898",
+      text: "#000000"
+    },
+    accentHighlight: "#587cc4",
+    suggestedCanvas: "#6e7b8b"
+  },
+  win95: {
+    id: "win95",
+    name: "Win95/98 Classic",
+    badge: "WIN95",
+    tagline: "Redmond 1995 3D beveled gray, navy titlebars & zero border radius",
+    font: '"MS Sans Serif", "Tahoma", sans-serif',
+    radiusWindow: 0,
+    radiusControl: 0,
+    styleMode: "bevel",
+    defaultColors: {
+      surface: "#c0c0c0",
+      base: "#ffffff",
+      accent: "#000080",
+      text: "#000000"
+    },
+    accentHighlight: "#1084d0",
+    suggestedCanvas: "#008080"
+  },
+  "dos-tui": {
+    id: "dos-tui",
+    name: "DOS TUI",
+    badge: "DOS",
+    tagline: "Norton / Borland VGA box frames, ANSI blocks & monospace text",
+    font: '"Cascadia Mono", "Consolas", "Lucida Console", monospace',
+    radiusWindow: 0,
+    radiusControl: 0,
+    styleMode: "tui",
+    defaultColors: {
+      surface: "#0000aa",
+      base: "#000033",
+      accent: "#00aaaa",
+      text: "#ffffff"
+    },
+    accentHighlight: "#ffff55",
+    suggestedCanvas: "#000028"
+  },
+  vaporwave: {
+    id: "vaporwave",
+    name: "Vaporwave",
+    badge: "VAPOR",
+    tagline: "Neon magenta, electric cyan grids & dreamy late-night purple haze",
+    font: '"Segoe UI", "Arial Black", sans-serif',
+    radiusWindow: 4,
+    radiusControl: 2,
+    styleMode: "neon",
+    defaultColors: {
+      surface: "#2c124d",
+      base: "#1b0a33",
+      accent: "#ff71ce",
+      text: "#01cdfe"
+    },
+    accentHighlight: "#05ffa1",
+    suggestedCanvas: "#140527"
+  }
+};
+var BOARD_THEME_LIST = [
+  BOARD_THEME_PRESETS.vgui,
+  BOARD_THEME_PRESETS["frutiger-glacier"],
+  BOARD_THEME_PRESETS["frutiger-aero"],
+  BOARD_THEME_PRESETS["frutiger-aqua"],
+  BOARD_THEME_PRESETS["frutiger-dorfic"],
+  BOARD_THEME_PRESETS["frutiger-metal"],
+  BOARD_THEME_PRESETS["windows-xp"],
+  BOARD_THEME_PRESETS["mac-os9"],
+  BOARD_THEME_PRESETS.win95,
+  BOARD_THEME_PRESETS["dos-tui"],
+  BOARD_THEME_PRESETS.vaporwave
+];
+function getThemePreset(presetId, customTheme) {
+  if (presetId === "custom" && customTheme) return customTheme;
+  return BOARD_THEME_PRESETS[presetId] ?? customTheme ?? BOARD_THEME_PRESETS.vgui;
+}
+function sanitizeCustomThemeSpec(raw) {
+  if (!raw || typeof raw !== "object") return void 0;
+  const obj = raw;
+  const name = typeof obj.name === "string" && obj.name.trim() ? obj.name.trim().slice(0, 48) : "Custom Theme";
+  const id2 = typeof obj.id === "string" && obj.id.trim() ? obj.id.trim().slice(0, 32) : "custom";
+  const badge = typeof obj.badge === "string" && obj.badge.trim() ? obj.badge.trim().slice(0, 10).toUpperCase() : "CUSTOM";
+  const tagline = typeof obj.tagline === "string" ? obj.tagline.trim().slice(0, 100) : "Custom user theme";
+  const font = typeof obj.font === "string" && obj.font.trim() ? obj.font.trim().slice(0, 140) : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  const validModes = [
+    "bevel",
+    "glass",
+    "xp",
+    "metal",
+    "neon",
+    "pinstripe",
+    "tui",
+    "flat"
+  ];
+  const styleMode = typeof obj.styleMode === "string" && validModes.includes(obj.styleMode) ? obj.styleMode : "bevel";
+  const radiusWindow = typeof obj.radiusWindow === "number" && Number.isFinite(obj.radiusWindow) ? Math.max(0, Math.min(32, Math.round(obj.radiusWindow))) : 4;
+  const radiusControl = typeof obj.radiusControl === "number" && Number.isFinite(obj.radiusControl) ? Math.max(0, Math.min(16, Math.round(obj.radiusControl))) : Math.max(0, Math.round(radiusWindow * 0.6));
+  const defColors = obj.defaultColors && typeof obj.defaultColors === "object" ? obj.defaultColors : {};
+  const surface = normalizeThemeHex(defColors.surface) ?? "#2d3436";
+  const base = normalizeThemeHex(defColors.base) ?? "#1e272e";
+  const accent = normalizeThemeHex(defColors.accent) ?? "#0984e3";
+  const text = normalizeThemeHex(defColors.text) ?? "#dfe6e9";
+  const suggestedCanvas = normalizeThemeHex(obj.suggestedCanvas) ?? "#12171a";
+  const accentHighlight = normalizeThemeHex(obj.accentHighlight) ?? accent;
+  return {
+    id: id2,
+    name,
+    badge,
+    tagline,
+    font,
+    radiusWindow,
+    radiusControl,
+    styleMode,
+    defaultColors: { surface, base, accent, text },
+    suggestedCanvas,
+    accentHighlight
+  };
+}
+function parseBoardTheme(raw) {
+  if (!raw || typeof raw !== "string") return void 0;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.preset !== "string") return void 0;
+    const isBuiltin = parsed.preset in BOARD_THEME_PRESETS;
+    const isCustom = parsed.preset === "custom" || Boolean(parsed.customTheme);
+    if (!isBuiltin && !isCustom) return void 0;
+    const preset = parsed.preset;
+    const colors = {};
+    if (parsed.colors && typeof parsed.colors === "object") {
+      const s = normalizeThemeHex(parsed.colors.surface);
+      const b = normalizeThemeHex(parsed.colors.base);
+      const a = normalizeThemeHex(parsed.colors.accent);
+      const t = normalizeThemeHex(parsed.colors.text);
+      if (s) colors.surface = s;
+      if (b) colors.base = b;
+      if (a) colors.accent = a;
+      if (t) colors.text = t;
+    }
+    const radius = typeof parsed.radius === "number" && Number.isFinite(parsed.radius) ? Math.max(0, Math.min(32, Math.round(parsed.radius))) : void 0;
+    const elementRadius = typeof parsed.elementRadius === "number" && Number.isFinite(parsed.elementRadius) ? Math.max(0, Math.min(64, Math.round(parsed.elementRadius))) : void 0;
+    const adaptToBackground = typeof parsed.adaptToBackground === "boolean" ? parsed.adaptToBackground : void 0;
+    const res = { preset };
+    if (Object.keys(colors).length > 0) res.colors = colors;
+    if (radius !== void 0) res.radius = radius;
+    if (elementRadius !== void 0) res.elementRadius = elementRadius;
+    if (adaptToBackground !== void 0) res.adaptToBackground = adaptToBackground;
+    if (parsed.customTheme) {
+      const sanitized = sanitizeCustomThemeSpec(parsed.customTheme);
+      if (sanitized) res.customTheme = sanitized;
+    }
+    return res;
+  } catch {
+    return void 0;
+  }
+}
+function serializeBoardTheme(config) {
+  const clean = { preset: config.preset };
+  if (config.colors) {
+    const c = {};
+    const s = normalizeThemeHex(config.colors.surface);
+    const b = normalizeThemeHex(config.colors.base);
+    const a = normalizeThemeHex(config.colors.accent);
+    const t = normalizeThemeHex(config.colors.text);
+    if (s) c.surface = s;
+    if (b) c.base = b;
+    if (a) c.accent = a;
+    if (t) c.text = t;
+    if (Object.keys(c).length > 0) clean.colors = c;
+  }
+  if (typeof config.radius === "number" && Number.isFinite(config.radius)) {
+    clean.radius = Math.max(0, Math.min(32, Math.round(config.radius)));
+  }
+  if (typeof config.elementRadius === "number" && Number.isFinite(config.elementRadius)) {
+    clean.elementRadius = Math.max(0, Math.min(64, Math.round(config.elementRadius)));
+  }
+  if (typeof config.adaptToBackground === "boolean") {
+    clean.adaptToBackground = config.adaptToBackground;
+  }
+  if (config.customTheme) {
+    const sanitized = sanitizeCustomThemeSpec(config.customTheme);
+    if (sanitized) clean.customTheme = sanitized;
+  }
+  return JSON.stringify(clean);
+}
+
 // src/cli/caulk.ts
 function parseArgs(args2) {
   const opts = {};
@@ -7895,6 +8230,10 @@ function parseArgs(args2) {
       opts.frame = args2[++i];
     } else if (arg === "--task") {
       opts.task = args2[++i];
+    } else if (arg === "--preset") {
+      opts.preset = args2[++i];
+    } else if (arg === "--theme-file") {
+      opts.themeFile = args2[++i];
     } else if (arg === "--sticky") {
       opts.sticky = true;
     } else if (arg === "--json") {
@@ -8001,12 +8340,16 @@ Commands:
   add-task                        Create a new Jira-grade task on the board
   update-task                     Update status, assignee, or priority of a task
   add-sticky                      Add a sticky note directly to the whiteboard canvas
+  get-theme                       Get the active theme on the board
+  set-theme                       Set the board theme (--preset <name> or --theme-file <path>)
 
 Options:
   --board, -b <name>              Board name (default: "default")
   --file, -f <path>               Direct path to .slate board file
   --dir, -d <path>                Boards directory (default: "./boards")
   --passphrase, -p <pass>         Decryption passphrase (or set CAULK_PASSPHRASE env var)
+  --preset <preset>               Theme preset (vgui, frutiger-aero, windows-xp, mac-os9, win95, dos-tui, etc.)
+  --theme-file <path>             Path to custom theme JSON file
   --title, -t <title>             Task title
   --status, -s <status>           Task status (TODO, IN_PROGRESS, REVIEW, DONE, BACKLOG)
   --priority <priority>           Task priority (LOW, MEDIUM, HIGH, CRITICAL)
@@ -8065,11 +8408,15 @@ Options:
       const elements = Array.from(elementsMap.values());
       const frames = elements.filter((e) => e.type === "frame" && !e.isDeleted);
       const stickies = elements.filter((e) => e.customData?.isSticky && !e.isDeleted);
+      const rawTheme = doc.getMap("settings").get("boardTheme");
+      const themeConfig = parseBoardTheme(rawTheme) ?? { preset: "vgui" };
+      const spec = getThemePreset(themeConfig.preset, themeConfig.customTheme);
       if (opts.json) {
-        console.log(JSON.stringify({ file: filePath, tasks, frames, stickies }, null, 2));
+        console.log(JSON.stringify({ file: filePath, theme: themeConfig, tasks, frames, stickies }, null, 2));
       } else {
         console.log(`# Board: ${basename(filePath, ".slate")}`);
-        console.log(`Path: ${filePath}
+        console.log(`Path: ${filePath}`);
+        console.log(`Theme: ${spec.name} [${spec.badge}] (${spec.styleMode ?? "bevel"})
 `);
         console.log(`## Tasks (${tasks.length})`);
         if (tasks.length === 0) {
@@ -8227,6 +8574,56 @@ Options:
       orderArray.push([stickyId]);
       await saveBoard(filePath, doc, effectivePassphrase, salt);
       console.log(`\u2713 Added sticky note to ${filePath}: "${opts.text.slice(0, 40)}"`);
+      break;
+    }
+    case "get-theme": {
+      const rawTheme = doc.getMap("settings").get("boardTheme");
+      const themeConfig = parseBoardTheme(rawTheme) ?? { preset: "vgui" };
+      const spec = getThemePreset(themeConfig.preset, themeConfig.customTheme);
+      if (opts.json) {
+        console.log(JSON.stringify({ config: themeConfig, spec }, null, 2));
+      } else {
+        console.log(`Board Theme for ${basename(filePath, ".slate")}:`);
+        console.log(`  Preset: ${themeConfig.preset} (${spec.name}) [${spec.badge}]`);
+        console.log(`  Style Mode: ${spec.styleMode ?? "bevel"}`);
+        console.log(`  Font: ${spec.font}`);
+        console.log(
+          `  Colors: surface=${spec.defaultColors.surface}, accent=${spec.defaultColors.accent}, text=${spec.defaultColors.text}`
+        );
+        if (themeConfig.customTheme) {
+          console.log(`  Custom Theme Spec: "${themeConfig.customTheme.name}"`);
+        }
+      }
+      break;
+    }
+    case "set-theme": {
+      if (!opts.preset && !opts.themeFile) {
+        console.error("Error: --preset <name> or --theme-file <path> is required.");
+        process.exit(1);
+      }
+      let themeConfig = { preset: opts.preset || "custom" };
+      if (opts.themeFile) {
+        const fileContent = readFileSync(resolve(opts.themeFile), "utf-8");
+        const parsed = JSON.parse(fileContent);
+        const sanitized = sanitizeCustomThemeSpec(parsed);
+        if (!sanitized) {
+          console.error("Error: Invalid theme JSON file structure.");
+          process.exit(1);
+        }
+        themeConfig = {
+          preset: "custom",
+          customTheme: sanitized,
+          radius: sanitized.radiusWindow,
+          colors: sanitized.defaultColors
+        };
+      }
+      const encoded = serializeBoardTheme(themeConfig);
+      doc.transact(() => {
+        doc.getMap("settings").set("boardTheme", encoded);
+      });
+      await saveBoard(filePath, doc, effectivePassphrase, salt);
+      const spec = getThemePreset(themeConfig.preset, themeConfig.customTheme);
+      console.log(`\u2713 Set board theme to "${spec.name}" (${themeConfig.preset}) on ${filePath}`);
       break;
     }
     default:

@@ -55,10 +55,11 @@ npx caulk list-tasks --board example --status TODO
 
 - **Jira-Grade Progress Hub (`T`)**: Kanban board, Gantt timeline with day snapping, sprint tracking, and team workload analytics.
 - **Retro Whiteboard Soundboard (`1`–`9`)**: 5 vintage packs (Steam VGUI, Windows 95, Windows XP, Frutiger Glacier, Mac OS 9) with audio clipper and live peer broadcast.
+- **11 Retro Themes & Custom Studio**: Steam VGUI, Windows XP Luna, Frutiger Aero/Glacier/Aqua/Dorfic/Metal, Mac OS 9, Win95, DOS TUI, and Vaporwave — plus an in-app Custom Studio with live preview, JSON export/import, and peer CRDT sync. See [`docs/THEMING.md`](docs/THEMING.md).
 - **Native Frames (`F`)**: Miro-style grouping frames that move and resize all contained elements together.
 - **Zero-Knowledge Encryption**: AES-256-GCM encryption client-side. Open boards use repository-scoped keys; password boards require custom passphrases.
 - **Collaborative Activity Audit**: Ring-buffer activity log tracking element edits and task status changes.
-- **Headless CLI (`npx caulk`)**: Manage tasks, change status, and add stickies autonomously from AI agents or scripts.
+- **Headless CLI (`npx caulk`)**: Manage tasks, change status, switch themes, and add stickies autonomously from AI agents or scripts.
 
 ---
 
@@ -82,6 +83,10 @@ npx caulk add-task \
 
 # Update task status
 npx caulk update-task --board main --task "Implement session refresh" --status DONE
+
+# Inspect or change board theme
+npx caulk get-theme --board main
+npx caulk set-theme --board main --preset frutiger-aero
 
 # Drop a sticky note onto the canvas
 npx caulk add-sticky --board main --text "Verified tests pass" --color green
