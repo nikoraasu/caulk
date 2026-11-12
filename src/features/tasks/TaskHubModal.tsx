@@ -419,8 +419,16 @@ export function TaskHubModal({
     let max = -Infinity;
 
     for (const t of filteredTasks) {
-      const s = t.startDate || t.createdAt || now;
-      const d = t.dueDate || (s + ONE_DAY * 7);
+      const rawS = t.startDate || t.createdAt || now;
+      const sDay = new Date(rawS);
+      sDay.setHours(0, 0, 0, 0);
+      const s = sDay.getTime();
+
+      const rawD = t.dueDate || (rawS + ONE_DAY * 7);
+      const dDay = new Date(rawD);
+      dDay.setHours(23, 59, 59, 999);
+      const d = dDay.getTime();
+
       if (s < min) min = s;
       if (d > max) max = d;
     }
@@ -1392,8 +1400,16 @@ export function TaskHubModal({
                 ) : (
                   filteredTasks.map((t) => {
                     const ONE_DAY = 86400000;
-                    const s = t.startDate || t.createdAt || Date.now();
-                    const d = t.dueDate || (s + ONE_DAY * 7);
+                    const rawS = t.startDate || t.createdAt || Date.now();
+                    const sDay = new Date(rawS);
+                    sDay.setHours(0, 0, 0, 0);
+                    const s = sDay.getTime();
+
+                    const rawD = t.dueDate || (rawS + ONE_DAY * 7);
+                    const dDay = new Date(rawD);
+                    dDay.setHours(23, 59, 59, 999);
+                    const d = dDay.getTime();
+
                     const durationDays = Math.max(1, Math.round((d - s) / ONE_DAY));
                     const leftPct = Math.max(
                       0,
