@@ -1,641 +1,473 @@
-import { useEffect, useState } from "react";
-import {
-  aiAnalyzeBoard,
-  aiBrainstormIdeas,
-  aiClusterStickies,
-  aiGenerateDiagram,
-  extractBoardContent,
-  fetchServerGeminiConfig,
-  getStoredGeminiKey,
-  hasSharedGeminiKey,
-  saveStoredGeminiKey,
-} from "../ai/gemini";
-import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { useState, useEffect } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { CaptureUpdateAction, convertToExcalidrawElements, restoreElements } from "@excalidraw/excalidraw";
-import { sanitizeElement } from "../crdt/scene";
+import type * as Y from "yjs";
+import {
+  type AIProvider,
+  type AIModelConfig,
+  type AgentAction,
+  PROVIDER_MODELS,
+  getStoredConfig,
+  saveStoredConfig,
+  getDefaultModel,
+  callAIModel,
+  extractBoardContext,
+  executeAgentActions,
+} from "../ai";
 
 type Props = {
   onClose: () => void;
   apiRef: React.RefObject<ExcalidrawImperativeAPI | null>;
+  doc?: Y.Doc | null;
   onToast: (msg: string) => void;
 };
 
-type Tab = "diagram" | "analyze" | "brainstorm" | "cluster";
+type ActiveTab = "chat" | "quick" | "settings";
 
-const STICKY_PALETTE = ["#FEF08A", "#FED7AA", "#BBF7D0", "#BAE6FD", "#DDD6FE", "#FECDD3"];
+export function AIAssistantDrawer({ onClose, apiRef, doc = null, onToast }: Props) {
+  const [tab, setTab] = useState<ActiveTab>("chat");
+  const [config, setConfig] = useState<AIModelConfig>(() => getStoredConfig());
 
-export function AIAssistantDrawer({ onClose, apiRef, onToast }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>("diagram");
-  const [apiKey, setApiKey] = useState(() => getStoredGeminiKey());
-  const [keySaved, setKeySaved] = useState(() => Boolean(getStoredGeminiKey()));
-  const [showKeyInput, setShowKeyInput] = useState(() => !getStoredGeminiKey());
-
-  // Mounted only while the AI sidebar is open, so this runs on each open.
-  useEffect(() => {
-    if (!getStoredGeminiKey()) {
-      void fetchServerGeminiConfig().then((key) => {
-        if (key) {
-          setApiKey(key);
-          setKeySaved(true);
-          setShowKeyInput(false);
-        }
-      });
-    }
-  }, []);
-
-  // Diagram tab
-  const [diagramPrompt, setDiagramPrompt] = useState("");
-  const [diagramResult, setDiagramResult] = useState<string | null>(null);
-
-  // Analyze tab
-  const [analyzeQuery, setAnalyzeQuery] = useState("");
-  const [analyzeResult, setAnalyzeResult] = useState<string | null>(null);
-
-  // Brainstorm tab
-  const [brainstormTopic, setBrainstormTopic] = useState("");
-
-  // Loading state & errors
+  // Chat & Agent prompt state
+  const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleSaveKey(e: React.FormEvent) {
-    e.preventDefault();
-    saveStoredGeminiKey(apiKey);
-    setKeySaved(Boolean(apiKey.trim()));
-    setShowKeyInput(false);
-    onToast("✓ Gemini API key saved.");
+  // Response & Pending Actions state
+  const [lastMessage, setLastMessage] = useState<string | null>(null);
+  const [pendingActions, setPendingActions] = useState<AgentAction[]>([]);
+  const [executedLogs, setExecutedLogs] = useState<string[]>([]);
+  const [autoApply, setAutoApply] = useState(true);
+
+  // Quick Action states
+  const [quickInput, setQuickInput] = useState("");
+
+  // Settings form state
+  const [tempApiKey, setTempApiKey] = useState(config.apiKey);
+  const [showKey, setShowKey] = useState(false);
+  const [testStatus, setTestStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTempApiKey(config.apiKey);
+  }, [config.provider, config.apiKey]);
+
+  const activeProviderMeta = PROVIDER_MODELS[config.provider] || [];
+
+  function handleProviderChange(newProvider: AIProvider) {
+    const newModel = getDefaultModel(newProvider);
+    const updated = {
+      ...config,
+      provider: newProvider,
+      model: newModel,
+      apiKey: getStoredConfig().apiKey,
+    };
+    setConfig(updated);
+    saveStoredConfig({ provider: newProvider, model: newModel });
   }
 
-  // 1. Generate Diagram
-  async function handleGenerateDiagram() {
-    if (!diagramPrompt.trim()) return;
-    setLoading(true);
-    setError(null);
-    setDiagramResult(null);
+  function handleSaveSettings(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    const updated = { ...config, apiKey: tempApiKey };
+    setConfig(updated);
+    saveStoredConfig({
+      provider: config.provider,
+      model: config.model,
+      apiKey: tempApiKey,
+      baseUrl: config.baseUrl,
+    });
+    setTestStatus("✓ Settings saved locally.");
+    onToast("✓ AI settings saved.");
+    setTimeout(() => setTestStatus(null), 3000);
+  }
 
+  async function handleTestConnection() {
+    if (!tempApiKey.trim() && config.provider !== "custom") {
+      setTestStatus("❌ Please enter an API key first.");
+      return;
+    }
+    setTestStatus("Testing connection...");
     try {
-      const mermaidCode = await aiGenerateDiagram(diagramPrompt.trim(), apiKey);
-      setDiagramResult(mermaidCode);
-      onToast("✓ Diagram generated. Opening Mermaid tool...");
-
-      // Open Excalidraw's built-in Mermaid importer dialog
-      apiRef.current?.updateScene({
-        appState: {
-          openDialog: { name: "ttd", tab: "mermaid" },
-        },
-      });
-      // Copy to clipboard for instant pasting
-      await navigator.clipboard.writeText(mermaidCode).catch(() => {});
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
+      const testConfig = { ...config, apiKey: tempApiKey };
+      await callAIModel("Reply with the word 'OK'.", testConfig, "test");
+      setTestStatus("✓ Connected successfully!");
+      onToast("✓ AI model connection successful!");
+    } catch (err: any) {
+      setTestStatus(`❌ ${err?.message || String(err)}`);
     }
   }
 
-  // 2. Analyze Board
-  async function handleAnalyzeBoard(promptText?: string) {
-    const question = promptText || analyzeQuery;
-    if (!question.trim()) return;
-    setLoading(true);
-    setError(null);
+  async function handleSendPrompt(customPrompt?: string) {
+    const textToSend = customPrompt || prompt;
+    if (!textToSend.trim()) return;
 
-    try {
-      const elements = apiRef.current?.getSceneElements() || [];
-      const boardContent = extractBoardContent(elements);
-      const answer = await aiAnalyzeBoard(question.trim(), boardContent, apiKey);
-      setAnalyzeResult(answer);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // 3. Brainstorm Sticky Notes
-  async function handleBrainstorm() {
-    if (!brainstormTopic.trim()) return;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const ideas = await aiBrainstormIdeas(brainstormTopic.trim(), apiKey);
-      if (ideas.length === 0) {
-        throw new Error("No ideas were returned.");
-      }
-
-      const api = apiRef.current;
-      if (!api) return;
-      const elements = api.getSceneElements();
-      const appState = api.getAppState();
-
-      // Find center of current viewport
-      const startX = -appState.scrollX + appState.width / 2 - 250;
-      const startY = -appState.scrollY + appState.height / 2 - 180;
-
-      // Create a neat 2-column or 3-column grid of sticky notes
-      const createdStickies = ideas.map((idea, idx) => {
-        const col = idx % 3;
-        const row = Math.floor(idx / 3);
-        const color = STICKY_PALETTE[idx % STICKY_PALETTE.length];
-
-        return {
-          type: "rectangle" as const,
-          x: startX + col * 240,
-          y: startY + row * 180,
-          width: 220,
-          height: 160,
-          backgroundColor: color,
-          fillStyle: "solid" as const,
-          strokeColor: "transparent",
-          roughness: 0,
-          roundness: null,
-          customData: { isSticky: true },
-          label: {
-            text: idea,
-            fontSize: 18,
-            fontFamily: 2,
-            textAlign: "center" as const,
-            verticalAlign: "middle" as const,
-            strokeColor: "#1e1e1e",
-          },
-        };
-      });
-
-      const converted = convertToExcalidrawElements(createdStickies);
-      const restored = restoreElements(
-        [...elements.map(sanitizeElement), ...converted.map(sanitizeElement)],
-        null,
-      );
-      api.updateScene({
-        elements: restored as unknown as OrderedExcalidrawElement[],
-        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-      });
-
-      onToast(`✓ Placed ${ideas.length} brainstormed sticky notes on canvas!`);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // 4. Cluster Existing Sticky Notes
-  async function handleClusterStickies() {
-    const api = apiRef.current;
-    if (!api) return;
-    const elements = api.getSceneElements();
-
-    // Extract all text from sticky notes
-    const stickies: Array<{ id: string; text: string }> = [];
-    for (const el of elements) {
-      if (el.isDeleted) continue;
-      if (
-        (el.type === "rectangle" && (el.customData as Record<string, unknown> | undefined)?.isSticky) ||
-        (el.type === "text" && el.containerId)
-      ) {
-        if (el.type === "text" && (el as unknown as { text?: string }).text) {
-          stickies.push({ id: el.id, text: (el as unknown as { text: string }).text });
-        }
-      }
-    }
-
-    if (stickies.length < 2) {
-      setError("Need at least 2 sticky notes on the canvas to cluster.");
+    if (!config.apiKey && config.provider !== "custom") {
+      setTab("settings");
+      setError(`Please provide your ${config.provider} API key first.`);
       return;
     }
 
     setLoading(true);
     setError(null);
+    setLastMessage(null);
+    setPendingActions([]);
+    setExecutedLogs([]);
 
     try {
-      const clusters = await aiClusterStickies(
-        stickies.map((s) => s.text),
-        apiKey,
-      );
+      const api = apiRef.current;
+      const elements = api ? api.getSceneElements() : [];
+      const appState = api ? api.getAppState() : undefined;
+      const contextText = extractBoardContext(elements, doc, appState?.selectedElementIds);
 
-      if (clusters.length === 0) {
-        throw new Error("Unable to categorize notes.");
+      const res = await callAIModel(textToSend.trim(), config, contextText);
+      setLastMessage(res.message);
+      setPendingActions(res.actions);
+
+      if (res.actions.length > 0) {
+        if (autoApply && api) {
+          const execRes = await executeAgentActions(res.actions, { doc, api });
+          setExecutedLogs(execRes.summary);
+          onToast(`✓ Executed ${execRes.executedCount} AI actions on the board.`);
+          setPendingActions([]);
+        }
+      } else {
+        onToast("✓ Response received.");
       }
 
-      const appState = api.getAppState();
-      const originX = -appState.scrollX + 60;
-      const originY = -appState.scrollY + 100;
-
-      const newElements: any[] = [];
-      let currentFrameX = originX;
-
-      clusters.forEach((cluster, clusterIdx) => {
-        const frameWidth = 480;
-        const noteWidth = 200;
-        const noteHeight = 140;
-        const padding = 20;
-
-        const count = cluster.stickies.length;
-        const rows = Math.ceil(count / 2);
-        const frameHeight = Math.max(340, rows * 160 + 80);
-        const frameId = `frame-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
-        // Sticky notes inside this frame (children precede the frame in scene order)
-        const clusterStickyIds: string[] = [];
-        cluster.stickies.forEach((text, noteIdx) => {
-          const col = noteIdx % 2;
-          const row = Math.floor(noteIdx / 2);
-          const nx = currentFrameX + padding + col * (noteWidth + 20);
-          const ny = originY + 60 + row * (noteHeight + 20);
-          const color = STICKY_PALETTE[(clusterIdx + noteIdx) % STICKY_PALETTE.length];
-          const noteId = `sticky-${frameId}-${noteIdx}`;
-          clusterStickyIds.push(noteId);
-
-          newElements.push({
-            id: noteId,
-            type: "rectangle",
-            x: nx,
-            y: ny,
-            width: noteWidth,
-            height: noteHeight,
-            backgroundColor: color,
-            fillStyle: "solid",
-            strokeColor: "transparent",
-            roughness: 0,
-            roundness: null,
-            frameId,
-            customData: { isSticky: true },
-            label: {
-              text,
-              fontSize: 16,
-              fontFamily: 2,
-              textAlign: "center",
-              verticalAlign: "middle",
-              strokeColor: "#1e1e1e",
-            },
-          });
-        });
-
-        // Native frame element
-        newElements.push({
-          id: frameId,
-          type: "frame",
-          name: `🗂️ ${cluster.category}`,
-          children: clusterStickyIds,
-          x: currentFrameX,
-          y: originY,
-          width: frameWidth,
-          height: frameHeight,
-          customData: { isFrame: true, frameTitle: cluster.category },
-        });
-
-        currentFrameX += frameWidth + 40;
-      });
-
-      const converted = convertToExcalidrawElements(newElements);
-      const restored = restoreElements(
-        [...elements.map(sanitizeElement), ...converted.map(sanitizeElement)],
-        null,
-      );
-      api.updateScene({
-        elements: restored as unknown as OrderedExcalidrawElement[],
-        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-      });
-
-      onToast(`✓ Organized stickies into ${clusters.length} themed frames!`);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (!customPrompt) setPrompt("");
+    } catch (err: any) {
+      setError(err?.message || String(err));
     } finally {
       setLoading(false);
     }
   }
 
+  async function handleManualApply() {
+    const api = apiRef.current;
+    if (!api || pendingActions.length === 0) return;
+
+    const execRes = await executeAgentActions(pendingActions, { doc, api });
+    setExecutedLogs(execRes.summary);
+    onToast(`✓ Applied ${execRes.executedCount} actions to the board.`);
+    setPendingActions([]);
+  }
+
   return (
-    <div
-      className="ai-sidebar-body"
-      style={{
-        flex: 1,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        background: "var(--vgui-bg)",
-        color: "#FFFFFF",
-      }}
-    >
-      {/* API Key Banner / Config */}
-      {showKeyInput ? (
-        <form
-          onSubmit={handleSaveKey}
-          style={{
-            background: "var(--vgui-base)",
-            borderBottom: "1px solid var(--vgui-border)",
-            padding: "10px 12px",
-          }}
-        >
-          <div style={{ fontSize: 11, color: "var(--vgui-accent)", fontWeight: 700, marginBottom: 4 }}>
-            Google AI Studio API Key (Free)
-          </div>
-          <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 6 }}>
-            {hasSharedGeminiKey()
-              ? "Host shared key is active. Enter a personal key below only if you want to override it:"
-              : "Paste your free Gemini key (or set GEMINI_API_KEY in api/config.php for all users):"}
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="AIzaSy..."
-              style={{ fontSize: 11, padding: "4px 6px" }}
-            />
-            <button type="submit" className="btn primary" style={{ fontSize: 11, padding: "4px 8px" }}>
-              Save
+    <div className="vgui-ai-drawer" style={{ display: "flex", flexDirection: "column", height: "100%", padding: "12px", gap: "10px", background: "var(--color-surface, #242424)", color: "#e0e0e0", fontSize: "13px" }}>
+      {/* Top Provider Bar */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span style={{ fontSize: "16px" }}>🤖</span>
+          <strong>Caulk Copilot</strong>
+          <span style={{ fontSize: "10px", padding: "1px 6px", background: "rgba(255,255,255,0.08)", borderRadius: "4px", color: "var(--theme-accent, #90CAF9)" }}>
+            {config.provider.toUpperCase()}
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: "4px" }}>
+          <button
+            type="button"
+            className={`vgui-button${tab === "chat" ? " active" : ""}`}
+            style={{ padding: "3px 8px", fontSize: "11px" }}
+            onClick={() => setTab("chat")}
+          >
+            Chat
+          </button>
+          <button
+            type="button"
+            className={`vgui-button${tab === "quick" ? " active" : ""}`}
+            style={{ padding: "3px 8px", fontSize: "11px" }}
+            onClick={() => setTab("quick")}
+          >
+            Actions
+          </button>
+          <button
+            type="button"
+            className={`vgui-button${tab === "settings" ? " active" : ""}`}
+            style={{ padding: "3px 8px", fontSize: "11px" }}
+            onClick={() => setTab("settings")}
+          >
+            ⚙️ Config
+          </button>
+          <button
+            type="button"
+            className="vgui-button"
+            style={{ padding: "3px 6px", fontSize: "11px", marginLeft: "4px" }}
+            onClick={onClose}
+            title="Close drawer"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "12px" }}>
+        {tab === "chat" && (
+          <>
+            {/* Auto-apply toggle */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(0,0,0,0.2)", padding: "6px 8px", borderRadius: "4px", fontSize: "11px" }}>
+              <span>Auto-apply actions to board:</span>
+              <label style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={autoApply}
+                  onChange={(e) => setAutoApply(e.target.checked)}
+                />
+                <span style={{ color: autoApply ? "#4ADE80" : "#9CA3AF" }}>{autoApply ? "ON" : "OFF"}</span>
+              </label>
+            </div>
+
+            {/* Error banner */}
+            {error && (
+              <div style={{ background: "rgba(239, 68, 68, 0.2)", border: "1px solid #EF4444", borderRadius: "4px", padding: "8px", color: "#FCA5A5", fontSize: "12px" }}>
+                <strong>Error:</strong> {error}
+              </div>
+            )}
+
+            {/* Latest AI Message */}
+            {lastMessage && (
+              <div style={{ background: "rgba(255,255,255,0.05)", borderLeft: "3px solid var(--theme-accent, #60A5FA)", padding: "10px", borderRadius: "0 4px 4px 0", lineHeight: "1.4", whiteSpace: "pre-wrap" }}>
+                {lastMessage}
+              </div>
+            )}
+
+            {/* Pending actions (if auto-apply was OFF) */}
+            {pendingActions.length > 0 && (
+              <div style={{ background: "rgba(234, 179, 8, 0.15)", border: "1px solid #EAB308", borderRadius: "4px", padding: "10px" }}>
+                <div style={{ fontWeight: "bold", color: "#FDE047", marginBottom: "6px" }}>
+                  Proposed Actions ({pendingActions.length}):
+                </div>
+                <ul style={{ margin: "0 0 10px 18px", padding: 0, fontSize: "12px" }}>
+                  {pendingActions.map((act, i) => (
+                    <li key={i}>
+                      <code>{act.type}</code>: {JSON.stringify(act).slice(0, 70)}...
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  className="vgui-button"
+                  style={{ width: "100%", padding: "6px", background: "#EAB308", color: "#000", fontWeight: "bold" }}
+                  onClick={handleManualApply}
+                >
+                  ✓ Apply Actions to Canvas & Tasks
+                </button>
+              </div>
+            )}
+
+            {/* Executed Logs */}
+            {executedLogs.length > 0 && (
+              <div style={{ background: "rgba(34, 197, 94, 0.1)", border: "1px solid #22C55E", borderRadius: "4px", padding: "8px", fontSize: "11px", color: "#86EFAC" }}>
+                <div style={{ fontWeight: "bold", marginBottom: "4px" }}>Executed:</div>
+                {executedLogs.map((log, i) => (
+                  <div key={i}>{log}</div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === "quick" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div style={{ fontSize: "11px", color: "#9CA3AF" }}>
+              1-Click Intelligent Whiteboard Workflows:
+            </div>
+
+            <button
+              type="button"
+              className="vgui-button"
+              disabled={loading}
+              onClick={() => handleSendPrompt("Review the selected elements (or all stickies on board) and convert the actionable ones into structured Jira-grade Tasks with priority, status TODO, and subtasks.")}
+              style={{ textAlign: "left", padding: "8px" }}
+            >
+              📋 <strong>Convert Stickies to Tasks</strong>
+              <div style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "2px" }}>Turns selected or unorganized stickies into CRDT tasks in the Progress Manager</div>
             </button>
-            {keySaved && (
+
+            <button
+              type="button"
+              className="vgui-button"
+              disabled={loading}
+              onClick={() => handleSendPrompt("Analyze the current board state and group all related stickies and elements into named Miro-style native frames by category.")}
+              style={{ textAlign: "left", padding: "8px" }}
+            >
+              🗂️ <strong>Group Board into Frames</strong>
+              <div style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "2px" }}>Automatically frames and tidies notes into themed category clusters</div>
+            </button>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "6px" }}>
+              <label style={{ fontSize: "11px", color: "#9CA3AF" }}>✨ Brainstorm ideas onto canvas:</label>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <input
+                  type="text"
+                  placeholder="e.g. Q1 Growth experiments"
+                  value={quickInput}
+                  onChange={(e) => setQuickInput(e.target.value)}
+                  style={{ flex: 1, padding: "5px 8px", background: "rgba(0,0,0,0.3)", border: "1px solid #444", borderRadius: "3px", color: "#fff", fontSize: "12px" }}
+                />
+                <button
+                  type="button"
+                  className="vgui-button"
+                  disabled={loading || !quickInput.trim()}
+                  onClick={() => {
+                    handleSendPrompt(`Brainstorm 6 creative, distinct sticky note ideas for "${quickInput}". Place them on the canvas with vibrant colors.`);
+                    setQuickInput("");
+                  }}
+                  style={{ padding: "5px 10px" }}
+                >
+                  Generate
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="vgui-button"
+              disabled={loading}
+              onClick={() => handleSendPrompt("Analyze the entire board content and produce an executive summary with key themes, bottlenecks, and prioritized next steps.")}
+              style={{ textAlign: "left", padding: "8px", marginTop: "6px" }}
+            >
+              🔍 <strong>Executive Summary & Bottlenecks</strong>
+              <div style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "2px" }}>Synthesizes all stickies, frames, and tasks into high-level findings</div>
+            </button>
+          </div>
+        )}
+
+        {tab === "settings" && (
+          <form onSubmit={handleSaveSettings} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div>
+              <label style={{ display: "block", fontSize: "11px", color: "#9CA3AF", marginBottom: "4px" }}>
+                LLM Provider:
+              </label>
+              <select
+                value={config.provider}
+                onChange={(e) => handleProviderChange(e.target.value as AIProvider)}
+                style={{ width: "100%", padding: "6px", background: "#1e1e1e", border: "1px solid #444", color: "#fff", borderRadius: "3px" }}
+              >
+                <option value="anthropic">Anthropic (Claude 3.5 Sonnet / Opus)</option>
+                <option value="openai">OpenAI (GPT-4o / GPT-4o-mini / o1)</option>
+                <option value="gemini">Google Gemini (Gemini 2.0 Flash / 1.5 Pro)</option>
+                <option value="custom">Local / Ollama (OpenAI Compatible)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: "block", fontSize: "11px", color: "#9CA3AF", marginBottom: "4px" }}>
+                Model:
+              </label>
+              <select
+                value={config.model}
+                onChange={(e) => setConfig({ ...config, model: e.target.value })}
+                style={{ width: "100%", padding: "6px", background: "#1e1e1e", border: "1px solid #444", color: "#fff", borderRadius: "3px" }}
+              >
+                {activeProviderMeta.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: "11px", color: "#888", marginTop: "3px" }}>
+                {activeProviderMeta.find((m) => m.id === config.model)?.description}
+              </div>
+            </div>
+
+            {config.provider === "custom" && (
+              <div>
+                <label style={{ display: "block", fontSize: "11px", color: "#9CA3AF", marginBottom: "4px" }}>
+                  Base URL (e.g. Ollama endpoint):
+                </label>
+                <input
+                  type="text"
+                  placeholder="http://localhost:11434/v1"
+                  value={config.baseUrl || ""}
+                  onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })}
+                  style={{ width: "100%", padding: "6px", background: "#1e1e1e", border: "1px solid #444", color: "#fff", borderRadius: "3px", fontSize: "12px" }}
+                />
+              </div>
+            )}
+
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                <label style={{ fontSize: "11px", color: "#9CA3AF" }}>
+                  {config.provider === "anthropic" && "Anthropic API Key (sk-ant-...):"}
+                  {config.provider === "openai" && "OpenAI API Key (sk-...):"}
+                  {config.provider === "gemini" && "Gemini API Key:"}
+                  {config.provider === "custom" && "Optional API Key:"}
+                </label>
+                <button
+                  type="button"
+                  style={{ background: "none", border: "none", color: "#60A5FA", cursor: "pointer", fontSize: "10px" }}
+                  onClick={() => setShowKey(!showKey)}
+                >
+                  {showKey ? "Hide" : "Show"}
+                </button>
+              </div>
+              <input
+                type={showKey ? "text" : "password"}
+                placeholder={`Enter ${config.provider} API key`}
+                value={tempApiKey}
+                onChange={(e) => setTempApiKey(e.target.value)}
+                style={{ width: "100%", padding: "6px", background: "#1e1e1e", border: "1px solid #444", color: "#fff", borderRadius: "3px", fontSize: "12px" }}
+              />
+              <div style={{ fontSize: "10px", color: "#777", marginTop: "3px" }}>
+                🔒 Stored only in your local browser storage. Never sent to any third party.
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
               <button
                 type="button"
-                className="btn ghost"
-                style={{ fontSize: 11, padding: "4px 8px" }}
-                onClick={() => setShowKeyInput(false)}
+                className="vgui-button"
+                onClick={handleTestConnection}
+                style={{ flex: 1, padding: "6px" }}
               >
-                Hide
+                Test Connection
               </button>
+              <button
+                type="submit"
+                className="vgui-button"
+                style={{ flex: 1, padding: "6px", background: "var(--theme-accent, #2563EB)", color: "#fff", fontWeight: "bold" }}
+              >
+                Save Config
+              </button>
+            </div>
+
+            {testStatus && (
+              <div style={{ fontSize: "11px", padding: "6px", borderRadius: "3px", background: testStatus.startsWith("✓") ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", color: testStatus.startsWith("✓") ? "#86EFAC" : "#FCA5A5" }}>
+                {testStatus}
+              </div>
             )}
-          </div>
-        </form>
-      ) : (
-        <div
-          style={{
-            background: "var(--vgui-base)",
-            borderBottom: "1px solid var(--vgui-dark)",
-            padding: "5px 12px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            fontSize: 11,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ color: "#4ade80" }}>●</span>
-            <span style={{ color: "var(--vgui-light)" }}>
-              {hasSharedGeminiKey() && !localStorage.getItem("caulk.gemini_key.v1")
-                ? "Shared Host Key active (Free for all users)"
-                : "API Key active (Gemini 3.8 Flash)"}
-            </span>
+          </form>
+        )}
+      </div>
+
+      {/* Bottom Prompt Bar (available on chat tab) */}
+      {tab === "chat" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "8px" }}>
+          <div style={{ display: "flex", gap: "6px" }}>
+            <textarea
+              rows={3}
+              placeholder="e.g. 'Plan user auth: create 3 tasks with assignees and link them to stickies on the board'..."
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleSendPrompt();
+                }
+              }}
+              style={{ flex: 1, padding: "8px", background: "#1a1a1a", border: "1px solid #444", borderRadius: "4px", color: "#fff", resize: "none", fontSize: "12px", fontFamily: "inherit" }}
+            />
           </div>
           <button
             type="button"
-            className="btn ghost"
-            style={{ fontSize: 10, padding: "2px 5px" }}
-            onClick={() => setShowKeyInput(true)}
+            className="vgui-button"
+            disabled={loading || !prompt.trim()}
+            onClick={() => handleSendPrompt()}
+            style={{ padding: "8px", background: loading ? "#555" : "var(--theme-accent, #2563EB)", color: "#fff", fontWeight: "bold" }}
           >
-            Change
+            {loading ? "Agent Thinking & Executing..." : "Send Instruction (Enter)"}
           </button>
         </div>
       )}
-
-      {/* Tabs */}
-      <div
-        style={{
-          display: "flex",
-          borderBottom: "1px solid var(--vgui-dark)",
-          background: "var(--vgui-base)",
-        }}
-      >
-        {(
-          [
-            { id: "diagram", label: "📊 Diagram" },
-            { id: "analyze", label: "🔍 Analyze" },
-            { id: "brainstorm", label: "💡 Ideas" },
-            { id: "cluster", label: "🗂️ Cluster" },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            style={{
-              flex: 1,
-              padding: "7px 4px",
-              fontSize: 11,
-              fontWeight: activeTab === t.id ? 700 : 500,
-              background: activeTab === t.id ? "var(--vgui-bg)" : "transparent",
-              color: activeTab === t.id ? "#FFFFFF" : "var(--ink-soft)",
-              border: "none",
-              borderRight: "1px solid var(--vgui-dark)",
-              borderBottom: activeTab === t.id ? "2px solid var(--vgui-accent)" : "none",
-              cursor: "pointer",
-            }}
-            onClick={() => {
-              setActiveTab(t.id);
-              setError(null);
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Body */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px", display: "flex", flexDirection: "column", gap: 12 }}>
-        {error && <div className="note error" style={{ margin: 0, fontSize: 11 }}>{error}</div>}
-
-        {/* 1. Diagram Tab */}
-        {activeTab === "diagram" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 12, color: "#FFFFFF", fontWeight: 600 }}>
-              Generate Diagrams from Description:
-            </div>
-            <textarea
-              rows={4}
-              value={diagramPrompt}
-              onChange={(e) => setDiagramPrompt(e.target.value)}
-              placeholder="e.g. Draw a microservice architecture with API gateway, auth service, user database, and redis cache"
-              style={{
-                width: "100%",
-                background: "var(--vgui-base)",
-                color: "#FFFFFF",
-                border: "1px solid var(--vgui-dark)",
-                padding: "8px",
-                fontSize: 12,
-                resize: "vertical",
-              }}
-            />
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {[
-                "Architecture Flow",
-                "Auth Sequence",
-                "Database ERD",
-                "Git Branching",
-              ].map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  className="btn ghost"
-                  style={{ fontSize: 10, padding: "2px 6px" }}
-                  onClick={() => setDiagramPrompt(`Draw a ${p} diagram`)}
-                >
-                  + {p}
-                </button>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              className="btn primary"
-              disabled={loading || !diagramPrompt.trim()}
-              onClick={handleGenerateDiagram}
-            >
-              {loading ? "Generating Diagram…" : "Generate Diagram"}
-            </button>
-
-            {diagramResult && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 11, color: "var(--vgui-accent)", fontWeight: 700, marginBottom: 4 }}>
-                  Generated Mermaid Syntax (Copied):
-                </div>
-                <pre
-                  style={{
-                    background: "var(--vgui-base)",
-                    padding: "8px",
-                    fontSize: 10,
-                    overflowX: "auto",
-                    border: "1px solid var(--vgui-dark)",
-                    maxHeight: 180,
-                  }}
-                >
-                  {diagramResult}
-                </pre>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 2. Analyze Tab */}
-        {activeTab === "analyze" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 12, color: "#FFFFFF", fontWeight: 600 }}>
-              Ask Questions or Summarize the Board:
-            </div>
-            <textarea
-              rows={3}
-              value={analyzeQuery}
-              onChange={(e) => setAnalyzeQuery(e.target.value)}
-              placeholder="e.g. Summarize the main topics, or what are the top risks?"
-              style={{
-                width: "100%",
-                background: "var(--vgui-base)",
-                color: "#FFFFFF",
-                border: "1px solid var(--vgui-dark)",
-                padding: "8px",
-                fontSize: 12,
-                resize: "vertical",
-              }}
-            />
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {[
-                "Summarize Board",
-                "Extract Action Items",
-                "Identify Risks & Gaps",
-              ].map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  className="btn ghost"
-                  style={{ fontSize: 10, padding: "2px 6px" }}
-                  onClick={() => {
-                    setAnalyzeQuery(q);
-                    void handleAnalyzeBoard(q);
-                  }}
-                >
-                  ⚡ {q}
-                </button>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              className="btn primary"
-              disabled={loading || !analyzeQuery.trim()}
-              onClick={() => void handleAnalyzeBoard()}
-            >
-              {loading ? "Analyzing Board…" : "Analyze"}
-            </button>
-
-            {analyzeResult && (
-              <div
-                style={{
-                  background: "var(--vgui-base)",
-                  border: "1px solid var(--vgui-dark)",
-                  padding: "10px",
-                  fontSize: 12,
-                  lineHeight: 1.5,
-                  color: "#FFFFFF",
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {analyzeResult}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 3. Brainstorm Tab */}
-        {activeTab === "brainstorm" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 12, color: "#FFFFFF", fontWeight: 600 }}>
-              Brainstorm Sticky Note Ideas:
-            </div>
-            <input
-              value={brainstormTopic}
-              onChange={(e) => setBrainstormTopic(e.target.value)}
-              placeholder="e.g. Growth hacks for our Q2 roadmap"
-              style={{
-                width: "100%",
-                background: "var(--vgui-base)",
-                color: "#FFFFFF",
-                border: "1px solid var(--vgui-dark)",
-                padding: "8px",
-                fontSize: 12,
-              }}
-            />
-
-            <button
-              type="button"
-              className="btn primary"
-              disabled={loading || !brainstormTopic.trim()}
-              onClick={handleBrainstorm}
-            >
-              {loading ? "Brainstorming…" : "💡 Generate & Place Stickies"}
-            </button>
-            <small style={{ color: "var(--ink-soft)" }}>
-              Places 4 to 6 colorful stickies organized in a grid at the center of your view.
-            </small>
-          </div>
-        )}
-
-        {/* 4. Cluster Tab */}
-        {activeTab === "cluster" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 12, color: "#FFFFFF", fontWeight: 600 }}>
-              Auto-Group Stickies into Themed Frames:
-            </div>
-            <p style={{ fontSize: 11, color: "var(--ink-soft)", margin: 0, lineHeight: 1.5 }}>
-              Gemini reads all messy sticky notes on the canvas, categorizes them into themes (e.g. Architecture, Bugs, UX), and rearranges them into labeled frames!
-            </p>
-
-            <button
-              type="button"
-              className="btn primary"
-              disabled={loading}
-              onClick={handleClusterStickies}
-              style={{ marginTop: 6 }}
-            >
-              {loading ? "Clustering Stickies…" : "🗂️ Cluster into Frames"}
-            </button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

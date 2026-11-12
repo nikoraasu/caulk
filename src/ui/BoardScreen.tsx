@@ -4231,6 +4231,7 @@ export function BoardScreen({ session, onClose }: Props) {
             <AIAssistantDrawer
               onClose={() => apiRef.current?.toggleSidebar({ name: "ai", force: false })}
               apiRef={apiRef}
+              doc={docRef.current}
               onToast={(msg) => setToastMessage(msg)}
             />
           </Sidebar>

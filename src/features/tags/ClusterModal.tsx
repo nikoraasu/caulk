@@ -7,7 +7,7 @@ import {
   findStickyItems,
   tidyGrid,
 } from "./store";
-import { aiClusterStickies, getStoredGeminiKey, hasSharedGeminiKey } from "../../ai/gemini";
+import { aiClusterStickies, getStoredConfig } from "../../ai";
 import "./tags.css";
 
 type Props = {
@@ -42,7 +42,7 @@ export function ClusterModal({
   const [loading, setLoading] = useState(false);
 
   const targetItems = scope === "selected" ? selectedStickyItems : allStickyItems;
-  const canRunAI = hasSharedGeminiKey() || Boolean(getStoredGeminiKey());
+  const canRunAI = Boolean(getStoredConfig().apiKey);
 
   const handleExecute = async () => {
     if (targetItems.length === 0) {

@@ -31,6 +31,7 @@ Caulk gives your team the power of Miro and Mural with **zero external servers**
   - [Jira-Grade Progress Manager & Tasks Hub](#jira-grade-progress-manager--tasks-hub)
   - [Collaborative Activity Audit Log & History](#collaborative-activity-audit-log--history)
   - [Soundboard & Audio Clipper](#soundboard--audio-clipper)
+  - [Multi-Model AI Copilot & Headless Agent Tool](#multi-model-ai-copilot--headless-agent-tool)
   - [Workshop Facilitation: Comments, Voting & Summon](#workshop-facilitation-comments-voting--summon)
   - [Retro UI Themes & Sound Packs](#retro-ui-themes--sound-packs)
 - [How to Self-Host](#how-to-self-host)
@@ -142,6 +143,48 @@ Bring LAN party energy to your team meetings:
   - Interactive **Waveform Visualizer**: Drag start and end handles to trim audio clips to the exact millisecond.
   - Assign custom emoji icons, button colors, and hotkeys (`[1]` through `[9]`).
 - **Sound Spam Protection**: Caulk includes a smart hover throttle so navigating menus or moving the mouse across UI buttons triggers a clean sound without stuttering or audio feedback spam.
+
+---
+
+### Multi-Model AI Copilot & Headless Agent Tool
+
+Caulk supports next-generation AI agents both **inside the interactive browser canvas** and **externally from your terminal or CI/CD pipeline**:
+
+#### In-App AI Copilot (Claude, OpenAI, Gemini & Ollama)
+Click **Tools** → **🤖 AI assistant** to dock the AI Copilot. Choose your preferred model provider:
+- **Anthropic**: Claude 3.5 Sonnet, Claude 3.5 Haiku, Claude 3 Opus
+- **OpenAI**: GPT-4o, GPT-4o-mini, o1-mini
+- **Google Gemini**: Gemini 2.0 Flash, Gemini 1.5 Pro
+- **Local / Ollama**: Custom endpoint (e.g. `http://localhost:11434/v1`)
+- **Agent Tool Calling**: Instruct the AI in natural language to plan a sprint, convert stickies into Jira-grade tasks, break down features into subtasks with visual canvas connectors, group notes into titled Miro-style frames, or draw Mermaid architecture diagrams.
+- **Privacy First**: API keys remain strictly client-side in browser `localStorage`.
+
+#### Headless Repo CLI for External Coding Agents
+When an external AI agent (like **Claude Code**, **Cursor**, **Antigravity**, or a GitHub Action) writes code in your repository, it can directly read and mutate your Caulk whiteboards using the built-in CLI:
+
+```bash
+# Export board passphrase (or pass --passphrase)
+export CAULK_PASSPHRASE="my-board-passphrase"
+
+# Inspect the board state (JSON or Markdown)
+npx caulk dump --board sprint-1 --json
+
+# Let Claude Code / external agents add tasks as they build features:
+npx caulk add-task \
+  --board sprint-1 \
+  --title "Implement OAuth Relay" \
+  --status "IN_PROGRESS" \
+  --priority "HIGH" \
+  --assignee "claude-bot" \
+  --subtasks "Add token endpoint,Verify headers,Write tests" \
+  --sticky
+
+# Update task status on completion:
+npx caulk update-task --board sprint-1 --task "CLK-1" --status "DONE"
+
+# Drop an autonomous sticky note on the whiteboard:
+npx caulk add-sticky --board sprint-1 --text "Benchmark: relay latency sub-40ms" --color "green"
+```
 
 ---
 
@@ -387,6 +430,8 @@ npm test
 npm run test:tasks       # Task store, CRDT subtasks, and automation checks
 npm run test:activity    # Activity audit log ring buffer & semantic debounce
 npm run test:soundboard  # Audio clip storage, synthesis, and broadcast sync
+npm run test:ai          # Multi-model AI agent schema parsing & action execution
+npm run test:cli         # Headless board CLI & external AI agent CRUD operations
 npm run test:sync        # Encrypted GitHub adapter, conflict resolution & assets
 npm run test:live        # In-process multi-peer live relay & cursor awareness
 
