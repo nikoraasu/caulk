@@ -8053,7 +8053,11 @@ Options:
     }
     case "list-tasks": {
       const tasksMap = doc.getMap("tasks");
-      const tasks = Array.from(tasksMap.values());
+      let tasks = Array.from(tasksMap.values());
+      if (opts.status) {
+        const norm = normalizeStatus(opts.status);
+        tasks = tasks.filter((t) => t.status === norm);
+      }
       if (opts.json) {
         console.log(JSON.stringify(tasks, null, 2));
       } else {
