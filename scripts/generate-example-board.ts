@@ -7,6 +7,7 @@ import {
   PBKDF2_ITERATIONS,
 } from "../src/crypto/envelope";
 import { randomBytes } from "../src/lib/bytes";
+import { defaultPassphrase } from "../src/config";
 import {
   createTask,
   createSubtask,
@@ -866,8 +867,14 @@ async function generateExampleBoard() {
     orderArray.insert(0, ids);
   });
 
-  console.log("7. Encrypting board envelope (open / unprotected passphrase)...");
-  const passphrase = "";
+  console.log("7. Encrypting board envelope using Caulk's default open board key...");
+  const target = {
+    owner: "nikoraasu",
+    repo: "caulk",
+    branch: "main",
+    path: "boards/example.slate",
+  };
+  const passphrase = defaultPassphrase(target);
   const salt = randomBytes(16);
   const key = await deriveKey(passphrase, salt, PBKDF2_ITERATIONS);
   const plain = Y.encodeStateAsUpdate(doc);

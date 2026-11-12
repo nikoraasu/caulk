@@ -7918,18 +7918,60 @@ function getPassphrase(opts) {
   }
   return "";
 }
+function detectDefaultPassphrase(filePath) {
+  try {
+    let dir = resolve(filePath, "..");
+    while (dir && dir !== "/" && !existsSync(join(dir, ".git"))) {
+      const parent = resolve(dir, "..");
+      if (parent === dir) break;
+      dir = parent;
+    }
+    if (existsSync(join(dir, ".git"))) {
+      const gitConfigPath = join(dir, ".git", "config");
+      if (existsSync(gitConfigPath)) {
+        const conf = readFileSync(gitConfigPath, "utf-8");
+        const match = conf.match(/(?:github\.com[:/])([^/]+)\/([^/.\s]+)(?:\.git)?/i);
+        if (match) {
+          const owner = match[1].toLowerCase().trim();
+          const repo = match[2].toLowerCase().trim();
+          const relPath = resolve(filePath).slice(dir.length).replace(/^[/\\]+/, "").toLowerCase().trim();
+          return `caulk:${owner}/${repo}:${relPath}`;
+        }
+      }
+    }
+  } catch {
+  }
+  return "";
+}
 async function loadBoard(filePath, passphrase) {
   const doc = new Doc();
   if (!existsSync(filePath)) {
-    return { doc, isNew: true };
+    return {
+      doc,
+      isNew: true,
+      effectivePassphrase: passphrase || detectDefaultPassphrase(filePath) || ""
+    };
   }
   const rawBytes = readFileSync(filePath);
   const env = parseEnvelope(rawBytes);
   const salt = base64ToBytes(env.kdf.salt);
-  const key = await deriveKey(passphrase, salt, env.kdf.iterations || PBKDF2_ITERATIONS);
-  const plain = await decryptEnvelope(env, key);
-  applyUpdate(doc, plain);
-  return { doc, isNew: false, salt };
+  const candidates = passphrase && passphrase.trim() ? [passphrase.trim()] : [
+    detectDefaultPassphrase(filePath),
+    "",
+    "default"
+  ].filter((c, idx, arr) => c !== void 0 && arr.indexOf(c) === idx);
+  let lastErr;
+  for (const candidate of candidates) {
+    try {
+      const key = await deriveKey(candidate, salt, env.kdf.iterations || PBKDF2_ITERATIONS);
+      const plain = await decryptEnvelope(env, key);
+      applyUpdate(doc, plain);
+      return { doc, isNew: false, salt, effectivePassphrase: candidate };
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error("Failed to decrypt board envelope");
 }
 async function saveBoard(filePath, doc, passphrase, existingSalt) {
   const salt = existingSalt || randomBytes(16);
@@ -7996,15 +8038,17 @@ Options:
     return;
   }
   const filePath = resolveBoardPath(opts);
-  const passphrase = getPassphrase(opts);
+  const userPassphrase = getPassphrase(opts);
   let doc;
   let salt;
+  let effectivePassphrase = userPassphrase;
   try {
-    const loaded = await loadBoard(filePath, passphrase);
+    const loaded = await loadBoard(filePath, userPassphrase);
     doc = loaded.doc;
     salt = loaded.salt;
+    effectivePassphrase = loaded.effectivePassphrase;
   } catch (err) {
-    if (!passphrase) {
+    if (!userPassphrase) {
       console.error(
         "Error: Board decryption failed. This board appears to be password-protected.\nProvide --passphrase <pass> or set the CAULK_PASSPHRASE environment variable."
       );
@@ -8119,7 +8163,7 @@ Options:
         elementsMap.set(stickyId, element);
         orderArray.push([stickyId]);
       }
-      await saveBoard(filePath, doc, passphrase, salt);
+      await saveBoard(filePath, doc, effectivePassphrase, salt);
       console.log(`\u2713 Added task: [${task.key}] "${task.title}" (${task.status.toUpperCase()}) to ${filePath}`);
       break;
     }
@@ -8145,7 +8189,7 @@ Options:
       if (opts.priority) updates.priority = normalizePriority(opts.priority);
       if (opts.assignee) updates.assignees = [opts.assignee];
       updateTask(doc, target.id, updates);
-      await saveBoard(filePath, doc, passphrase, salt);
+      await saveBoard(filePath, doc, effectivePassphrase, salt);
       console.log(`\u2713 Updated task [${target.key || target.id}] "${target.title}" in ${filePath}`);
       break;
     }
@@ -8181,7 +8225,7 @@ Options:
       };
       elementsMap.set(stickyId, element);
       orderArray.push([stickyId]);
-      await saveBoard(filePath, doc, passphrase, salt);
+      await saveBoard(filePath, doc, effectivePassphrase, salt);
       console.log(`\u2713 Added sticky note to ${filePath}: "${opts.text.slice(0, 40)}"`);
       break;
     }
@@ -8194,6 +8238,7 @@ if (process.argv[1] && (process.argv[1].endsWith("/caulk") || process.argv[1].en
   void runCLI();
 }
 export {
+  detectDefaultPassphrase,
   getPassphrase,
   loadBoard,
   parseArgs,

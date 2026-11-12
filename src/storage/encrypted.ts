@@ -10,6 +10,7 @@ import {
   decryptEnvelope,
   encryptEnvelope,
   parseEnvelope,
+  WrongPassphraseError,
   PBKDF2_ITERATIONS,
 } from "../crypto/envelope";
 import { base64ToBytes, bytesToBase64, equalBytes, randomBytes } from "../lib/bytes";
@@ -25,7 +26,7 @@ export class EncryptedStore {
 
   constructor(
     private readonly adapter: StorageAdapter,
-    private readonly passphrase: string,
+    private passphrase: string,
   ) {}
 
   get label(): string {
@@ -65,7 +66,23 @@ export class EncryptedStore {
     this.etag = res.etag;
     const env = parseEnvelope(res.bytes);
     const key = await this.adoptSalt(env.kdf.salt, env.kdf.iterations);
-    const plain = await decryptEnvelope(env, key);
+    let plain: Uint8Array;
+    try {
+      plain = await decryptEnvelope(env, key);
+    } catch (err) {
+      if (err instanceof WrongPassphraseError && this.passphrase !== "") {
+        try {
+          const fallbackKey = await deriveKey("", this.salt!, env.kdf.iterations || PBKDF2_ITERATIONS);
+          plain = await decryptEnvelope(env, fallbackKey);
+          this.passphrase = "";
+          this.key = fallbackKey;
+        } catch {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
     this.lastPlain = plain;
     return plain;
   }
@@ -82,7 +99,23 @@ export class EncryptedStore {
       this.saltB64 === env.kdf.salt && this.key
         ? this.key
         : await this.adoptSalt(env.kdf.salt, env.kdf.iterations);
-    const plain = await decryptEnvelope(env, key);
+    let plain: Uint8Array;
+    try {
+      plain = await decryptEnvelope(env, key);
+    } catch (err) {
+      if (err instanceof WrongPassphraseError && this.passphrase !== "") {
+        try {
+          const fallbackKey = await deriveKey("", this.salt!, env.kdf.iterations || PBKDF2_ITERATIONS);
+          plain = await decryptEnvelope(env, fallbackKey);
+          this.passphrase = "";
+          this.key = fallbackKey;
+        } catch {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
 
     if (this.lastPlain && equalBytes(this.lastPlain, plain)) return null;
     this.lastPlain = plain;
