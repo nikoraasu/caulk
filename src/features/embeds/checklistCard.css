@@ -1,0 +1,164 @@
+/* Interactive Checklist Widget Card */
+
+.caulk-checklist-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--vgui-base, #3e4637);
+  border: 1px solid var(--vgui-border, #111410);
+  border-right-color: var(--vgui-light, #7a8b71);
+  border-bottom-color: var(--vgui-light, #7a8b71);
+  box-shadow: inset 1px 1px 0 var(--vgui-light, #7a8b71), 0 4px 12px rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: var(--ui-font, "Tahoma", sans-serif);
+  color: var(--vgui-text, #ffffff);
+  user-select: text;
+}
+
+.caulk-checklist-header {
+  padding: 6px 10px;
+  background: var(--vgui-bg-dark, #2b3226);
+  border-bottom: 1px solid var(--vgui-border, #111410);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.caulk-checklist-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.caulk-checklist-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--vgui-accent, #c59c3a);
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  padding: 0 2px;
+  flex: 1;
+}
+
+.caulk-checklist-title:focus {
+  outline: none;
+  border-bottom-color: var(--vgui-accent, #c59c3a);
+}
+
+.caulk-checklist-progress-meta {
+  font-size: 10px;
+  color: var(--vgui-muted, #d0d8cc);
+}
+
+.caulk-checklist-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.caulk-checklist-progress-fill {
+  height: 100%;
+  background: var(--vgui-accent, #55ff55);
+  transition: width 0.2s ease;
+}
+
+.caulk-checklist-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.caulk-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+  font-size: 11px;
+}
+
+.caulk-checklist-checkbox {
+  cursor: pointer;
+  accent-color: var(--vgui-accent, #c59c3a);
+  width: 14px;
+  height: 14px;
+}
+
+.caulk-checklist-label {
+  flex: 1;
+  word-break: break-word;
+}
+
+.caulk-checklist-label.done {
+  text-decoration: line-through;
+  opacity: 0.5;
+  color: var(--vgui-muted, #d0d8cc);
+}
+
+.caulk-checklist-delete-btn {
+  background: transparent;
+  border: none;
+  color: #ff6666;
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.caulk-checklist-item:hover .caulk-checklist-delete-btn {
+  opacity: 0.8;
+}
+
+.caulk-checklist-delete-btn:hover {
+  opacity: 1;
+}
+
+.caulk-checklist-add-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--vgui-bg-dark, #2b3226);
+  border-top: 1px solid var(--vgui-border, #111410);
+}
+
+.caulk-checklist-add-input {
+  flex: 1;
+  background: #1c2219;
+  border: 1px solid #343d2f;
+  color: #ffffff;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 2px;
+}
+
+.caulk-checklist-add-input:focus {
+  outline: none;
+  border-color: var(--vgui-accent, #c59c3a);
+}
+
+.caulk-checklist-add-btn {
+  background: var(--vgui-base, #3e4637);
+  border: 1px solid var(--vgui-border, #111410);
+  border-right-color: var(--vgui-light, #7a8b71);
+  border-bottom-color: var(--vgui-light, #7a8b71);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.caulk-checklist-add-btn:hover {
+  background: var(--vgui-hover, #55644e);
+}

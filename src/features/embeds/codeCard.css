@@ -1,0 +1,135 @@
+/* Code Snippet Card Canvas Entity */
+
+.caulk-code-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #181c16;
+  border: 1px solid var(--vgui-border, #111410);
+  border-right-color: var(--vgui-light, #7a8b71);
+  border-bottom-color: var(--vgui-light, #7a8b71);
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.05), 0 4px 12px rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: var(--vgui-font-mono, "Courier New", monospace);
+  color: #e6ede3;
+  user-select: text;
+}
+
+.caulk-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: #242b20;
+  border-bottom: 1px solid #111410;
+  font-size: 11px;
+}
+
+.caulk-code-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.caulk-code-lang-select {
+  background: #161a14;
+  border: 1px solid #343d2f;
+  color: var(--vgui-accent, #c59c3a);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+
+.caulk-code-title {
+  color: #d0d8cc;
+  font-size: 11px;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  padding: 0 2px;
+}
+
+.caulk-code-title:focus {
+  outline: none;
+  border-bottom-color: var(--vgui-accent, #c59c3a);
+}
+
+.caulk-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.caulk-code-btn {
+  background: #343d2f;
+  border: 1px solid #111410;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.caulk-code-btn:hover {
+  background: #46533f;
+  color: var(--vgui-accent, #c59c3a);
+}
+
+.caulk-code-body {
+  flex: 1;
+  display: flex;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.45;
+  background: #181c16;
+}
+
+.caulk-code-gutter {
+  padding: 6px 8px;
+  color: #55644e;
+  text-align: right;
+  user-select: none;
+  border-right: 1px solid #252b20;
+  background: #151913;
+  font-size: 10px;
+}
+
+.caulk-code-content {
+  flex: 1;
+  padding: 6px 10px;
+  margin: 0;
+  white-space: pre;
+  tab-size: 2;
+  overflow-x: auto;
+}
+
+.caulk-code-editor {
+  flex: 1;
+  padding: 6px 10px;
+  background: transparent;
+  color: #e6ede3;
+  border: none;
+  resize: none;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.45;
+  tab-size: 2;
+  white-space: pre;
+  outline: none;
+}
+
+/* Syntax Highlighting Tokens */
+.token-keyword { color: #e59344; font-weight: 700; }
+.token-type { color: #4dc2ba; }
+.token-string { color: #87c36a; }
+.token-comment { color: #627258; font-style: italic; }
+.token-number { color: #c59c3a; }
+.token-fn { color: #7cb7ff; }

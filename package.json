@@ -23,7 +23,8 @@
     "test:sync": "esbuild test/sync.test.ts --bundle --platform=node --format=esm --outfile=.tmp/sync.test.mjs --external:node:* --log-level=warning && node .tmp/sync.test.mjs",
     "test:live": "esbuild test/live.test.ts --bundle --platform=node --format=esm --packages=external --outfile=.tmp/live.test.mjs --log-level=warning && node .tmp/live.test.mjs",
     "test:navigation": "esbuild test/navigation.test.ts --bundle --platform=node --format=esm --outfile=.tmp/navigation.test.mjs --external:node:* --log-level=warning && node .tmp/navigation.test.mjs",
-    "test": "npm run test:tasks && npm run test:activity && npm run test:soundboard && npm run test:ai && npm run test:cli && npm run test:sync && npm run test:live && npm run test:navigation",
+    "test:canvas": "esbuild test/infiniteCanvas.test.ts --bundle --platform=node --format=esm --outfile=.tmp/canvas.test.mjs --external:node:* --log-level=warning && node .tmp/canvas.test.mjs",
+    "test": "npm run test:tasks && npm run test:activity && npm run test:soundboard && npm run test:ai && npm run test:cli && npm run test:sync && npm run test:live && npm run test:navigation && npm run test:canvas",
     "test:integration": "npm run test"
   },
   "dependencies": {

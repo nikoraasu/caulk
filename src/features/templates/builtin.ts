@@ -225,6 +225,42 @@ function buildSwot(): TemplateElement[] {
   return els;
 }
 
+function buildImpactEffort(): TemplateElement[] {
+  const cells = [
+    { x: 0, y: 0, title: "Quick Wins (High Impact, Low Effort)", bg: "#dff0d8", card: "#c9e2b8", hint: "Do these now!" },
+    { x: 340, y: 0, title: "Major Projects (High Impact, High Effort)", bg: "#d9ebf9", card: "#bdd8f1", hint: "Plan carefully" },
+    { x: 0, y: 260, title: "Fill-Ins (Low Impact, Low Effort)", bg: "#fdf2d6", card: "#f7e07f", hint: "Do if time permits" },
+    { x: 340, y: 260, title: "Thankless Tasks (Low Impact, High Effort)", bg: "#f9dede", card: "#f5c2c2", hint: "Avoid or drop" },
+  ];
+  const els: TemplateElement[] = [heading(0, -45, "Impact vs. Effort Matrix", 24)];
+  for (const c of cells) {
+    els.push(
+      ...labeledShape("rectangle", c.x, c.y, 320, 240, "", { bg: c.bg, stroke: "#6c7666" }),
+      ...labeledShape("rectangle", c.x + 12, c.y + 12, 296, 38, c.title, { bg: "#ffffff", stroke: "#556052" }),
+      ...sticky(c.x + 24, c.y + 72, c.hint, c.card),
+    );
+  }
+  return els;
+}
+
+function buildEisenhower(): TemplateElement[] {
+  const cells = [
+    { x: 0, y: 0, title: "DO FIRST (Urgent & Important)", bg: "#f9dede", card: "#f5c2c2", hint: "Crises & deadlines" },
+    { x: 340, y: 0, title: "SCHEDULE (Not Urgent & Important)", bg: "#d9ebf9", card: "#bdd8f1", hint: "Strategy & growth" },
+    { x: 0, y: 260, title: "DELEGATE (Urgent & Not Important)", bg: "#fdf2d6", card: "#f7e07f", hint: "Interruptions & favors" },
+    { x: 340, y: 260, title: "DON'T DO (Not Urgent & Not Important)", bg: "#f0f0f0", card: "#dcdcdc", hint: "Time wasters" },
+  ];
+  const els: TemplateElement[] = [heading(0, -45, "Eisenhower Priority Matrix", 24)];
+  for (const c of cells) {
+    els.push(
+      ...labeledShape("rectangle", c.x, c.y, 320, 240, "", { bg: c.bg, stroke: "#6c7666" }),
+      ...labeledShape("rectangle", c.x + 12, c.y + 12, 296, 38, c.title, { bg: "#ffffff", stroke: "#556052" }),
+      ...sticky(c.x + 24, c.y + 72, c.hint, c.card),
+    );
+  }
+  return els;
+}
+
 function buildMindmap(): TemplateElement[] {
   return [
     heading(220, -45, "Mind Map", 24),
@@ -335,6 +371,24 @@ export const BUILTIN_TEMPLATES: BoardTemplate[] = [
     description: "Strengths, Weaknesses, Opportunities & Threats 2x2",
     source: "builtin",
     elements: buildSwot(),
+  },
+  {
+    id: "builtin-impact-effort",
+    slug: "impact-effort",
+    name: "Impact vs. Effort Matrix",
+    category: "Strategy",
+    description: "2x2 prioritization matrix: Quick Wins, Major Projects, Fill-Ins",
+    source: "builtin",
+    elements: buildImpactEffort(),
+  },
+  {
+    id: "builtin-eisenhower",
+    slug: "eisenhower",
+    name: "Eisenhower Matrix",
+    category: "Strategy",
+    description: "2x2 Urgent vs. Important priority matrix",
+    source: "builtin",
+    elements: buildEisenhower(),
   },
   {
     id: "builtin-mindmap",

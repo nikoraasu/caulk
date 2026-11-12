@@ -1,0 +1,116 @@
+/* Rich Web Bookmark Card */
+
+.caulk-bookmark-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--vgui-base, #3e4637);
+  border: 1px solid var(--vgui-border, #111410);
+  border-right-color: var(--vgui-light, #7a8b71);
+  border-bottom-color: var(--vgui-light, #7a8b71);
+  box-shadow: inset 1px 1px 0 var(--vgui-light, #7a8b71), 0 4px 12px rgba(0, 0, 0, 0.45);
+  border-radius: 4px;
+  overflow: hidden;
+  font-family: var(--ui-font, "Tahoma", sans-serif);
+  color: var(--vgui-text, #ffffff);
+  user-select: text;
+}
+
+.caulk-bookmark-hero {
+  height: 90px;
+  background: linear-gradient(135deg, #2b3226, #1c2219);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  border-bottom: 1px solid var(--vgui-border, #111410);
+  overflow: hidden;
+}
+
+.caulk-bookmark-hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.caulk-bookmark-hero-placeholder {
+  font-size: 28px;
+  opacity: 0.8;
+}
+
+.caulk-bookmark-domain-pill {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(18, 24, 16, 0.85);
+  border: 1px solid var(--vgui-border-dark, #343d2f);
+  color: var(--vgui-accent, #c59c3a);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  backdrop-filter: blur(2px);
+}
+
+.caulk-bookmark-content {
+  flex: 1;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.caulk-bookmark-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.caulk-bookmark-desc {
+  font-size: 10px;
+  color: var(--vgui-muted, #d0d8cc);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.caulk-bookmark-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.2);
+  margin-top: 4px;
+}
+
+.caulk-bookmark-link-btn {
+  background: var(--vgui-bg-dark, #2b3226);
+  border: 1px solid var(--vgui-border, #111410);
+  border-right-color: var(--vgui-light, #7a8b71);
+  border-bottom-color: var(--vgui-light, #7a8b71);
+  color: var(--vgui-accent, #c59c3a);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  text-decoration: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 2px;
+}
+
+.caulk-bookmark-link-btn:hover {
+  background: var(--vgui-hover, #55644e);
+}

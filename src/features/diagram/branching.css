@@ -1,0 +1,111 @@
+/* Quick Branching Handles & Magnetic Connection Ports */
+
+.caulk-branching-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 25;
+}
+
+.caulk-branch-handle {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  margin-top: -11px;
+  border-radius: 50%;
+  background: var(--vgui-base, #3e4637);
+  border: 1.5px solid var(--vgui-accent, #c59c3a);
+  color: var(--vgui-text, #ffffff);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  transition: transform 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.caulk-branch-handle:hover {
+  transform: scale(1.28);
+  background: var(--vgui-accent, #c59c3a);
+  color: #121810;
+  box-shadow: 0 0 10px rgba(197, 156, 58, 0.8), 0 3px 8px rgba(0, 0, 0, 0.6);
+}
+
+.caulk-branch-handle:active {
+  transform: scale(1.1);
+}
+
+.caulk-magnetic-halo {
+  position: absolute;
+  pointer-events: none;
+  border: 2px dashed var(--vgui-accent, #c59c3a);
+  border-radius: 6px;
+  background: rgba(197, 156, 58, 0.12);
+  animation: pulseMagnetic 1s infinite alternate ease-in-out;
+}
+
+@keyframes pulseMagnetic {
+  from {
+    opacity: 0.6;
+    box-shadow: 0 0 0 2px rgba(197, 156, 58, 0.2);
+  }
+  to {
+    opacity: 1;
+    box-shadow: 0 0 12px rgba(197, 156, 58, 0.5);
+  }
+}
+
+.caulk-connector-bar {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--vgui-base, #3e4637);
+  border: 1px solid var(--vgui-dark, #282e23);
+  border-right-color: var(--vgui-light, #78886e);
+  border-bottom-color: var(--vgui-light, #78886e);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  padding: 3px 6px;
+  border-radius: 4px;
+  pointer-events: auto;
+  font-family: var(--ui-font, "Tahoma", sans-serif);
+  font-size: 11px;
+  color: var(--vgui-text, #ffffff);
+  z-index: 30;
+}
+
+.caulk-connector-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--vgui-text, #ffffff);
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.caulk-connector-btn:hover {
+  background: var(--vgui-hover, #55644e);
+  border-color: var(--vgui-light, #78886e);
+}
+
+.caulk-connector-btn.active {
+  background: var(--vgui-selected-bg, #978730);
+  color: #ffffff;
+}
+
+.caulk-connector-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--vgui-dark, #282e23);
+  margin: 0 2px;
+}

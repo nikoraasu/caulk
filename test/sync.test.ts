@@ -1029,7 +1029,7 @@ async function main() {
 
   // Task 8.4: Templates instantiation, frame wrapping & encrypted repo templates round-trip
   {
-    assert.equal(BUILTIN_TEMPLATES.length, 8);
+    assert.equal(BUILTIN_TEMPLATES.length, 10);
     const swot = BUILTIN_TEMPLATES.find((t) => t.slug === "swot")!;
     const instA = instantiateTemplate(swot, { centerX: 500, centerY: 400, wrapInFrame: true });
     const instB = instantiateTemplate(swot, { centerX: 500, centerY: 400, wrapInFrame: true });
@@ -1076,7 +1076,7 @@ async function main() {
     assert.equal(listed[0].source, "repo");
     assert.equal(listed[0].elements.length, 5);
 
-    console.log("ok  8 built-in templates, ID remapping, frame wrap & encrypted repo templates verified");
+    console.log("ok  10 built-in templates, ID remapping, frame wrap & encrypted repo templates verified");
   }
 
   // Task 8.5: Boards home discovery, thumbnails, lock detection, rename, duplicate & delete

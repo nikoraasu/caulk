@@ -41,6 +41,13 @@ import { SceneBridge, sanitizeElement, type CanvasBackgroundImage, type Digest, 
 import { Minimap } from "./Minimap";
 import { FrameNavigator } from "./FrameNavigator";
 import { PlayerListModal } from "./PlayerListModal";
+import { BranchingOverlay } from "../features/diagram/BranchingOverlay";
+import { SelectionToolbar } from "../features/layout/SelectionToolbar";
+import { SmartGuidesOverlay } from "../features/layout/SmartGuidesOverlay";
+import { CodeSnippetCard } from "../features/embeds/CodeSnippetCard";
+import { ChecklistCard } from "../features/embeds/ChecklistCard";
+import { WebBookmarkCard } from "../features/embeds/WebBookmarkCard";
+import { layoutHierarchy } from "../features/diagram/hierarchyLayout";
 import { SnapshotStore, type SnapshotInfo } from "../history/snapshots";
 import { AssetStore, assetObjectUrl } from "../storage/assets";
 import { ImageAssetSync } from "../sync/imageAssets";
@@ -2013,6 +2020,206 @@ export function BoardScreen({ session, onClose }: Props) {
     [],
   );
 
+  const addCodeCard = useCallback(
+    (initialCode?: string, language = "typescript", title = "snippet.ts") => {
+      const api = apiRef.current;
+      if (!api) return;
+      const appState = api.getAppState();
+      const zoom = appState.zoom.value;
+      const x = Math.round(appState.width / (2 * zoom) - appState.scrollX - 220);
+      const y = Math.round(appState.height / (2 * zoom) - appState.scrollY - 140);
+
+      const codeElement: ExcalidrawElement = sanitizeElement({
+        id: `code-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        type: "embeddable",
+        x,
+        y,
+        width: 440,
+        height: 280,
+        angle: 0,
+        strokeColor: "#111410",
+        backgroundColor: "#181c16",
+        fillStyle: "solid",
+        strokeWidth: 1,
+        strokeStyle: "solid",
+        roughness: 0,
+        opacity: 100,
+        groupIds: [],
+        frameId: null,
+        index: null,
+        roundness: { type: 3, value: 4 },
+        seed: Math.floor(Math.random() * 2e9),
+        version: 1,
+        versionNonce: Math.floor(Math.random() * 2e9),
+        isDeleted: false,
+        boundElements: null,
+        updated: Date.now(),
+        link: "https://caulk.code/snippet",
+        locked: false,
+        customData: {
+          isCodeCard: true,
+          code:
+            initialCode ||
+            `// TypeScript Snippet\nexport interface UserSession {\n  id: string;\n  name: string;\n  role: "admin" | "member";\n}\n\nexport function verify(session: UserSession): boolean {\n  return Boolean(session.id && session.role);\n}`,
+          language,
+          title,
+        },
+      });
+
+      const next = [...api.getSceneElements(), codeElement];
+      api.updateScene({
+        elements: next as unknown as OrderedExcalidrawElement[],
+        appState: { selectedElementIds: { [codeElement.id]: true } },
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      bridgeRef.current?.applyLocal(next as readonly ExcalidrawElement[]);
+      soundEngine.play("create");
+      setToastMessage("💻 Added Code Snippet Card to canvas");
+    },
+    [],
+  );
+
+  const addChecklistCard = useCallback(
+    (title = "Sprint Checklist") => {
+      const api = apiRef.current;
+      if (!api) return;
+      const appState = api.getAppState();
+      const zoom = appState.zoom.value;
+      const x = Math.round(appState.width / (2 * zoom) - appState.scrollX - 160);
+      const y = Math.round(appState.height / (2 * zoom) - appState.scrollY - 120);
+
+      const checklistElement: ExcalidrawElement = sanitizeElement({
+        id: `checklist-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        type: "embeddable",
+        x,
+        y,
+        width: 320,
+        height: 240,
+        angle: 0,
+        strokeColor: "#111410",
+        backgroundColor: "#3e4637",
+        fillStyle: "solid",
+        strokeWidth: 1,
+        strokeStyle: "solid",
+        roughness: 0,
+        opacity: 100,
+        groupIds: [],
+        frameId: null,
+        index: null,
+        roundness: { type: 3, value: 4 },
+        seed: Math.floor(Math.random() * 2e9),
+        version: 1,
+        versionNonce: Math.floor(Math.random() * 2e9),
+        isDeleted: false,
+        boundElements: null,
+        updated: Date.now(),
+        link: "https://caulk.checklist",
+        locked: false,
+        customData: {
+          isChecklistCard: true,
+          title,
+          items: [
+            { id: `c-${Date.now()}-1`, text: "Review pull requests", done: true },
+            { id: `c-${Date.now()}-2`, text: "Verify automated tests pass", done: false },
+            { id: `c-${Date.now()}-3`, text: "Deploy staging release", done: false },
+          ],
+        },
+      });
+
+      const next = [...api.getSceneElements(), checklistElement];
+      api.updateScene({
+        elements: next as unknown as OrderedExcalidrawElement[],
+        appState: { selectedElementIds: { [checklistElement.id]: true } },
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      bridgeRef.current?.applyLocal(next as readonly ExcalidrawElement[]);
+      soundEngine.play("create");
+      setToastMessage("📋 Added Interactive Checklist to canvas");
+    },
+    [],
+  );
+
+  const addBookmarkCard = useCallback(
+    (url: string, title?: string, description?: string) => {
+      const api = apiRef.current;
+      if (!api) return;
+      const appState = api.getAppState();
+      const zoom = appState.zoom.value;
+      const x = Math.round(appState.width / (2 * zoom) - appState.scrollX - 170);
+      const y = Math.round(appState.height / (2 * zoom) - appState.scrollY - 100);
+
+      const bookmarkElement: ExcalidrawElement = sanitizeElement({
+        id: `bookmark-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        type: "embeddable",
+        x,
+        y,
+        width: 340,
+        height: 200,
+        angle: 0,
+        strokeColor: "#111410",
+        backgroundColor: "#3e4637",
+        fillStyle: "solid",
+        strokeWidth: 1,
+        strokeStyle: "solid",
+        roughness: 0,
+        opacity: 100,
+        groupIds: [],
+        frameId: null,
+        index: null,
+        roundness: { type: 3, value: 4 },
+        seed: Math.floor(Math.random() * 2e9),
+        version: 1,
+        versionNonce: Math.floor(Math.random() * 2e9),
+        isDeleted: false,
+        boundElements: null,
+        updated: Date.now(),
+        link: url,
+        locked: false,
+        customData: {
+          isBookmarkCard: true,
+          url,
+          title: title || url,
+          description: description || "Interactive web bookmark reference on the canvas.",
+        },
+      });
+
+      const next = [...api.getSceneElements(), bookmarkElement];
+      api.updateScene({
+        elements: next as unknown as OrderedExcalidrawElement[],
+        appState: { selectedElementIds: { [bookmarkElement.id]: true } },
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      bridgeRef.current?.applyLocal(next as readonly ExcalidrawElement[]);
+      soundEngine.play("create");
+      setToastMessage("🔗 Added Web Bookmark Card to canvas");
+    },
+    [],
+  );
+
+  const handleAutoFormatHierarchy = useCallback(() => {
+    const api = apiRef.current;
+    if (!api) return;
+    const all = api.getSceneElements();
+    const appState = api.getAppState();
+    const selectedIds = new Set(
+      Object.entries(appState.selectedElementIds || {})
+        .filter(([, sel]) => Boolean(sel))
+        .map(([id]) => id),
+    );
+
+    const updated = layoutHierarchy(all, selectedIds.size > 0 ? selectedIds : undefined, {
+      direction: "top-to-bottom",
+    });
+
+    api.updateScene({
+      elements: updated as unknown as OrderedExcalidrawElement[],
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    bridgeRef.current?.applyLocal(updated as readonly ExcalidrawElement[]);
+    soundEngine.play("click");
+    setToastMessage("🌿 Auto-formatted diagram hierarchy (tree layout)");
+  }, []);
+
   const addIssueCard = useCallback(
     (issue: IssueDetail, at?: { x: number; y: number }) => {
       if (!isAllowed) return;
@@ -2619,6 +2826,30 @@ export function BoardScreen({ session, onClose }: Props) {
             token={getFreshToken}
             defaultOwner={session.owner}
             defaultRepo={session.repo}
+            onUpdateElement={handleUpdateCardCustomData}
+          />
+        );
+      }
+      if (element.customData?.isCodeCard) {
+        return (
+          <CodeSnippetCard
+            element={element}
+            onUpdateElement={handleUpdateCardCustomData}
+          />
+        );
+      }
+      if (element.customData?.isChecklistCard) {
+        return (
+          <ChecklistCard
+            element={element}
+            onUpdateElement={handleUpdateCardCustomData}
+          />
+        );
+      }
+      if (element.customData?.isBookmarkCard) {
+        return (
+          <WebBookmarkCard
+            element={element}
             onUpdateElement={handleUpdateCardCustomData}
           />
         );
@@ -4116,6 +4347,17 @@ export function BoardScreen({ session, onClose }: Props) {
                         <button
                           type="button"
                           role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            handleAutoFormatHierarchy();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🌿 Auto-format diagram tree</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
                           className={`caulk-menu-item${minimapOpen ? " active" : ""}`}
                           onClick={() => {
                             toggleMinimap();
@@ -4176,6 +4418,42 @@ export function BoardScreen({ session, onClose }: Props) {
                           }}
                         >
                           <span>🎬 Insert video…</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            addCodeCard();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>💻 Insert Code Snippet…</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            addChecklistCard();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>📋 Insert Checklist card…</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            const url = window.prompt("Enter web bookmark URL:", "https://");
+                            if (url?.trim()) {
+                              addBookmarkCard(url.trim());
+                            }
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🔗 Insert Web Bookmark card…</span>
                         </button>
                         <button
                           type="button"
@@ -4587,6 +4865,23 @@ export function BoardScreen({ session, onClose }: Props) {
           onRemoveTag={handleRemoveTag}
           onUnlinkTask={handleUnlinkTaskFromElement}
         />
+
+        {/* Quick Branching Handles & Magnetic Connection Ports */}
+        <BranchingOverlay
+          apiRef={apiRef}
+          bridgeRef={bridgeRef}
+          onToast={setToastMessage}
+        />
+
+        {/* Floating Selection Alignment & Distribution Toolbar */}
+        <SelectionToolbar
+          apiRef={apiRef}
+          bridgeRef={bridgeRef}
+          onToast={setToastMessage}
+        />
+
+        {/* Dynamic Smart Alignment Guides */}
+        <SmartGuidesOverlay apiRef={apiRef} />
 
         {/* Bottom-left dock: Radar Minimap + Notifications Stack above Excalidraw zoom/undo */}
         <div

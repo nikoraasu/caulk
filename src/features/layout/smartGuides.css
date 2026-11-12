@@ -1,0 +1,42 @@
+/* Dynamic Smart Alignment Guides */
+
+.caulk-smart-guides-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 26;
+}
+
+.caulk-guide-v-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  border-left: 1.5px dashed var(--vgui-accent, #c59c3a);
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.caulk-guide-h-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  border-top: 1.5px dashed var(--vgui-accent, #c59c3a);
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.caulk-guide-badge {
+  position: absolute;
+  background: var(--vgui-base, #3e4637);
+  border: 1px solid var(--vgui-accent, #c59c3a);
+  color: var(--vgui-accent, #c59c3a);
+  font-family: var(--vgui-font-mono, "Courier New", monospace);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 2px;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}

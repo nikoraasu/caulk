@@ -1,0 +1,93 @@
+/* Floating Selection Toolbar */
+
+.caulk-selection-toolbar-mount {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 28;
+}
+
+.caulk-selection-toolbar {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--vgui-base, #3e4637);
+  border: 1px solid var(--vgui-border, #111410);
+  border-right-color: var(--vgui-light, #7a8b71);
+  border-bottom-color: var(--vgui-light, #7a8b71);
+  box-shadow:
+    inset 1px 1px 0 var(--vgui-light, #7a8b71),
+    0 8px 24px rgba(0, 0, 0, 0.6);
+  padding: 3px 6px;
+  border-radius: 4px;
+  pointer-events: auto;
+  user-select: none;
+  animation: selToolbarFade 0.1s ease-out;
+}
+
+@keyframes selToolbarFade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.caulk-sel-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--vgui-text, #ffffff);
+  width: 26px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.1s ease;
+}
+
+.caulk-sel-btn:hover {
+  background: var(--vgui-hover, #55644e);
+  border-color: var(--vgui-light, #7a8b71);
+  color: var(--vgui-accent, #c59c3a);
+}
+
+.caulk-sel-btn:active {
+  background: var(--vgui-selected-bg, #978730);
+  transform: translate(1px, 1px);
+}
+
+.caulk-sel-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--vgui-dark, #282e23);
+  margin: 0 3px;
+}
+
+.caulk-sel-label-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--vgui-text, #ffffff);
+  padding: 2px 7px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.1s ease;
+}
+
+.caulk-sel-label-btn:hover {
+  background: var(--vgui-hover, #55644e);
+  border-color: var(--vgui-light, #7a8b71);
+  color: var(--vgui-accent, #c59c3a);
+}
