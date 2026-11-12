@@ -40,6 +40,7 @@ import { getFreshToken } from "../auth/token";
 import { SceneBridge, sanitizeElement, type CanvasBackgroundImage, type Digest, type TimerState, type Waypoint } from "../crdt/scene";
 import { Minimap } from "./Minimap";
 import { FrameNavigator } from "./FrameNavigator";
+import { PlayerListModal } from "./PlayerListModal";
 import { SnapshotStore, type SnapshotInfo } from "../history/snapshots";
 import { AssetStore, assetObjectUrl } from "../storage/assets";
 import { ImageAssetSync } from "../sync/imageAssets";
@@ -56,7 +57,7 @@ import { IssuesDrawer } from "../features/issues/IssuesDrawer";
 import { rekeyBoard } from "../storage/rekey";
 import { playMeetingChime } from "../lib/chime";
 import { SyncEngine, type SyncStatus } from "../sync/engine";
-import { getLiveRoomName, isElectedSaver, LiveSession, type LiveStatus } from "../sync/live";
+import { getLiveRoomName, isElectedSaver, LiveSession, type LiveStatus, type PeerUser } from "../sync/live";
 import { DigestBanner } from "./DigestBanner";
 import { HistoryPanel } from "./HistoryPanel";
 import { StatusBar } from "./StatusBar";
@@ -261,6 +262,7 @@ export function BoardScreen({ session, onClose }: Props) {
     clientId: 0,
     peerClientIds: [],
   });
+  const [liveRoomName, setLiveRoomName] = useState<string>("");
   const [collaborators, setCollaborators] = useState<Map<SocketId, Collaborator>>(new Map());
   const [remoteEdits, setRemoteEdits] = useState(0);
   const [pendingUploads, setPendingUploads] = useState(0);
@@ -385,6 +387,10 @@ export function BoardScreen({ session, onClose }: Props) {
     });
   }, []);
   const [frameNavigatorOpen, setFrameNavigatorOpen] = useState(false);
+  const [playerListOpen, setPlayerListOpen] = useState(false);
+  const playerListOpenRef = useRef(false);
+  playerListOpenRef.current = playerListOpen;
+  const tabPressTimeRef = useRef<number>(0);
   const [waypoints, setWaypoints] = useState<Record<string, Waypoint>>({});
   const [allFrames, setAllFrames] = useState<ExcalidrawElement[]>([]);
   const lastFramesSigRef = useRef<string>("");
@@ -1005,6 +1011,7 @@ export function BoardScreen({ session, onClose }: Props) {
     let activeLiveSession: LiveSession | null = null;
     void getLiveRoomName(session).then((roomName) => {
       if (effectDisposed || !docRef.current) return;
+      setLiveRoomName(roomName);
       activeLiveSession = new LiveSession(roomName, {
         doc,
         target: session,
@@ -2935,6 +2942,20 @@ export function BoardScreen({ session, onClose }: Props) {
     setToastMessage("📍 Returned to World Origin (0, 0) [H]");
   }, []);
 
+  const handleJumpToPeer = useCallback((peer: PeerUser) => {
+    const api = apiRef.current;
+    if (!api || !peer.viewport) return;
+    api.updateScene({
+      appState: {
+        scrollX: peer.viewport.scrollX,
+        scrollY: peer.viewport.scrollY,
+        zoom: { value: peer.viewport.zoom as any },
+      },
+    });
+    soundEngine.play("click");
+    setToastMessage(`Jumped to @${peer.name}'s view`);
+  }, []);
+
   const saveWaypoint = useCallback((slot: string) => {
     const api = apiRef.current;
     const bridge = bridgeRef.current;
@@ -3079,6 +3100,52 @@ export function BoardScreen({ session, onClose }: Props) {
     saveWaypoint,
     jumpToWaypoint,
   ]);
+
+  // TAB key: Multiplayer scoreboard / Player roster overlay (Hold to view, or quick press to toggle)
+  useEffect(() => {
+    const onScoreboardKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab") {
+        const target = e.target as HTMLElement | null;
+        if (
+          target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable ||
+            target.closest?.(".excalidraw-textEditorContainer"))
+        ) {
+          return;
+        }
+        const api = apiRef.current;
+        if (api?.getAppState().editingTextElement) return;
+
+        e.preventDefault();
+        if (e.repeat) return;
+        tabPressTimeRef.current = Date.now();
+        if (playerListOpenRef.current) {
+          setPlayerListOpen(false);
+        } else {
+          setPlayerListOpen(true);
+        }
+      }
+    };
+
+    const onScoreboardKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Tab") {
+        const elapsed = Date.now() - tabPressTimeRef.current;
+        // If the user held TAB for more than 300ms, close on release (game-style hold-to-view scoreboard)
+        if (elapsed >= 300 && playerListOpenRef.current) {
+          setPlayerListOpen(false);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", onScoreboardKeyDown);
+    window.addEventListener("keyup", onScoreboardKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onScoreboardKeyDown);
+      window.removeEventListener("keyup", onScoreboardKeyUp);
+    };
+  }, []);
 
   // When an arrow key is pressed to nudge a frame, keep unselected child elements inside the frame locked to it
   useEffect(() => {
@@ -3582,6 +3649,7 @@ export function BoardScreen({ session, onClose }: Props) {
     issuesDrawerOpen ||
     historyOpen ||
     timerPickerOpen ||
+    playerListOpen ||
     status.kind === "locked";
 
   return (
@@ -3674,9 +3742,11 @@ export function BoardScreen({ session, onClose }: Props) {
             className={`live-status-pill ${liveStatus.peersCount > 0 ? "live" : "solo"}`}
             title={
               liveStatus.peersCount > 0
-                ? `${liveStatus.peersCount} peer(s) connected for real-time live preview.`
-                : "No other peers connected right now. Syncing changes via GitHub."
+                ? `${liveStatus.peersCount} peer(s) connected. Click or press TAB for player roster.`
+                : "No other peers connected right now. Click or press TAB for player roster."
             }
+            onClick={() => setPlayerListOpen((v) => !v)}
+            style={{ cursor: "pointer" }}
           >
             <span className="live-mini-dot" />
             <span className="live-label">
@@ -3966,480 +4036,448 @@ export function BoardScreen({ session, onClose }: Props) {
               appState.openSidebar?.name === "ai";
             return (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <button
-                  type="button"
-                  className={`sidebar-trigger${showTags ? " active" : ""}`}
-                  title={showTags ? "Hide sticky tags" : "Show sticky tags"}
-                  onClick={toggleShowTags}
-                  style={{ fontSize: 12, padding: "0 8px", height: 36 }}
-                >
-                  <span>🏷️</span>
-                  <span>{showTags ? "Tags: ON" : "Tags: OFF"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  className={`sidebar-trigger${frameNavigatorOpen ? " active" : ""}`}
-                  title="Frames & Outline Navigator (Table of Contents)"
-                  onClick={() => setFrameNavigatorOpen((v) => !v)}
-                  style={{ fontSize: 12, padding: "0 8px", height: 36 }}
-                >
-                  <span>📐</span>
-                  <span>Frames</span>
-                  {allFrames.length > 0 && (
-                    <span className="comment-top-badge" style={{ background: "var(--vgui-accent, #c59c3a)" }}>
-                      {allFrames.length}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  className={`sidebar-trigger${minimapOpen ? " active" : ""}`}
-                  title="Toggle Tactical Radar Minimap (M)"
-                  onClick={toggleMinimap}
-                  style={{ fontSize: 12, padding: "0 8px", height: 36 }}
-                >
-                  <span>🛰️</span>
-                  <span>Radar</span>
-                </button>
-
-                <button
-                  type="button"
-                  className={`sidebar-trigger${taskHubOpen ? " active" : ""}`}
-                  title="Open Project & Task Hub (Kanban, Sprints, Team, Analytics)"
-                  onClick={() => setTaskHubOpen(true)}
-                  style={{ fontSize: 12, padding: "0 8px", height: 36 }}
-                >
-                  <span>📋</span>
-                  <span>Tasks</span>
-                  {tasks.length > 0 && (
-                    <span className="comment-top-badge" style={{ background: "var(--vgui-accent, #3182ce)" }}>
-                      {tasks.length}
-                    </span>
-                  )}
-                </button>
-
                 <div className="caulk-tools-anchor" ref={toolsMenuRef}>
                   <button
                     type="button"
                     className={`sidebar-trigger caulk-tools-trigger${toolsMenuOpen || hasLiveTool ? " active" : ""}`}
                     aria-haspopup="menu"
                     aria-expanded={toolsMenuOpen}
-                    title="Caulk tools & collaboration settings"
+                    title="Caulk tools &amp; collaboration settings"
                     onClick={() => setToolsMenuOpen((open) => !open)}
                   >
                     <span>🧰</span>
                     <span>Tools</span>
-                  {activeBadgeCount > 0 && (
-                    <span className="comment-top-badge">{activeBadgeCount}</span>
-                  )}
-                  <span style={{ fontSize: 10, opacity: 0.8 }}>{toolsMenuOpen ? "▲" : "▼"}</span>
-                </button>
+                    {activeBadgeCount > 0 && (
+                      <span className="comment-top-badge">{activeBadgeCount}</span>
+                    )}
+                    <span style={{ fontSize: 10, opacity: 0.8 }}>{toolsMenuOpen ? "▲" : "▼"}</span>
+                  </button>
 
-                {toolsMenuOpen && (
-                  <div className="Island caulk-tools-menu" role="menu" aria-label="Caulk tools menu">
-                    <div className="caulk-menu-section">
-                      <div className="caulk-menu-heading">Collaborate</div>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`caulk-menu-item${placingComment ? " active" : ""}`}
-                        onClick={() => {
-                          setShowComments(true);
-                          setPlacingComment((v) => !v);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>💬+ Place comment pin</span>
-                        <kbd>C</kbd>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`caulk-menu-item${appState.openSidebar?.name === "comments" ? " active" : ""}`}
-                        onClick={() => {
-                          apiRef.current?.toggleSidebar({ name: "comments" });
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>💬 Comments panel</span>
-                        {unreadCommentsCount > 0 && (
-                          <span className="caulk-menu-pill">{unreadCommentsCount} new</span>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => setShowComments((v) => !v)}
-                      >
-                        <span>👁️ Comment pins</span>
-                        <span className="caulk-menu-pill">{showComments ? "Shown" : "Hidden"}</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`caulk-menu-item${voting.session?.status === "active" ? " active" : ""}`}
-                        onClick={() => {
-                          if (voting.session?.status === "ended") setVotingResultsOpen(true);
-                          else setStartVotingOpen(true);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>
-                          🗳️{" "}
-                          {voting.session?.status === "active"
-                            ? "Voting (active)…"
-                            : voting.session?.status === "ended"
-                              ? "Voting results"
-                              : "Start dot voting…"}
-                        </span>
-                      </button>
-                      <div className="caulk-menu-inline-row" aria-label="Stamp reaction">
-                        <span className="caulk-menu-inline-label">Stamp</span>
-                        {["👍", "🔥", "💡", "🚀", "❤️"].map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            className="caulk-menu-chip"
-                            title={`Stamp ${emoji} on board`}
-                            onClick={() => {
-                              stampReaction(emoji);
-                              setToolsMenuOpen(false);
-                            }}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="caulk-menu-sep" />
-
-                    <div className="caulk-menu-section">
-                      <div className="caulk-menu-heading">Present & Attention</div>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          bringEveryoneToMe();
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>📣 Bring everyone to me</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`caulk-menu-item${presenting ? " active" : ""}`}
-                        onClick={() => {
-                          setPresenting((v) => !v);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>📡 Presenter mode</span>
-                        <span className="caulk-menu-pill">{presenting ? "ON" : "OFF"}</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`caulk-menu-item${pingMode ? " active" : ""}`}
-                        onClick={() => {
-                          setPingMode((v) => !v);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>📍 {pingMode ? "Cancel ping" : "Ping attention"}</span>
-                        <kbd>Alt+Click</kbd>
-                      </button>
-                      <div className="caulk-menu-inline-row" aria-label="Meeting timer">
-                        <span className="caulk-menu-inline-label">⏱️ Timer</span>
-                        {[1, 3, 5, 10].map((mins) => (
-                          <button
-                            key={mins}
-                            type="button"
-                            className="caulk-menu-chip"
-                            onClick={() => {
-                              startMeetingTimer(mins);
-                              setToolsMenuOpen(false);
-                            }}
-                          >
-                            {mins}m
-                          </button>
-                        ))}
-                        {timer?.running && (
-                          <button
-                            type="button"
-                            className="caulk-menu-chip danger"
-                            onClick={() => {
-                              stopMeetingTimer();
-                              setToolsMenuOpen(false);
-                            }}
-                          >
-                            Stop
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="caulk-menu-sep" />
-
-                    <div className="caulk-menu-section">
-                      <div className="caulk-menu-heading">Create & Board</div>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          setTaskHubOpen(true);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>📋 Project & Task Hub…</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          setSoundboardOpen(true);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🔊 Soundboard & Audio Clips…</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          convertSelectedToTask();
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>✓ Convert selected to Task</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          setTemplateGalleryOpen(true);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>📐 Templates…</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          setVideoModalOpen(true);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🎬 Insert video…</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          openMermaid();
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>📊 Mermaid diagram</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`caulk-menu-item${currentActiveTool === "frame" ? " active" : ""}`}
-                        onClick={() => {
-                          const api = apiRef.current;
-                          if (api) {
-                            if (currentActiveTool === "frame") {
-                              api.setActiveTool({ type: "selection" });
-                            } else {
-                              api.setActiveTool({ type: "frame" });
+                  {toolsMenuOpen && (
+                    <div className="Island caulk-tools-menu" role="menu" aria-label="Caulk tools menu">
+                      {/* Section 1: Spatial & Frames */}
+                      <div className="caulk-menu-section">
+                        <div className="caulk-menu-heading">Spatial &amp; Frames</div>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`caulk-menu-item${frameNavigatorOpen ? " active" : ""}`}
+                          onClick={() => {
+                            setFrameNavigatorOpen((v) => !v);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>📐 Frames &amp; Outline Drawer</span>
+                          {allFrames.length > 0 && (
+                            <span className="caulk-menu-pill">{allFrames.length}</span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`caulk-menu-item${currentActiveTool === "frame" ? " active" : ""}`}
+                          onClick={() => {
+                            const api = apiRef.current;
+                            if (api) {
+                              if (currentActiveTool === "frame") {
+                                api.setActiveTool({ type: "selection" });
+                              } else {
+                                api.setActiveTool({ type: "frame" });
+                              }
                             }
-                          }
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🖼️ Draw frame (F)</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          addFrame();
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>📦 Frame selection</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          setClusterModalOpen(true);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🏷️ Cluster & organize stickies…</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`caulk-menu-item${showTags ? " active" : ""}`}
-                        onClick={() => {
-                          toggleShowTags();
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🏷️ {showTags ? "Hide sticky tags" : "Show sticky tags"}</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          startPresentation();
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🎞️ Present frames</span>
-                      </button>
-                    </div>
-
-                    <div className="caulk-menu-sep" />
-
-                    <div className="caulk-menu-section">
-                      <div className="caulk-menu-heading">Settings & Sync</div>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          setBackgroundPickerOpen(true);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🎨 Board background…</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          setThemePickerOpen(true);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🎭 Theme &amp; UI colors…</span>
-                        <span className="caulk-menu-pill">
-                          {getThemePreset(boardTheme.preset, boardTheme.customTheme).badge}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          setHistory(!historyOpen);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🕒 Board history</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          copyShareLink();
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🔗 Copy invite link</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        onClick={() => {
-                          setIssuesDrawerOpen(true);
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🐙 GitHub Issues (Browse &amp; Insert)</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="caulk-menu-item"
-                        disabled={creatingIssue}
-                        onClick={() => {
-                          if (!creatingIssue) void convertSelectedToIssue();
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🐙 Create Issue Card from Note</span>
-                      </button>
-                      <div className="caulk-menu-inline-row">
-                        <button
-                          type="button"
-                          className="caulk-menu-chip"
-                          onClick={() => {
-                            void engineRef.current?.saveNow();
                             setToolsMenuOpen(false);
                           }}
                         >
-                          💾 Save
+                          <span>🖼️ Draw frame</span>
+                          <kbd>F</kbd>
                         </button>
                         <button
                           type="button"
-                          className="caulk-menu-chip"
+                          role="menuitem"
+                          className="caulk-menu-item"
                           onClick={() => {
-                            void engineRef.current?.pullNow();
+                            addFrame();
                             setToolsMenuOpen(false);
                           }}
                         >
-                          ⬇️ Pull
+                          <span>📦 Frame selection</span>
                         </button>
-                        {isRepoAdmin && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            startPresentation();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🎞️ Present frames</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`caulk-menu-item${minimapOpen ? " active" : ""}`}
+                          onClick={() => {
+                            toggleMinimap();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🛰️ Tactical radar minimap</span>
+                          <span className="caulk-menu-pill">{minimapOpen ? "ON" : "OFF"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`caulk-menu-item${playerListOpen ? " active" : ""}`}
+                          onClick={() => {
+                            setPlayerListOpen((v) => !v);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>👥 Connected operators</span>
+                          <kbd>Tab</kbd>
+                        </button>
+                      </div>
+
+                      <div className="caulk-menu-sep" />
+
+                      {/* Section 2: Canvas & Stickies */}
+                      <div className="caulk-menu-section">
+                        <div className="caulk-menu-heading">Canvas &amp; Stickies</div>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            setTemplateGalleryOpen(true);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>📐 Template gallery…</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            openMermaid();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>📊 Mermaid diagram…</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            setVideoModalOpen(true);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🎬 Insert video…</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            setClusterModalOpen(true);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🏷️ Cluster &amp; organize stickies…</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`caulk-menu-item${showTags ? " active" : ""}`}
+                          onClick={() => {
+                            toggleShowTags();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🏷️ Sticky tags</span>
+                          <span className="caulk-menu-pill">{showTags ? "Shown" : "Hidden"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            convertSelectedToTask();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>✓ Convert selected to Task</span>
+                        </button>
+                      </div>
+
+                      <div className="caulk-menu-sep" />
+
+                      {/* Section 3: Collaborate & Attention */}
+                      <div className="caulk-menu-section">
+                        <div className="caulk-menu-heading">Collaborate &amp; Attention</div>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`caulk-menu-item${placingComment ? " active" : ""}`}
+                          onClick={() => {
+                            setShowComments(true);
+                            setPlacingComment((v) => !v);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>💬 Place comment pin</span>
+                          <kbd>C</kbd>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`caulk-menu-item${appState.openSidebar?.name === "comments" ? " active" : ""}`}
+                          onClick={() => {
+                            apiRef.current?.toggleSidebar({ name: "comments" });
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>💬 Comments panel</span>
+                          {unreadCommentsCount > 0 && (
+                            <span className="caulk-menu-pill">{unreadCommentsCount} new</span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => setShowComments((v) => !v)}
+                        >
+                          <span>👁️ Comment pins</span>
+                          <span className="caulk-menu-pill">{showComments ? "Shown" : "Hidden"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`caulk-menu-item${voting.session?.status === "active" ? " active" : ""}`}
+                          onClick={() => {
+                            if (voting.session?.status === "ended") setVotingResultsOpen(true);
+                            else setStartVotingOpen(true);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>
+                            🗳️{" "}
+                            {voting.session?.status === "active"
+                              ? "Voting in progress…"
+                              : voting.session?.status === "ended"
+                                ? "Voting results"
+                                : "Start dot voting…"}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            bringEveryoneToMe();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>📣 Bring everyone to me</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`caulk-menu-item${presenting ? " active" : ""}`}
+                          onClick={() => {
+                            setPresenting((v) => !v);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>📡 Presenter mode</span>
+                          <span className="caulk-menu-pill">{presenting ? "ON" : "OFF"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`caulk-menu-item${pingMode ? " active" : ""}`}
+                          onClick={() => {
+                            setPingMode((v) => !v);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>📍 {pingMode ? "Cancel ping" : "Ping attention"}</span>
+                          <kbd>Alt+Click</kbd>
+                        </button>
+                        <div className="caulk-menu-inline-row" aria-label="Stamp reaction">
+                          <span className="caulk-menu-inline-label">Stamp:</span>
+                          {["👍", "🔥", "💡", "🚀", "❤️"].map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              className="caulk-menu-chip"
+                              title={`Stamp ${emoji} on board`}
+                              onClick={() => {
+                                stampReaction(emoji);
+                                setToolsMenuOpen(false);
+                              }}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="caulk-menu-inline-row" aria-label="Meeting timer">
+                          <span className="caulk-menu-inline-label">⏱️ Timer:</span>
+                          {[1, 3, 5, 10].map((mins) => (
+                            <button
+                              key={mins}
+                              type="button"
+                              className="caulk-menu-chip"
+                              onClick={() => {
+                                startMeetingTimer(mins);
+                                setToolsMenuOpen(false);
+                              }}
+                            >
+                              {mins}m
+                            </button>
+                          ))}
+                          {timer?.running && (
+                            <button
+                              type="button"
+                              className="caulk-menu-chip danger"
+                              onClick={() => {
+                                stopMeetingTimer();
+                                setToolsMenuOpen(false);
+                              }}
+                            >
+                              Stop
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="caulk-menu-sep" />
+
+                      {/* Section 4: Workspace & Sync */}
+                      <div className="caulk-menu-section">
+                        <div className="caulk-menu-heading">Workspace &amp; Sync</div>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            setBackgroundPickerOpen(true);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🎨 Board background…</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            setThemePickerOpen(true);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🎭 Theme &amp; UI colors…</span>
+                          <span className="caulk-menu-pill">
+                            {getThemePreset(boardTheme.preset, boardTheme.customTheme).badge}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            setHistory(!historyOpen);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🕒 Board history</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            copyShareLink();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🔗 Copy invite link</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          onClick={() => {
+                            setIssuesDrawerOpen(true);
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🐙 GitHub Issues (Browse &amp; Insert)</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="caulk-menu-item"
+                          disabled={creatingIssue}
+                          onClick={() => {
+                            if (!creatingIssue) void convertSelectedToIssue();
+                            setToolsMenuOpen(false);
+                          }}
+                        >
+                          <span>🐙 Create Issue Card from Note</span>
+                        </button>
+                        <div className="caulk-menu-inline-row">
                           <button
                             type="button"
                             className="caulk-menu-chip"
                             onClick={() => {
-                              setPasswordModalOpen(true);
+                              void engineRef.current?.saveNow();
                               setToolsMenuOpen(false);
                             }}
                           >
-                            🔐 Key
+                            💾 Save
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          className="caulk-menu-chip"
-                          onClick={() => {
-                            setToolsMenuOpen(false);
-                            onClose();
-                          }}
-                        >
-                          🏠 Boards
-                        </button>
+                          <button
+                            type="button"
+                            className="caulk-menu-chip"
+                            onClick={() => {
+                              void engineRef.current?.pullNow();
+                              setToolsMenuOpen(false);
+                            }}
+                          >
+                            ⬇️ Pull
+                          </button>
+                          {isRepoAdmin && (
+                            <button
+                              type="button"
+                              className="caulk-menu-chip"
+                              onClick={() => {
+                                setPasswordModalOpen(true);
+                                setToolsMenuOpen(false);
+                              }}
+                            >
+                              🔐 Key
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="caulk-menu-chip"
+                            onClick={() => {
+                              setToolsMenuOpen(false);
+                              onClose();
+                            }}
+                          >
+                            🏠 Boards
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
             </div>
           );
         }}
@@ -5016,6 +5054,25 @@ export function BoardScreen({ session, onClose }: Props) {
             ))}
         </div>
       )}
+
+      {/* Multiplayer Scoreboard / Connected Operators Roster [TAB] */}
+      <PlayerListModal
+        currentUserName={currentIdentity.name}
+        myColor={liveSessionRef.current?.userColor.stroke ?? "#4157ff"}
+        isLeader={isElectedSaver(liveStatus.connected, liveStatus.clientId, liveStatus.peerClientIds)}
+        peers={liveStatus.peers}
+        followingPeerId={followingPeerId}
+        onFollowPeer={(id) => setFollowingPeerId(id)}
+        onJumpToPeer={handleJumpToPeer}
+        boardName={label}
+        roomName={liveRoomName || storageLabel}
+        isOpen={playerListOpen}
+        onClose={() => setPlayerListOpen(false)}
+        localViewport={(() => {
+          const s = apiRef.current?.getAppState();
+          return s ? { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom.value } : null;
+        })()}
+      />
 
       <StatusBar
         status={status}

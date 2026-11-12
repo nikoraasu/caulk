@@ -1,0 +1,234 @@
+/* Authentic Valve VGUI Multiplayer Scoreboard / Player Roster */
+
+.caulk-playerlist-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 24, 16, 0.65);
+  backdrop-filter: blur(2px);
+  animation: playerListFadeIn 0.12s ease-out;
+  pointer-events: auto;
+}
+
+@keyframes playerListFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.caulk-playerlist-window {
+  width: 680px;
+  max-width: calc(100vw - 32px);
+  background: var(--vgui-bg, #3e4637);
+  border: 2px solid var(--vgui-border, #111410);
+  border-right-color: var(--vgui-border-light, #7a8b71);
+  border-bottom-color: var(--vgui-border-light, #7a8b71);
+  box-shadow:
+    inset 1px 1px 0 var(--vgui-light, #7a8b71),
+    inset -1px -1px 0 var(--vgui-dark, #252b20),
+    0 24px 60px rgba(0, 0, 0, 0.85);
+  font-family: var(--vgui-font-mono, "Courier New", monospace);
+  color: var(--vgui-text, #ffffff);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.caulk-playerlist-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--vgui-bg-dark, #2b3226);
+  border-bottom: 1px solid var(--vgui-border, #111410);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+
+.caulk-playerlist-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vgui-accent, #c59c3a);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.caulk-playerlist-server-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid var(--vgui-border-dark, #252b20);
+  font-size: 11px;
+}
+
+.caulk-playerlist-server-meta .board-name {
+  color: var(--vgui-accent, #c59c3a);
+  font-weight: 700;
+}
+
+.caulk-playerlist-server-meta .peer-count {
+  color: var(--vgui-muted, #d0d8cc);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid var(--vgui-border-dark, #343d2f);
+}
+
+.caulk-playerlist-table-wrapper {
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.caulk-playerlist-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.caulk-playerlist-table th {
+  text-align: left;
+  padding: 6px 8px;
+  color: var(--vgui-muted, #d0d8cc);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--vgui-border-dark, #343d2f);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.caulk-playerlist-table td {
+  padding: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  vertical-align: middle;
+}
+
+.caulk-playerlist-row {
+  transition: background 0.1s ease;
+}
+
+.caulk-playerlist-row:hover {
+  background: var(--vgui-hover, #55644e);
+}
+
+.caulk-playerlist-row.is-self {
+  background: rgba(197, 156, 58, 0.12);
+}
+
+.caulk-playerlist-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  border: 1px solid var(--vgui-border, #111410);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.caulk-playerlist-name {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.caulk-playerlist-badge-self {
+  font-size: 9px;
+  padding: 1px 4px;
+  background: var(--vgui-accent, #c59c3a);
+  color: #121810;
+  font-weight: 800;
+  border-radius: 2px;
+}
+
+.caulk-playerlist-badge-leader {
+  font-size: 9px;
+  padding: 1px 4px;
+  background: rgba(197, 156, 58, 0.25);
+  border: 1px solid var(--vgui-accent, #c59c3a);
+  color: var(--vgui-accent, #c59c3a);
+  border-radius: 2px;
+}
+
+.caulk-playerlist-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--vgui-border-dark, #343d2f);
+}
+
+.caulk-playerlist-status-pill.live {
+  color: #55ff55;
+  border-color: rgba(85, 255, 85, 0.4);
+}
+
+.caulk-playerlist-status-pill.presenting {
+  color: #ffb82e;
+  border-color: rgba(255, 184, 46, 0.5);
+  animation: pulsePresent 1.5s infinite;
+}
+
+@keyframes pulsePresent {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.caulk-playerlist-action-btn {
+  background: var(--vgui-base, #3e4637);
+  border: 1px solid var(--vgui-border, #111410);
+  border-right-color: var(--vgui-border-light, #7a8b71);
+  border-bottom-color: var(--vgui-border-light, #7a8b71);
+  box-shadow: inset 1px 1px 0 var(--vgui-light, #7a8b71);
+  color: var(--vgui-text, #ffffff);
+  font-family: inherit;
+  font-size: 10px;
+  padding: 3px 7px;
+  cursor: pointer;
+  border-radius: 1px;
+  transition: all 0.1s ease;
+}
+
+.caulk-playerlist-action-btn:hover {
+  background: var(--vgui-hover, #55644e);
+  color: var(--vgui-accent, #c59c3a);
+}
+
+.caulk-playerlist-action-btn:active {
+  box-shadow: inset 1px 1px 0 var(--vgui-dark, #252b20);
+  transform: translate(1px, 1px);
+}
+
+.caulk-playerlist-action-btn.active {
+  background: var(--vgui-selected-bg, #978730);
+  color: #ffffff;
+}
+
+.caulk-playerlist-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--vgui-bg-dark, #2b3226);
+  border-top: 1px solid var(--vgui-border, #111410);
+  font-size: 10px;
+  color: var(--vgui-muted, #d0d8cc);
+}
