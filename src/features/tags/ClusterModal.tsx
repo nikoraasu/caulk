@@ -1,13 +1,11 @@
 import { useState } from "react";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import {
-  aiClusterExisting,
   clusterByColor,
   clusterByTag,
   findStickyItems,
   tidyGrid,
 } from "./store";
-import { aiClusterStickies, getStoredConfig } from "../../ai";
 import "./tags.css";
 
 type Props = {
@@ -18,7 +16,7 @@ type Props = {
   onToast: (msg: string) => void;
 };
 
-type ClusterMode = "tag" | "color" | "tidy" | "ai";
+type ClusterMode = "tag" | "color" | "tidy";
 
 export function ClusterModal({
   allElements,
@@ -42,7 +40,6 @@ export function ClusterModal({
   const [loading, setLoading] = useState(false);
 
   const targetItems = scope === "selected" ? selectedStickyItems : allStickyItems;
-  const canRunAI = Boolean(getStoredConfig().apiKey);
 
   const handleExecute = async () => {
     if (targetItems.length === 0) {
@@ -78,27 +75,6 @@ export function ClusterModal({
         });
         onApply(res.updatedElements, res.newFrames);
         onToast(`✓ Clustered ${targetItems.length} notes by color into ${res.newFrames.length} groups!`);
-        onClose();
-        return;
-      }
-
-      if (mode === "ai") {
-        const texts = targetItems.map((it) => it.text).filter((t) => t.trim().length > 0);
-        if (texts.length === 0) {
-          throw new Error("Sticky notes must contain text for AI clustering.");
-        }
-
-        const clusters = await aiClusterStickies(texts);
-        if (clusters.length === 0) {
-          throw new Error("AI was unable to find distinct categories.");
-        }
-
-        const res = aiClusterExisting(targetItems, clusters, {
-          columnsPerGroup: columns,
-          createFrames: wrapFrames,
-        });
-        onApply(res.updatedElements, res.newFrames);
-        onToast(`✓ AI organized ${targetItems.length} notes into ${res.newFrames.length} thematic groups!`);
         onClose();
         return;
       }
@@ -192,29 +168,6 @@ export function ClusterModal({
               </div>
               <div className="cluster-card-desc">
                 Straightens overlapping scattered notes into a clean, evenly spaced grid.
-              </div>
-            </div>
-
-            <div
-              className={`cluster-option-card${mode === "ai" ? " selected" : ""}`}
-              onClick={() => setMode("ai")}
-            >
-              <div className="cluster-card-title">
-                <span>🤖</span>
-                <span>AI Smart Cluster</span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    marginLeft: "auto",
-                    color: canRunAI ? "#16a34a" : "#ca8a04",
-                    fontWeight: 600,
-                  }}
-                >
-                  {canRunAI ? "● AI Active" : "● Setup AI"}
-                </span>
-              </div>
-              <div className="cluster-card-desc">
-                Uses Gemini to analyze note ideas and group them into thematic categories.
               </div>
             </div>
           </div>

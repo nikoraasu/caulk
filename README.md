@@ -121,12 +121,12 @@ npx caulk add-sticky --board sprint-1 --text "Verified tests passing 100%" --col
 
 ---
 
-## In-App AI Copilot
+## AI Agent Integration
 
-Click **Tools → 🤖 AI assistant** inside any board:
-- **Models Supported**: Anthropic (Claude 3.5 Sonnet / Haiku / Opus), OpenAI (GPT-4o / mini / o1), Google Gemini (2.0 Flash / 1.5 Pro), and Local Ollama (`http://localhost:11434/v1`).
-- **Autonomous Tool Calling**: Converts natural language requests into CRDT tasks, native Miro-style grouping frames, stickies, and Mermaid diagrams.
-- **Privacy**: API keys remain strictly local in your browser's `localStorage`.
+Caulk boards are designed to be inspected and modified by any AI coding assistant (**Antigravity**, **Claude Code**, **Cursor**, **Codex**, **Aider**, etc.) directly from your terminal or editor workspace.
+No API keys needed in the browser. External agents use `npx caulk` to inspect sprint boards, pick up tasks, create tickets, and update progress in real time.
+
+See [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md) for full instructions and command recipes.
 
 ---
 

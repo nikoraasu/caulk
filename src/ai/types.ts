@@ -1,39 +1,7 @@
 /**
  * Multi-model AI types and tool-calling interfaces.
- * Supports Anthropic (Claude), OpenAI (GPT-4o), Google Gemini, and custom OpenAI-compatible endpoints (Ollama).
+ * Defines agent action schemas and normalization helpers.
  */
-
-export type AIProvider = "anthropic" | "openai" | "gemini" | "custom";
-
-export type AIModelConfig = {
-  provider: AIProvider;
-  model: string;
-  apiKey: string;
-  baseUrl?: string; // Optional custom URL for Ollama / LocalAI / proxy
-};
-
-export const PROVIDER_MODELS: Record<AIProvider, Array<{ id: string; name: string; description: string }>> = {
-  anthropic: [
-    { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet (Recommended)", description: "Most capable for complex planning, layout, and task breakdown" },
-    { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", description: "Fastest and lightweight for quick edits and stickies" },
-    { id: "claude-3-opus-20240229", name: "Claude 3 Opus", description: "Deep reasoning and extensive writing" },
-  ],
-  openai: [
-    { id: "gpt-4o", name: "GPT-4o (Recommended)", description: "Fast, intelligent multimodal flagship" },
-    { id: "gpt-4o-mini", name: "GPT-4o mini", description: "Fast, cheap, and lightweight" },
-    { id: "o1-mini", name: "o1-mini", description: "Advanced reasoning for technical architectures" },
-  ],
-  gemini: [
-    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash (Recommended)", description: "Next-gen ultra-fast multimodal model" },
-    { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", description: "Large context window for huge boards" },
-    { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", description: "Lightweight fast assistant" },
-  ],
-  custom: [
-    { id: "llama3.3", name: "Ollama / Local (Llama 3.3)", description: "Local self-hosted model via OpenAI-compatible endpoint" },
-    { id: "qwen2.5", name: "Ollama / Local (Qwen 2.5)", description: "Local self-hosted coding model" },
-    { id: "custom", name: "Custom Model Name", description: "Any model identifier supported by your endpoint" },
-  ],
-};
 
 export type AgentAction =
   | {

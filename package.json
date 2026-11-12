@@ -27,7 +27,6 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
-    "@google/genai": "^3.0.0",
     "lib0": "^0.2.120",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

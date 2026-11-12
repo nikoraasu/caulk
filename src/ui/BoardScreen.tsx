@@ -58,7 +58,6 @@ import { getLiveRoomName, isElectedSaver, LiveSession, type LiveStatus } from ".
 import { DigestBanner } from "./DigestBanner";
 import { HistoryPanel } from "./HistoryPanel";
 import { StatusBar } from "./StatusBar";
-import { AIAssistantDrawer } from "./AIAssistantDrawer";
 import { ChangePasswordModal, UnlockBoardModal } from "./BoardPasswordModal";
 import { VideoModal } from "./VideoModal";
 import { VideoEmbedFrame } from "./VideoEmbedFrame";
@@ -336,14 +335,6 @@ export function BoardScreen({ session, onClose }: Props) {
   const [presentationFrames, setPresentationFrames] = useState<ExcalidrawElement[]>([]);
 
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
-  // AI sidebar docked state, persisted per browser. Defaults to docked.
-  const [aiDocked, setAiDocked] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("caulk.ai_docked.v1") !== "0";
-    } catch {
-      return true;
-    }
-  });
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [backgroundPickerOpen, setBackgroundPickerOpen] = useState(false);
   const [canvasBgConfig, setCanvasBgConfig] = useState<CanvasBackgroundImage | undefined>(undefined);
@@ -3978,17 +3969,6 @@ export function BoardScreen({ session, onClose }: Props) {
                       <button
                         type="button"
                         role="menuitem"
-                        className={`caulk-menu-item${appState.openSidebar?.name === "ai" ? " active" : ""}`}
-                        onClick={() => {
-                          apiRef.current?.toggleSidebar({ name: "ai" });
-                          setToolsMenuOpen(false);
-                        }}
-                      >
-                        <span>🤖 AI assistant</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
                         className={`caulk-menu-item${currentActiveTool === "frame" ? " active" : ""}`}
                         onClick={() => {
                           const api = apiRef.current;
@@ -4211,28 +4191,6 @@ export function BoardScreen({ session, onClose }: Props) {
                 setShowComments(true);
                 setPlacingComment(true);
               }}
-            />
-          </Sidebar>
-
-          <Sidebar
-            name="ai"
-            className="ai-sidebar"
-            docked={aiDocked}
-            onDock={(docked) => {
-              setAiDocked(docked);
-              try {
-                localStorage.setItem("caulk.ai_docked.v1", docked ? "1" : "0");
-              } catch {
-                // Storage unavailable (private mode or blocked); docked state just won't persist.
-              }
-            }}
-          >
-            <Sidebar.Header>AI Assistant</Sidebar.Header>
-            <AIAssistantDrawer
-              onClose={() => apiRef.current?.toggleSidebar({ name: "ai", force: false })}
-              apiRef={apiRef}
-              doc={docRef.current}
-              onToast={(msg) => setToastMessage(msg)}
             />
           </Sidebar>
         </Excalidraw>
