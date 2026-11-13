@@ -83,6 +83,7 @@ import {
   applyBoardThemeToDom,
   resetBoardThemeOnDom,
   getThemePreset,
+  resolveEffectiveColors,
   type BoardThemeConfig,
 } from "./boardTheme";
 import { VGUI_STICKY_PICKS, vguiShade } from "./vguiColors";
@@ -352,6 +353,10 @@ export function BoardScreen({ session, onClose }: Props) {
   const canvasBgConfigRef = useRef<CanvasBackgroundImage | undefined>(undefined);
   const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [boardTheme, setBoardTheme] = useState<BoardThemeConfig>(DEFAULT_BOARD_THEME);
+  const effectiveThemeColors = useMemo(
+    () => resolveEffectiveColors(boardTheme, currentViewBackground),
+    [boardTheme, currentViewBackground],
+  );
   const [selectedRoundableElements, setSelectedRoundableElements] = useState<readonly ExcalidrawElement[]>([]);
   const lastRoundableSigRef = useRef<string>("");
   const [currentActiveTool, setCurrentActiveTool] = useState<string>("selection");
@@ -4866,6 +4871,7 @@ export function BoardScreen({ session, onClose }: Props) {
           apiRef={apiRef}
           bridgeRef={bridgeRef}
           onToast={setToastMessage}
+          themeAccent={effectiveThemeColors.accent}
         />
 
         {/* Floating Selection Alignment & Distribution Toolbar */}

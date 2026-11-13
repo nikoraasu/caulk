@@ -5,6 +5,7 @@ import { alignElements, distributeElements, packGrid } from "../src/features/lay
 import { BUILTIN_TEMPLATES } from "../src/features/templates/builtin";
 import { sanitizeElement } from "../src/crdt/scene";
 import { generateShadesFromMainColor, normalizeThemeHex } from "../src/ui/boardTheme";
+import { createConnectorArrow } from "../src/features/diagram/connectorArrow";
 
 function mockElement(id: string, x: number, y: number, width = 100, height = 60, extra: Record<string, unknown> = {}): ExcalidrawElement {
   return sanitizeElement({
@@ -185,11 +186,59 @@ async function testThemeShadesGenerator() {
   console.log("ok  Vibrant palettes generated cleanly for #7c3aed, #be123c, #2563eb");
 }
 
+async function testConnectorArrowStyling() {
+  console.log("-> 5: Dynamic Theme-Aware Connector Arrow Creation & Styling");
+
+  // Default fallback stroke color
+  const defaultArrow = createConnectorArrow({
+    startX: 10,
+    startY: 20,
+    endX: 110,
+    endY: 120,
+    sourceId: "node-1",
+    targetId: "node-2",
+  });
+  assert.equal(defaultArrow.type, "arrow");
+  assert.equal(defaultArrow.strokeColor, "#c59c3a", "Defaults to VGUI amber if no theme accent provided");
+  assert.equal(defaultArrow.startBinding?.elementId, "node-1");
+  assert.equal(defaultArrow.endBinding?.elementId, "node-2");
+  assert.equal(defaultArrow.points.length, 2);
+
+  // Frutiger Aero theme accent
+  const aeroAccent = "#38bdf8";
+  const aeroArrow = createConnectorArrow({
+    startX: 0,
+    startY: 0,
+    endX: 200,
+    endY: 100,
+    sourceId: "source-a",
+    targetId: "target-b",
+    strokeColor: aeroAccent,
+  });
+  assert.equal(aeroArrow.strokeColor, aeroAccent, "Applies active theme accent color to arrow stroke");
+
+  // Windows XP theme accent
+  const xpAccent = "#2563eb";
+  const xpArrow = createConnectorArrow({
+    startX: 50,
+    startY: 50,
+    endX: 150,
+    endY: 50,
+    sourceId: "src",
+    strokeColor: xpAccent,
+  });
+  assert.equal(xpArrow.strokeColor, xpAccent);
+  assert.equal(xpArrow.endBinding, null, "Target binding is null when unconnected end");
+
+  console.log("ok  Theme-aware connector arrows correctly styled with active theme accent");
+}
+
 async function main() {
   await testHierarchyLayout();
   await testAlignAndDistribute();
   await testRichEntitiesAndTemplates();
   await testThemeShadesGenerator();
+  await testConnectorArrowStyling();
   console.log("\nAll Infinite Canvas v2 (Diagramming, Layout, Entities & Themeing) tests passed!");
 }
 

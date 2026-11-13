@@ -8,18 +8,32 @@ import type { ExcalidrawElement, OrderedExcalidrawElement } from "@excalidraw/ex
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { sanitizeElement, type SceneBridge } from "../../crdt/scene";
 import { soundEngine } from "../../audio/soundEngine";
+import { createConnectorArrow, type ConnectorArrowParams } from "./connectorArrow";
 import "./branching.css";
+
+export { createConnectorArrow, type ConnectorArrowParams };
 
 type Props = {
   apiRef: MutableRefObject<ExcalidrawImperativeAPI | null>;
   bridgeRef: MutableRefObject<SceneBridge | null>;
   onToast: (msg: string) => void;
+  themeAccent?: string;
 };
 
 type Direction = "top" | "right" | "bottom" | "left";
 
-export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }) => {
+export const BranchingOverlay: React.FC<Props> = ({
+  apiRef,
+  bridgeRef,
+  onToast,
+  themeAccent,
+}) => {
   const [, setTick] = useState(0);
+
+  // Pan tracking states to hide handles during active canvas movement/panning
+  const [isSpaceDown, setIsSpaceDown] = useState(false);
+  const [isMiddleMouseDown, setIsMiddleMouseDown] = useState(false);
+  const [isWheelPanning, setIsWheelPanning] = useState(false);
 
   // Dragging connection state
   const [draggingAnchor, setDraggingAnchor] = useState<{
@@ -32,7 +46,87 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
   const [currentCursorScene, setCurrentCursorScene] = useState<{ x: number; y: number } | null>(null);
   const [hoveredTargetId, setHoveredTargetId] = useState<string | null>(null);
 
-  // Subscribe to Excalidraw camera/scene changes for crisp alignment
+  // Spacebar pan detection (ignoring text inputs)
+  useEffect(() => {
+    const isInputElement = (el: EventTarget | null) => {
+      if (!el || !(el instanceof HTMLElement)) return false;
+      const tag = el.tagName.toLowerCase();
+      return (
+        tag === "input" ||
+        tag === "textarea" ||
+        el.isContentEditable ||
+        Boolean(el.closest(".excalidraw-textEditorContainer"))
+      );
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !isInputElement(e.target)) {
+        setIsSpaceDown(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setIsSpaceDown(false);
+      }
+    };
+
+    const handleBlur = () => {
+      setIsSpaceDown(false);
+      setIsMiddleMouseDown(false);
+      setIsWheelPanning(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, []);
+
+  // Middle-click and wheel pan tracking
+  useEffect(() => {
+    let wheelTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (e.button === 1 || (e.buttons & 4) !== 0) {
+        setIsMiddleMouseDown(true);
+      }
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      if (e.button === 1 || (e.buttons & 4) === 0) {
+        setIsMiddleMouseDown(false);
+      }
+    };
+
+    const handleWheel = () => {
+      setIsWheelPanning(true);
+      if (wheelTimer) clearTimeout(wheelTimer);
+      wheelTimer = setTimeout(() => {
+        setIsWheelPanning(false);
+      }, 120);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    window.addEventListener("pointerup", handlePointerUp, { passive: true });
+    window.addEventListener("pointercancel", handlePointerUp, { passive: true });
+    window.addEventListener("wheel", handleWheel, { passive: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      window.removeEventListener("wheel", handleWheel);
+      if (wheelTimer) clearTimeout(wheelTimer);
+    };
+  }, []);
+
+  // Subscribe to Excalidraw camera/scene changes for crisp alignment,
+  // plus continuous RAF updates on pointer movements and wheel scrolls
   useEffect(() => {
     const api = apiRef.current;
     if (!api) return;
@@ -46,10 +140,16 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
     };
     const u1 = api.onScrollChange(bump);
     const u2 = api.onChange(bump);
+
+    window.addEventListener("pointermove", bump, { passive: true });
+    window.addEventListener("wheel", bump, { passive: true });
+
     return () => {
       if (raf) cancelAnimationFrame(raf);
       u1();
       u2();
+      window.removeEventListener("pointermove", bump);
+      window.removeEventListener("wheel", bump);
     };
   }, [apiRef]);
 
@@ -131,51 +231,18 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
         endPoint = { x: newElement.x + newElement.width / 2, y: newElement.y + newElement.height };
       }
 
-      const dx = endPoint.x - startPoint.x;
-      const dy = endPoint.y - startPoint.y;
       const arrowId = `arrow-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-      const arrowElement: ExcalidrawElement = sanitizeElement({
+      const arrowElement = createConnectorArrow({
         id: arrowId,
-        type: "arrow",
-        x: startPoint.x,
-        y: startPoint.y,
-        width: Math.abs(dx),
-        height: Math.abs(dy),
-        angle: 0,
-        strokeColor: "#c59c3a",
-        backgroundColor: "transparent",
-        fillStyle: "solid",
-        strokeWidth: 2,
-        strokeStyle: "solid",
-        roughness: 0,
-        opacity: 100,
-        groupIds: [],
+        startX: startPoint.x,
+        startY: startPoint.y,
+        endX: endPoint.x,
+        endY: endPoint.y,
+        sourceId: selectedElement.id,
+        targetId: newId,
         frameId: selectedElement.frameId ?? null,
-        index: null,
-        roundness: { type: 2 },
-        seed: Math.floor(Math.random() * 2e9),
-        version: 1,
-        versionNonce: Math.floor(Math.random() * 2e9),
-        isDeleted: false,
-        boundElements: null,
-        updated: Date.now(),
-        link: null,
-        locked: false,
-        points: [[0, 0], [dx, dy]],
-        startBinding: {
-          elementId: selectedElement.id,
-          focus: 0,
-          gap: 6,
-        },
-        endBinding: {
-          elementId: newId,
-          focus: 0,
-          gap: 6,
-        },
-        lastCommittedPoint: null,
-        startArrowhead: null,
-        endArrowhead: "arrow",
+        strokeColor: themeAccent || "#c59c3a",
       });
 
       // Update boundElements on source and new element
@@ -207,7 +274,7 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
       soundEngine.play("create");
       onToast("✨ Quick-branched new connected card");
     },
-    [api, bridgeRef, elements, onToast, selectedElement],
+    [api, bridgeRef, elements, onToast, selectedElement, themeAccent],
   );
 
   // 2. Interactive Drag Connector Handler
@@ -271,52 +338,17 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
         const arrowId = `arrow-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         const endX = target ? target.x + target.width / 2 : finalScenePt.x;
         const endY = target ? target.y + target.height / 2 : finalScenePt.y;
-        const dx = endX - draggingAnchor.startX;
-        const dy = endY - draggingAnchor.startY;
 
-        const newArrow: ExcalidrawElement = sanitizeElement({
+        const newArrow = createConnectorArrow({
           id: arrowId,
-          type: "arrow",
-          x: draggingAnchor.startX,
-          y: draggingAnchor.startY,
-          width: Math.abs(dx),
-          height: Math.abs(dy),
-          angle: 0,
-          strokeColor: "#c59c3a",
-          backgroundColor: "transparent",
-          fillStyle: "solid",
-          strokeWidth: 2,
-          strokeStyle: "solid",
-          roughness: 0,
-          opacity: 100,
-          groupIds: [],
+          startX: draggingAnchor.startX,
+          startY: draggingAnchor.startY,
+          endX,
+          endY,
+          sourceId: sourceEl.id,
+          targetId: target ? target.id : null,
           frameId: sourceEl.frameId ?? null,
-          index: null,
-          roundness: { type: 2 },
-          seed: Math.floor(Math.random() * 2e9),
-          version: 1,
-          versionNonce: Math.floor(Math.random() * 2e9),
-          isDeleted: false,
-          boundElements: null,
-          updated: Date.now(),
-          link: null,
-          locked: false,
-          points: [[0, 0], [dx, dy]],
-          startBinding: {
-            elementId: sourceEl.id,
-            focus: 0,
-            gap: 6,
-          },
-          endBinding: target
-            ? {
-                elementId: target.id,
-                focus: 0,
-                gap: 6,
-              }
-            : null,
-          lastCommittedPoint: null,
-          startArrowhead: null,
-          endArrowhead: "arrow",
+          strokeColor: themeAccent || "#c59c3a",
         });
 
         const nextElements = elements.map((el) => {
@@ -365,7 +397,7 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [api, bridgeRef, draggingAnchor, elements, onToast, toSceneXY]);
+  }, [api, bridgeRef, draggingAnchor, elements, onToast, themeAccent, toSceneXY]);
 
   // Arrow Context Bar for editing arrow style and roundness
   const handleUpdateArrowStyle = (roundnessType: number | null) => {
@@ -393,14 +425,27 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
   // If nothing is selected and not dragging, render nothing
   if (!appState) return null;
 
-  // Render Arrow Context Bar if single arrow selected
-  if (selectedElement && selectedElement.type === "arrow" && !selectedElement.isDeleted) {
+  const isHandToolPanning =
+    appState?.activeTool?.type === "hand" && appState?.cursorButton === "down";
+
+  const isPanning = Boolean(
+    isSpaceDown ||
+    isMiddleMouseDown ||
+    isWheelPanning ||
+    isHandToolPanning,
+  );
+
+  // Render Arrow Context Bar if single arrow selected and not actively panning canvas
+  if (!isPanning && selectedElement && selectedElement.type === "arrow" && !selectedElement.isDeleted) {
     const arrowMidX = selectedElement.x + selectedElement.width / 2;
     const arrowMidY = selectedElement.y + selectedElement.height / 2;
     const barPos = toOverlayXY(arrowMidX, arrowMidY);
 
     return (
-      <div className="caulk-branching-overlay">
+      <div
+        className="caulk-branching-overlay"
+        style={themeAccent ? ({ "--vgui-accent": themeAccent } as React.CSSProperties) : undefined}
+      >
         <div
           className="caulk-connector-bar"
           style={{
@@ -441,6 +486,7 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
 
   // If a single shape/card/sticky is selected (and not an arrow), render the 4 branching anchors
   const showHandles =
+    !isPanning &&
     selectedElement &&
     selectedElement.type !== "arrow" &&
     !selectedElement.isDeleted &&
@@ -473,7 +519,10 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
   const dragCurScreen = currentCursorScene ? toOverlayXY(currentCursorScene.x, currentCursorScene.y) : null;
 
   return (
-    <div className="caulk-branching-overlay">
+    <div
+      className="caulk-branching-overlay"
+      style={themeAccent ? ({ "--vgui-accent": themeAccent } as React.CSSProperties) : undefined}
+    >
       {/* 4 Cardinal Quick-Branch Handles */}
       {showHandles && !draggingAnchor && (
         <>
@@ -553,6 +602,7 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
             top: haloPos.y - 4,
             width: hoveredElement.width * haloZoom + 8,
             height: hoveredElement.height * haloZoom + 8,
+            borderColor: themeAccent,
           }}
         />
       )}
@@ -577,7 +627,7 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
               refY="3"
               orient="auto"
             >
-              <path d="M0,0 L0,6 L8,3 z" fill="#c59c3a" />
+              <path d="M0,0 L0,6 L8,3 z" fill={themeAccent || "#c59c3a"} />
             </marker>
           </defs>
           <line
@@ -585,7 +635,7 @@ export const BranchingOverlay: React.FC<Props> = ({ apiRef, bridgeRef, onToast }
             y1={dragStartScreen.y}
             x2={dragCurScreen.x}
             y2={dragCurScreen.y}
-            stroke="#c59c3a"
+            stroke={themeAccent || "#c59c3a"}
             strokeWidth="2.5"
             strokeDasharray="4 3"
             markerEnd="url(#caulk-arrow-head)"

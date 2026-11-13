@@ -11,36 +11,40 @@ This document outlines the current state of the project, recent deliverables, an
 - **Verification**:
   - `npm run typecheck`: **0 errors**
   - `npm test`: **All 9 test suites passing** (`test:tasks`, `test:activity`, `test:soundboard`, `test:ai`, `test:cli`, `test:sync`, `test:live`, `test:navigation`, `test:canvas`)
-  - `npm run pack`: Successful, `caulk-seohost.zip` (3.1 MB) generated
-  - `.okf/` knowledge bundle strictly validated (`okf_validate.py --strict`)
+  - `.okf/` knowledge bundle strictly validated (`python3 /home/nikolas/.gemini/config/plugins/okf/skills/validate/scripts/okf_validate.py .okf/ --strict`)
 
 ---
 
-## 📋 Prioritized Handoff Items
+## ✅ Recently Completed (Latest Session)
 
 ### 1. Dynamic Theme-Aware Arrow Styling
-- **Problem**:
-  Connector arrows created by the quick-branching handles (`handleQuickBranch`) in [`src/features/diagram/BranchingOverlay.tsx`](file:///home/nikolas/miro-alt/src/features/diagram/BranchingOverlay.tsx#L146) currently hardcode `strokeColor: "#c59c3a"` (classic VGUI gold/amber). When using modern themes (e.g., Frutiger Aero, Windows XP, Cyberpunk Amber CRT, Dracula Night) or a custom main-color palette, the arrows do not match the active theme.
-- **Desired Behavior**:
-  Newly spawned connector arrows should use the current board theme's accent color (or a theme-appropriate stroke color derived from `effectiveTheme.accent` / `boardTheme.colors.accent`).
-- **Files to Modify**:
-  - [`src/features/diagram/BranchingOverlay.tsx`](file:///home/nikolas/miro-alt/src/features/diagram/BranchingOverlay.tsx):
-    Pass the current theme or accent color prop (e.g. `themeAccent?: string` or `effectiveTheme`) and use it in `sanitizeElement({... strokeColor: themeAccent || "#c59c3a" })`.
-  - [`src/ui/BoardScreen.tsx`](file:///home/nikolas/miro-alt/src/ui/BoardScreen.tsx):
-    Pass `effectiveTheme.accent` or `boardTheme.colors.accent` to `<BranchingOverlay />`.
+- Extracted pure helper [`src/features/diagram/connectorArrow.ts`](file:///home/nikolas/miro-alt/src/features/diagram/connectorArrow.ts) (`createConnectorArrow`) for creating theme-styled connector arrows.
+- Computed active theme accent in [`src/ui/BoardScreen.tsx`](file:///home/nikolas/miro-alt/src/ui/BoardScreen.tsx) via `resolveEffectiveColors(boardTheme, currentViewBackground).accent` and passed it as `themeAccent` to [`BranchingOverlay.tsx`](file:///home/nikolas/miro-alt/src/features/diagram/BranchingOverlay.tsx).
+- In [`BranchingOverlay.tsx`](file:///home/nikolas/miro-alt/src/features/diagram/BranchingOverlay.tsx), connector arrows spawned by quick-branching or interactive drag-to-connect now adopt `themeAccent` (falling back cleanly to `#c59c3a`).
+- SVG drag preview line, SVG arrowhead marker, magnetic halo border, and CSS variable `--vgui-accent` all update dynamically with the active board theme.
+- Added automated unit test in [`test/infiniteCanvas.test.ts`](file:///home/nikolas/miro-alt/test/infiniteCanvas.test.ts) covering fallback gold, Frutiger Aero accent (`#38bdf8`), and Windows XP accent (`#2563eb`).
+
+### 2. Anchor Quick-Branching Handles on Canvas Pan / Board Move
+- Added continuous RAF listener on window `pointermove` and `wheel` inside [`src/features/diagram/BranchingOverlay.tsx`](file:///home/nikolas/miro-alt/src/features/diagram/BranchingOverlay.tsx) so `setTick` continuously tracks viewport and scene coordinate changes.
+- Added comprehensive pan state detection (`isSpaceDown`, `isMiddleMouseDown`, `isWheelPanning`, and hand tool `isHandToolPanning`).
+- Handles and Arrow Context Bar cleanly hide while panning is active, eliminating visual lag/jitter across frames, and instantly re-anchor rock-solid to scene elements the moment panning stops.
 
 ---
 
-### 2. Anchor Quick-Branching Handles on Canvas Pan / Board Move
-- **Problem**:
-  The four directional plus (`+`) handles correctly move along with an object when the object itself is dragged across the canvas. However, when the user moves/pans the entire board (e.g. via spacebar drag, middle-click pan, or trackpad scrolling) while an object is selected, the plus handles can desynchronize or move relative to the viewport rather than remaining locked to the selected object's scene coordinates.
-- **Root Cause & Investigation**:
-  In [`src/features/diagram/BranchingOverlay.tsx`](file:///home/nikolas/miro-alt/src/features/diagram/BranchingOverlay.tsx):
-  - `toOverlayXY(sceneX, sceneY)` maps canvas coordinates to screen coordinates using `appState.scrollX`, `appState.scrollY`, and `appState.zoom`.
-  - During continuous canvas panning (e.g., when the user holds spacebar or uses middle-click drag), Excalidraw updates `appState.scrollX`/`scrollY`, but `api.onScrollChange` may only fire at the end of the scroll gesture, or the RAF subscription in `useEffect` may not catch every frame of pointer pan.
-- **Recommended Solutions**:
-  1. **Continuous RAF during panning**: Listen to `pointermove` or `wheel` on the canvas container while any element is selected so `setTick` runs on every animation frame during active pans.
-  2. **Hide during pan**: When `appState.isPanning` is true (or when middle mouse / space is held), hide the plus handles (`if (appState?.isPanning) return null;`) and re-anchor them instantly the moment panning stops.
+## 📋 Prioritized Follow-Up Items (from Sprint Board)
+
+### 1. Collaborative Soundboard Broadcasting (`IN_PROGRESS`)
+- Replicate `Y.Map` `soundboard_triggers` across peers for collaborative audio cues ([`src/audio/soundboard.ts`](file:///home/nikolas/miro-alt/src/audio/soundboard.ts)).
+
+### 2. History Drawer UI for Activity Audit Log (`REVIEW` / `TODO`)
+- Build history drawer UI with formatted timestamps and semantic diffs ([`src/crdt/activityLog.ts`](file:///home/nikolas/miro-alt/src/crdt/activityLog.ts)).
+
+### 3. Live Relay Session Operations (`TODO`)
+- Automate periodic git commit squash for active live sessions (leader election + 5s debounce).
+- GitHub Blobs API fallback for >1MB board assets.
+
+### 4. SVG Canvas Export (`TODO`)
+- Export Excalidraw scene to SVG string with embedded encrypted `.slate` payload, plus drag-and-drop SVG restore.
 
 ---
 
