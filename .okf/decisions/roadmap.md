@@ -4,7 +4,7 @@ title: Roadmap
 description: Agreed next steps and open decisions as of 2026-11-11.
 tags: [roadmap, plan]
 status: draft
-generated: { by: antigravity/gemini, at: "2026-11-11T16:58:00Z" }
+generated: { by: "antigravity/gemini", at: "2026-11-13T01:06:00Z" }
 stale_after: "2027-02-01T00:00:00Z"
 ---
 
@@ -36,8 +36,18 @@ Implemented and verified in `dev/theming/`:
 1. **Jira/Linear-Grade Task System**: Stored in CRDT map `doc.getMap("tasks")`, interactive canvas cards with live subtask checkoffs, tree connectors, arrow linking, 2-way sticky tag sync, and multi-views (Kanban, List, Gantt, Calendar, Dashboard, Team Roles).
 2. **Custom Theming Engine & Studio**: 11 authentic OS presets, custom theme spec, 8 style modes (`bevel`, `glass`, `xp`, `metal`, `neon`, `pinstripe`, `tui`, `flat`), dynamic CSS variables, live interactive preview, and JSON export/import.
 3. **Headless Board CLI & AI Agent Bridge (`npx caulk`)**: `bin/caulk.mjs` allows external AI agents (Antigravity, Claude Code, Cursor, Codex, OpenCode, Aider) and CI/CD pipelines to inspect boards (`dump`), manage tasks (`list-tasks`, `add-task`, `update-task`), drop stickies (`add-sticky`), and inspect/switch themes (`get-theme`, `set-theme`) over encrypted or unencrypted `.slate` files directly. Documented in `AGENTS.md`.
+4. **Infinite Canvas v2 System**: Tactical Radar Minimap & Spatial Waypoints, Sugiyama Hierarchy Tree DAG layout, 6-axis selection alignment & distribution toolbar, quick-branching handles, rich canvas embeds (empty VGUI checklists, syntax-highlighted code cards, web bookmarks, 2x2 strategy matrices), <kbd>TAB</kbd> player list scoreboard HUD, and magic main color shade generator (`generateShadesFromMainColor`).
 
-# Next Up: Multi-Agent Presence & Jira Sync
+# Next Up: Handoff & Known Follow-up Items
+
+1. **Theme-Aware Arrow Colors**:
+   - *Current issue*: Connector arrows spawned by quick-branching handles in `src/features/diagram/BranchingOverlay.tsx` (line 146) are hardcoded to `#c59c3a` (classic VGUI gold/amber).
+   - *Target behavior*: Connectors should dynamically adapt their `strokeColor` to the current active theme accent (`boardTheme.colors.accent` / `effectiveTheme.accent`), ensuring arrows blend seamlessly into Frutiger Aero, Windows XP, Cyberpunk, or user-generated palettes.
+2. **Quick-Branch Handles Anchoring During Board Movement**:
+   - *Current issue*: The four directional plus (`+`) handles follow an object when the object itself is moved. However, when the user pans/moves the entire board (via spacebar drag, middle-click pan, or trackpad) while an object is selected, the plus handles can desynchronize or move relative to the viewport instead of remaining locked to the selected object's scene coordinates.
+   - *Target behavior*: The overlay projection in `BranchingOverlay.tsx` (`toOverlayXY`) should stay locked to the selected element during viewport pan/scroll, or hide during active board panning (`appState.isPanning` / background drag) and snap into position upon pan release.
+
+# Multi-Agent Presence & Jira Sync
 
 # Hosting for others (agreed, not started)
 
